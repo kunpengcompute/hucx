@@ -20,5 +20,6 @@ $basedir/../configure \
 	--enable-stats \
 	--enable-fault-injection \
 	--enable-debug-data \
+	--enable-devel-headers \
 	--enable-mt \
 	"$@"
