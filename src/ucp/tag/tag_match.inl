@@ -341,7 +341,7 @@ ucp_tag_recv_request_process_rdesc(ucp_request_t *req, ucp_recv_desc_t *rdesc,
      status = ucp_tag_request_process_recv_data(req,
                                                 UCS_PTR_BYTE_OFFSET(rdesc + 1, hdr_len),
                                                 recv_len, offset, 0, rdesc->flags);
-     ucp_recv_desc_release(rdesc);
+     ucp_recv_desc_release(rdesc, NULL);
      return status;
 }
 

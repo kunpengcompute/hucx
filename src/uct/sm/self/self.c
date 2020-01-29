@@ -122,7 +122,8 @@ static ucs_status_t uct_self_iface_query(uct_iface_h tl_iface, uct_iface_attr_t 
     attr->latency                 = ucs_linear_func_make(0, 0);
     attr->bandwidth.dedicated     = 6911.0 * UCS_MBYTE;
     attr->bandwidth.shared        = 0;
-    attr->overhead                = 10e-9;
+    attr->overhead_short          = 10e-9;
+    attr->overhead_bcopy          = 11e-9;
     attr->priority                = 0;
 
     return UCS_OK;

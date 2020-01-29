@@ -112,7 +112,8 @@ static ucs_status_t uct_cuda_copy_iface_query(uct_iface_h tl_iface,
     iface_attr->latency                 = ucs_linear_func_make(8e-6, 0);
     iface_attr->bandwidth.dedicated     = 0;
     iface_attr->bandwidth.shared        = iface->config.bandwidth;
-    iface_attr->overhead                = UCT_CUDA_COPY_IFACE_OVERHEAD;
+    iface_attr->overhead_short          = UCT_CUDA_COPY_IFACE_OVERHEAD;
+    iface_attr->overhead_bcopy          = UCT_CUDA_COPY_IFACE_OVERHEAD;
     iface_attr->priority                = 0;
 
     return UCS_OK;

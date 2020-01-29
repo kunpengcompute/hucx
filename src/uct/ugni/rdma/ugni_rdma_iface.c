@@ -93,7 +93,8 @@ static ucs_status_t uct_ugni_rdma_iface_query(uct_iface_h tl_iface, uct_iface_at
                                               UCS_BIT(UCT_ATOMIC_OP_SWAP)  |
                                               UCS_BIT(UCT_ATOMIC_OP_CSWAP);
     }
-    iface_attr->overhead            = 80e-9; /* 80 ns */
+    iface_attr->overhead_short      = 80e-9; /* 80 ns */
+    iface_attr->overhead_bcopy      = 81e-9; /* 81 ns */
     iface_attr->latency             = ucs_linear_func_make(900e-9, 0); /* 900 ns */
     iface_attr->bandwidth.dedicated = 6911.0 * UCS_MBYTE; /* bytes */
     iface_attr->bandwidth.shared    = 0;

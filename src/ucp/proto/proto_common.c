@@ -513,7 +513,7 @@ void ucp_proto_common_calc_perf(const ucp_proto_common_init_params_t *params,
         tl_min_length = ucp_proto_common_get_iface_attr_field(
                 iface_attr, params->min_frag_offs, 0);
 
-        overhead        += iface_attr->overhead;
+        overhead        += iface_attr->overhead_short;
         latency          = ucs_max(tl_latency, latency);
         caps->min_length = ucs_max(caps->min_length, tl_min_length);
     }

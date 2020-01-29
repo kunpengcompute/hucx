@@ -28,7 +28,9 @@ enum {
          UCT_IFACE_FLAG_GET_ZCOPY |
          UCT_IFACE_FLAG_TAG_EAGER_BCOPY |
          UCT_IFACE_FLAG_TAG_RNDV_ZCOPY  |
-         UCT_IFACE_FLAG_PENDING
+         UCT_IFACE_FLAG_PENDING |
+         UCT_IFACE_FLAG_INCAST |
+         UCT_IFACE_FLAG_BCAST
 };
 
 
@@ -83,7 +85,8 @@ enum {
 struct ucp_address_iface_attr {
     uint64_t                    cap_flags;    /* Interface capability flags */
     uint64_t                    event_flags;  /* Interface event capability flags */
-    double                      overhead;     /* Interface performance - overhead */
+    double                      overhead_short; /* Interface performance - overhead (short) */
+    double                      overhead_bcopy; /* Interface performance - overhead (bcopy) */
     uct_ppn_bandwidth_t         bandwidth;    /* Interface performance - bandwidth */
     int                         priority;     /* Priority of device */
     double                      lat_ovh;      /* Latency overhead */

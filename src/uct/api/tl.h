@@ -286,6 +286,10 @@ typedef int          (*uct_iface_is_reachable_func_t)(const uct_iface_h iface,
                                                       const uct_device_addr_t *dev_addr,
                                                       const uct_iface_addr_t *iface_addr);
 
+typedef int          (*iface_release_shared_desc_func_t)(uct_iface_h iface,
+                                                         uct_recv_desc_t *self,
+                                                         void *desc);
+
 
 /**
  * Transport interface operations.
@@ -372,6 +376,8 @@ typedef struct uct_iface_ops {
     uct_iface_get_address_func_t        iface_get_address;
     uct_iface_is_reachable_func_t       iface_is_reachable;
 
+    /* interface - resource release */
+    iface_release_shared_desc_func_t    iface_release_shared_desc;
 } uct_iface_ops_t;
 
 
@@ -408,9 +414,7 @@ typedef struct uct_listener {
 } uct_listener_t;
 
 
-typedef struct uct_recv_desc uct_recv_desc_t;
 typedef void (*uct_desc_release_callback_t)(uct_recv_desc_t *self, void * desc);
-
 
 /**
  * Receive descriptor

@@ -60,7 +60,7 @@ void ucp_tag_match_cleanup(ucp_tag_match_t *tm)
                            tag_list[UCP_RDESC_ALL_LIST]) {
         ucs_warn("unexpected tag-receive descriptor %p was not matched", rdesc);
         ucp_tag_unexp_remove(rdesc);
-        ucp_recv_desc_release(rdesc);
+        ucp_recv_desc_release(rdesc, NULL);
     }
 
     kh_destroy_inplace(ucp_tag_offload_hash, &tm->offload.tag_hash);

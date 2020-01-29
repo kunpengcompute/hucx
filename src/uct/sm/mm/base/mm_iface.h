@@ -148,7 +148,7 @@ typedef struct uct_mm_desc_info {
  * MM FIFO element
  */
 typedef struct uct_mm_fifo_element {
-    uint8_t                   flags;          /* UCT_MM_FIFO_ELEM_FLAG_xx */
+    volatile uint8_t          flags;          /* UCT_MM_FIFO_ELEM_FLAG_xx */
     uint8_t                   am_id;          /* active message id */
     uint16_t                  length;         /* length of actual data written
                                                  by producer */
@@ -176,29 +176,37 @@ typedef struct uct_mm_recv_desc {
 } uct_mm_recv_desc_t;
 
 
+typedef struct uct_mm_fifo_check {
+    int                      is_flags_cached;
+    uint8_t                  flags_cache;
+    uint8_t                  fifo_shift;  /* = log2(fifo_size) */
+    uint64_t                 read_index;  /* actual reading location */
+    uct_mm_fifo_element_t   *read_elem;
+    uct_mm_fifo_ctl_t       *fifo_ctl;    /* pointer to the struct at the
+                                           * beginning of the receive fifo
+                                           * which holds the head and the tail.
+                                           * this struct is cache line aligned
+                                           * and doesn't necessarily start where
+                                           * shared_mem starts. */
+
+    uint64_t                 fifo_release_factor_mask;
+} uct_mm_fifo_check_t;
+
+
 /**
  * MM trandport interface
  */
-typedef struct uct_mm_iface {
+typedef struct uct_mm_base_iface {
     uct_sm_iface_t          super;
 
     /* Receive FIFO */
     uct_allocated_memory_t  recv_fifo_mem;
-
-    uct_mm_fifo_ctl_t       *recv_fifo_ctl;   /* pointer to the struct at the */
-                                              /* beginning of the receive fifo */
-                                              /* which holds the head and the tail. */
-                                              /* this struct is cache line aligned and */
-                                              /* doesn't necessarily start where */
-                                              /* shared_mem starts */
+    uct_mm_fifo_check_t     recv_check;
     void                    *recv_fifo_elems; /* pointer to the first fifo element
                                                  in the receive fifo */
-    uct_mm_fifo_element_t   *read_index_elem;
-    uint64_t                read_index;       /* actual reading location */
 
-    uint8_t                 fifo_shift;       /* = log2(fifo_size) */
+
     unsigned                fifo_mask;        /* = 2^fifo_shift - 1 */
-    uint64_t                fifo_release_factor_mask;
 
     unsigned                fifo_poll_count;     /* How much RX operations can be polled
                                                   * during an iface progress call */
@@ -221,8 +229,11 @@ typedef struct uct_mm_iface {
         unsigned            fifo_max_poll;
         uint64_t            extra_cap_flags;
     } config;
-} uct_mm_iface_t;
+} uct_mm_base_iface_t;
 
+typedef struct uct_mm_iface {
+    uct_mm_base_iface_t super;
+} uct_mm_iface_t;
 
 /*
  * Define a memory-mapper transport for MM.
@@ -235,25 +246,50 @@ typedef struct uct_mm_iface {
  * @param _cfg_table    Configuration table
  */
 #define UCT_MM_TL_DEFINE(_name, _md_ops, _rkey_unpack, _rkey_release, \
-                         _cfg_prefix, _cfg_table) \
+                         _cfg_prefix, _cfg_table, _tl_suffix) \
     \
-    UCT_MM_COMPONENT_DEFINE(uct_##_name##_component, _name, _md_ops, \
-                            _rkey_unpack, _rkey_release, _cfg_prefix) \
+    UCT_MM_COMPONENT_DEFINE(uct_##_name##_tl_suffix##_component, \
+            _name, _tl_suffix, _md_ops, _rkey_unpack, _rkey_release, _cfg_prefix) \
     \
-    UCT_TL_DEFINE(&(uct_##_name##_component).super, \
-                  _name, \
+    UCT_TL_DEFINE(&(uct_##_name##_tl_suffix##_component).super, \
+                  _name##_tl_suffix, \
                   uct_sm_base_query_tl_devices, \
                   uct_mm_iface_t, \
                   _cfg_prefix, \
+                  uct_mm##_tl_suffix##iface_t, \
+                  "MM_" _cfg_prefix, \
                   _cfg_table, \
                   uct_mm_iface_config_t);
 
 
 extern ucs_config_field_t uct_mm_iface_config_table[];
 
+static UCS_F_ALWAYS_INLINE int
+uct_mm_iface_fifo_has_new_data(uct_mm_fifo_check_t *check_info)
+{
+    /* check the flags_cache to see if anything changed */
+    uint8_t flags = check_info->read_elem->flags;
+    if (ucs_likely((check_info->is_flags_cached) &&
+                   (check_info->flags_cache == flags))) {
+        return 0;
+    }
+
+    /* check the read_index to see if there is a new item to read (checking the owner bit) */
+    uint8_t owner_bit = flags & UCT_MM_FIFO_ELEM_FLAG_OWNER;
+    if (((check_info->read_index >> check_info->fifo_shift) & 1) != owner_bit) {
+        check_info->is_flags_cached = 1;
+        check_info->flags_cache     = flags;
+        return 0;
+    }
+
+    ucs_memory_cpu_load_fence();
+
+    check_info->is_flags_cached = 0;
+    return 1;
+}
 
 static UCS_F_ALWAYS_INLINE ucs_status_t
-uct_mm_iface_invoke_am(uct_mm_iface_t *iface, uint8_t am_id, void *data,
+uct_mm_iface_invoke_am(uct_mm_base_iface_t *iface, uint8_t am_id, void *data,
                        unsigned length, unsigned flags)
 {
     ucs_status_t status;
@@ -271,6 +307,47 @@ uct_mm_iface_invoke_am(uct_mm_iface_t *iface, uint8_t am_id, void *data,
     return status;
 }
 
+static UCS_F_ALWAYS_INLINE void
+uct_mm_iface_fifo_window_adjust(uct_mm_base_iface_t *iface,
+                                unsigned fifo_poll_count)
+{
+    if (fifo_poll_count < iface->fifo_poll_count) {
+        iface->fifo_poll_count = ucs_max(iface->fifo_poll_count /
+                                         UCT_MM_IFACE_FIFO_MD_FACTOR,
+                                         UCT_MM_IFACE_FIFO_MIN_POLL);
+        iface->fifo_prev_wnd_cons = 0;
+        return;
+    }
+
+    ucs_assert(fifo_poll_count == iface->fifo_poll_count);
+
+    if (iface->fifo_prev_wnd_cons) {
+        /* Increase FIFO window size if it was fully consumed
+         * during the previous iface progress call in order
+         * to prevent the situation when the window will be
+         * adjusted to [MIN, MIN + 1, MIN, MIN + 1, ...] that
+         * is harmful to latency */
+        iface->fifo_poll_count = ucs_min(iface->fifo_poll_count +
+                                         UCT_MM_IFACE_FIFO_AI_VALUE,
+                                         iface->config.fifo_max_poll);
+    } else {
+        iface->fifo_prev_wnd_cons = 1;
+    }
+}
+
+static UCS_F_ALWAYS_INLINE void
+uct_mm_progress_fifo_tail(uct_mm_fifo_check_t *recv_check)
+{
+    ucs_prefetch(recv_check->read_elem);
+
+    /* don't progress the tail every time - release in batches. improves performance */
+    if (recv_check->read_index & recv_check->fifo_release_factor_mask) {
+        return;
+    }
+
+    recv_check->fifo_ctl->tail = recv_check->read_index;
+}
+
 
 /**
  * Set aligned pointers of the FIFO according to the beginning of the allocated
@@ -282,15 +359,40 @@ uct_mm_iface_invoke_am(uct_mm_iface_t *iface, uint8_t am_id, void *data,
 void uct_mm_iface_set_fifo_ptrs(void *fifo_mem, uct_mm_fifo_ctl_t **fifo_ctl_p,
                                 void **fifo_elems_p);
 
-
 UCS_CLASS_DECLARE_NEW_FUNC(uct_mm_iface_t, uct_iface_t, uct_md_h, uct_worker_h,
                            const uct_iface_params_t*, const uct_iface_config_t*);
 
+UCS_CLASS_DECLARE(uct_mm_base_iface_t, uct_iface_ops_t*, uct_md_h, uct_worker_h,
+                  const uct_iface_params_t*, const uct_iface_config_t*);
+
+UCS_CLASS_DECLARE(uct_mm_iface_t, uct_md_h, uct_worker_h,
+                  const uct_iface_params_t*, const uct_iface_config_t*);
+
+ucs_status_t uct_mm_assign_desc_to_fifo_elem(uct_mm_base_iface_t *iface,
+                                             uct_mm_fifo_element_t *elem,
+                                             unsigned need_new_desc);
 
 void uct_mm_iface_release_desc(uct_recv_desc_t *self, void *desc);
 
-
 ucs_status_t uct_mm_flush();
 
+ucs_status_t uct_mm_iface_flush(uct_iface_h tl_iface, unsigned flags,
+                                uct_completion_t *comp);
+
+ucs_status_t uct_mm_iface_query(uct_iface_h tl_iface,
+                                uct_iface_attr_t *iface_attr);
+
+ucs_status_t uct_mm_iface_get_address(uct_iface_t *tl_iface,
+                                      uct_iface_addr_t *addr);
+
+int uct_mm_iface_is_reachable(const uct_iface_h tl_iface,
+                              const uct_device_addr_t *dev_addr,
+                              const uct_iface_addr_t *tl_iface_addr);
+
+unsigned uct_mm_iface_progress(uct_iface_h tl_iface);
+
+ucs_status_t uct_mm_iface_event_fd_get(uct_iface_h tl_iface, int *fd_p);
+
+ucs_status_t uct_mm_iface_event_fd_arm(uct_iface_h tl_iface, unsigned events);
 
 #endif

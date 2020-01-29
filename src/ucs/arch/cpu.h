@@ -51,7 +51,8 @@ typedef enum ucs_cpu_flag {
     UCS_CPU_FLAG_SSE41      = UCS_BIT(7),
     UCS_CPU_FLAG_SSE42      = UCS_BIT(8),
     UCS_CPU_FLAG_AVX        = UCS_BIT(9),
-    UCS_CPU_FLAG_AVX2       = UCS_BIT(10)
+    UCS_CPU_FLAG_AVX2       = UCS_BIT(10),
+    UCS_CPU_FLAG_AVX512F    = UCS_BIT(11)
 } ucs_cpu_flag_t;
 
 
@@ -155,6 +156,10 @@ static inline int ucs_cpu_prefer_relaxed_order()
     return ucs_arch_get_cpu_vendor() == UCS_CPU_VENDOR_FUJITSU_ARM;
 }
 
+static inline int ucs_cpu_cache_line_is_equal(const void *a, const void *b)
+{
+    return ucs_arch_cache_line_is_equal(a, b);
+}
 
 END_C_DECLS
 

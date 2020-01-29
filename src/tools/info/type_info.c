@@ -70,6 +70,12 @@
 #  include <uct/ugni/smsg/ugni_smsg_ep.h>
 #endif
 
+#ifdef ENABLE_UCG
+#  include <ucg/base/ucg_group.h>
+#  include <ucg/base/ucg_context.h>
+#  include <ucg/builtin/ops/builtin_ops.h>
+#  include <ucg/builtin/plan/builtin_plan.h>
+#endif
 
 static void print_size(const char *name, size_t size)
 {
@@ -273,4 +279,16 @@ void print_type_info(const char * tl_name)
     PRINT_SIZE(ucp_rkey_t);
     PRINT_SIZE(ucp_wireup_msg_t);
 
+#ifdef ENABLE_UCG
+    printf("\nUCG:\n");
+    PRINT_SIZE(ucg_context_t);
+    PRINT_SIZE(ucg_group_t);
+    PRINT_SIZE(ucg_plan_t);
+
+    printf("\nUCG - builtin:\n");
+    PRINT_SIZE(ucg_builtin_plan_t);
+    PRINT_SIZE(ucg_builtin_op_t);
+    PRINT_SIZE(ucg_builtin_op_step_t);
+    PRINT_SIZE(ucg_builtin_comp_slot_t);
+#endif
 }

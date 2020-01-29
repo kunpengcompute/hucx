@@ -37,6 +37,8 @@ noinst_HEADERS = \
 	sm/mm/base/mm_md.h \
 	sm/scopy/base/scopy_iface.h \
 	sm/scopy/base/scopy_ep.h \
+	sm/mm/coll/mm_coll_iface.h \
+	sm/mm/coll/mm_coll_ep.h \
 	sm/self/self.h \
 	tcp/tcp_base.h \
 	tcp/tcp.h \
@@ -58,6 +60,10 @@ libuct_la_SOURCES = \
 	sm/mm/base/mm_iface.c \
 	sm/mm/base/mm_ep.c \
 	sm/mm/base/mm_md.c \
+	sm/mm/coll/mm_coll_ep.c \
+	sm/mm/coll/mm_coll_iface.c \
+	sm/mm/coll/mm_coll_bcast.c \
+	sm/mm/coll/mm_coll_incast.c \
 	sm/mm/posix/mm_posix.c \
 	sm/mm/sysv/mm_sysv.c \
 	sm/scopy/base/scopy_iface.c \

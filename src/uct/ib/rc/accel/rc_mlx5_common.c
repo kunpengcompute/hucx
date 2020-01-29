@@ -1125,7 +1125,8 @@ void uct_rc_mlx5_iface_common_query(uct_ib_iface_t *ib_iface,
     }
 
     /* Software overhead */
-    iface_attr->overhead = 40e-9;
+    iface_attr->overhead_short = 40e-9;
+    iface_attr->overhead_bcopy = 41e-9;
 
     /* Tag Offload */
     uct_rc_mlx5_tag_query(iface, iface_attr, max_inline, max_tag_eager_iov);

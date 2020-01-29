@@ -96,8 +96,9 @@ enum {
                                                          because UCT AM callback is still in
                                                          the call stack and descriptor is not
                                                          initialized yet. */
-    UCP_RECV_DESC_FLAG_RELEASED         = UCS_BIT(10) /* Indicates that the descriptor was
+    UCP_RECV_DESC_FLAG_RELEASED         = UCS_BIT(10),/* Indicates that the descriptor was
                                                          released and cannot be used. */
+    UCP_RECV_DESC_FLAG_UCT_DESC_SHARED  = UCS_BIT(11)  /* Descriptor shared with others */
 };
 
 

@@ -41,9 +41,21 @@ static void usage() {
     printf("                    'r' : remote memory access\n");
     printf("                    't' : tag matching \n");
     printf("                    'm' : active messages \n");
+#if ENABLE_UCG
+    printf("                    'g' : groups\n");
+#endif
     printf("                  Modifiers to use in combination with above features:\n");
     printf("                    'w' : wakeup\n");
     printf("                    'e' : error handling\n");
+#if ENABLE_UCG
+    printf("\nUCG information:\n");
+    printf("  -g              Show UCG information\n");
+    printf("  -P <planner>    UCG Planner component to use\n");
+    printf("  -C <coll_type>  UCG Collective operation type to plan (default: allreduce)\n");
+    printf("  -S <size>       UCG Collective operation buffer size  (a.k.a \"count\", default: 1)\n");
+    printf("  -I <index>      UCG Group index to use as mine (a.k.a \"rank\", default: 0)\n");
+    printf("  -T X:[Y:[Z]]    UCG Topology: number of peers of each distance (socket:host:fabric)\n");
+#endif
     printf("\nOther settings:\n");
     printf("  -t <name>       Filter devices information using specified transport (requires -d)\n");
     printf("  -n <count>      Estimated UCP endpoint count (for ucp_init)\n");
@@ -64,11 +76,33 @@ static void usage() {
     printf("\n");
 }
 
+#if ENABLE_UCG
+static inline void parse_ucg_peers(ucg_group_member_index_t *peer_count,
+                                   unsigned max_nums, char *optarg)
+{
+    char *s = strtok(optarg, ":");
+    while ((s != NULL) && (max_nums)) {
+        *peer_count = atoi(s);
+        s = strtok(NULL, ":");
+        peer_count++;
+        max_nums--;
+    }
+}
+#endif
+
 int main(int argc, char **argv)
 {
     const uint64_t required_ucp_features = UCP_FEATURE_AMO32 |
                                            UCP_FEATURE_AMO64 | UCP_FEATURE_RMA |
                                            UCP_FEATURE_TAG | UCP_FEATURE_AM;
+#if ENABLE_UCG
+    char *collective_type_name = "allreduce";
+    ucg_group_member_index_t peer_count[4] = {0};
+    ucg_group_member_index_t root_index = 0;
+    ucg_group_member_index_t my_index = 0;
+    char *planner_name = NULL;
+    size_t count = 1;
+#endif
     char *ip_addr = NULL;
     ucs_config_print_flags_t print_flags;
     ucp_ep_params_t ucp_ep_params;
@@ -93,7 +127,7 @@ int main(int argc, char **argv)
     proc_placement           = PROCESS_PLACEMENT_SELF;
     ucp_ep_params.field_mask = 0;
 
-    while ((c = getopt(argc, argv, "fahvcydbswpeCt:n:u:D:P:m:N:A:")) != -1) {
+    while ((c = getopt(argc, argv, "fahvcydbswpegCt:n:u:D:P:m:N:A:P:T:Q:C:I:S:r:R:")) != -1) {
         switch (c) {
         case 'f':
             print_flags |= UCS_CONFIG_PRINT_CONFIG | UCS_CONFIG_PRINT_HEADER | UCS_CONFIG_PRINT_DOC;
@@ -135,6 +169,32 @@ int main(int argc, char **argv)
             print_opts |= PRINT_MEM_MAP;
             mem_size = optarg;
             break;
+#if ENABLE_UCG
+        case 'g':
+            print_opts   |= PRINT_UCG;
+            ucp_features |= UCP_FEATURE_GROUPS | UCP_FEATURE_TAG;
+            break;
+        case 'I':
+            my_index = atol(optarg);
+            break;
+        case 'r':
+            root_index = atol(optarg);
+            break;
+        case 'C':
+            collective_type_name = optarg;
+            break;
+        case 'T':
+            print_opts   |= PRINT_UCG_TOPO;
+            ucp_features |= UCP_FEATURE_GROUPS | UCP_FEATURE_TAG;
+            parse_ucg_peers(&peer_count[1], 3, optarg);
+            break;
+        case 'Q':
+            planner_name = optarg;
+            break;
+        case 'S':
+            count = atol(optarg);
+            break;
+#endif
         case 't':
             tl_name = optarg;
             break;
@@ -161,6 +221,8 @@ int main(int argc, char **argv)
                     break;
                 case 'w':
                     ucp_features |= UCP_FEATURE_WAKEUP;
+                case 'g':
+                    ucp_features |= UCP_FEATURE_GROUPS | UCP_FEATURE_TAG;
                     break;
                 case 'e':
                     ucp_ep_params.field_mask |= UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE;
@@ -244,9 +306,10 @@ int main(int argc, char **argv)
                                          print_flags, &ucs_config_global_list);
     }
 
-    if (print_opts & (PRINT_UCP_CONTEXT|PRINT_UCP_WORKER|PRINT_UCP_EP|PRINT_MEM_MAP)) {
+    if (print_opts & (PRINT_UCP_CONTEXT|PRINT_UCP_WORKER|PRINT_UCP_EP|PRINT_MEM_MAP|
+                      PRINT_UCG|PRINT_UCG_TOPO)) {
         if (!(ucp_features & required_ucp_features)) {
-            printf("Please select at least one of 'a','r','t','m' UCP features "
+            printf("Please select at least one of 'a','r','t','m','g' UCP features "
                    "using -u switch.\n");
             usage();
             return -1;
@@ -255,7 +318,12 @@ int main(int argc, char **argv)
         return print_ucp_info(print_opts, print_flags, ucp_features,
                               &ucp_ep_params, ucp_num_eps, ucp_num_ppn,
                               dev_type_bitmap, proc_placement, mem_size,
-                              ip_addr);
+                              ip_addr
+#if ENABLE_UCG
+                              ,planner_name, root_index, my_index,
+                              collective_type_name, count, peer_count
+#endif
+                              );
     }
 
     return 0;

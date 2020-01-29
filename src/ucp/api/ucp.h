@@ -125,7 +125,8 @@ enum ucp_params_field {
     UCP_PARAM_FIELD_MT_WORKERS_SHARED = UCS_BIT(5), /**< mt_workers_shared */
     UCP_PARAM_FIELD_ESTIMATED_NUM_EPS = UCS_BIT(6), /**< estimated_num_eps */
     UCP_PARAM_FIELD_ESTIMATED_NUM_PPN = UCS_BIT(7), /**< estimated_num_ppn */
-    UCP_PARAM_FIELD_NAME              = UCS_BIT(8)  /**< name */
+    UCP_PARAM_FIELD_NAME              = UCS_BIT(8), /**< name */
+    UCP_PARAM_FIELD_CONTEXT_HEADROOM  = UCS_BIT(9)  /**< context_headroom */
 };
 
 
@@ -149,8 +150,10 @@ enum ucp_feature {
     UCP_FEATURE_WAKEUP       = UCS_BIT(4),  /**< Request interrupt
                                                  notification support */
     UCP_FEATURE_STREAM       = UCS_BIT(5),  /**< Request stream support */
-    UCP_FEATURE_AM           = UCS_BIT(6)   /**< Request Active Message
+    UCP_FEATURE_AM           = UCS_BIT(6),  /**< Request Active Message
                                                  support */
+    UCP_FEATURE_GROUPS       = UCS_BIT(7)   /**< Request collective
+                                                 operations support */
 };
 
 
@@ -1045,6 +1048,9 @@ typedef struct ucp_params {
      * unique name will be created for you.
      */
     const char                         *name;
+
+    /** Head-room before the allocated context pointer, for extensions */
+    size_t                             context_headroom;
 } ucp_params_t;
 
 

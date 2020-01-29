@@ -9,6 +9,7 @@
 
 #include <ucs/config/types.h>
 #include <ucs/type/status.h>
+#include <ucs/type/spinlock.h>
 
 #include <stddef.h>
 #include <stdint.h>
@@ -16,16 +17,18 @@
 
 
 #define UCT_COMPONENT_NAME_MAX     16
-#define UCT_TL_NAME_MAX            10
+#define UCT_TL_NAME_MAX            16
 #define UCT_MD_NAME_MAX            16
 #define UCT_DEVICE_NAME_MAX        32
 #define UCT_PENDING_REQ_PRIV_LEN   40
 #define UCT_TAG_PRIV_LEN           32
 #define UCT_AM_ID_BITS             5
+#define UCT_AM_ID_DISCARD          UCS_MASK(UCT_AM_ID_BITS)
 #define UCT_AM_ID_MAX              UCS_BIT(UCT_AM_ID_BITS)
 #define UCT_MEM_HANDLE_NULL        NULL
 #define UCT_INVALID_RKEY           ((uintptr_t)(-1))
 #define UCT_INLINE_API             static UCS_F_ALWAYS_INLINE
+#define UCT_PACK_CALLBACK_REDUCE   ((uintptr_t)(1))
 
 
 /**
@@ -62,11 +65,30 @@ enum uct_am_trace_type {
  * @ref uct_tag_unexp_eager_cb_t callback only. The former value indicates that
  * the data is the first fragment of the message. The latter value means that
  * more fragments of the message yet to be delivered.
+ *
+ * UCT_CB_PARAM_FLAG_SHARED is used to indicate that the descriptor (see details
+ * on UCT_CB_PARAM_FLAG_DESC) is "shared" with other peers, and so must only be
+ * released by using a dedicated function from that interface. A call to UCT's
+ * @ref uct_iface_release_shared_desc() must be used instead of the default
+ * @ref uct_iface_release_desc() on descriptors given with this flag enabled.
+ *
+ * UCT_CB_PARAM_FLAG_STRIDE is typically used for aggregating messages. If this
+ * flag is on, the "length" field of the callback should be interpreted as the
+ * size of the stride between two consecutive messages in the given data buffer.
+ * More specifically, "length" is the distance between the first byte of message
+ * N and the first byte of message N+1 (message N=0 starts at the beginning of
+ * the given data buffer). The size of each message (which may vary between
+ * messages in the same buffer), as well as the number of messages given, is not
+ * specified by the callback if this flag is enabled - the receiver is expected
+ * to coordinate this information beforehand, or make some assumptions and get
+ * this information from the data buffer itself.
  */
 enum uct_cb_param_flags {
-    UCT_CB_PARAM_FLAG_DESC  = UCS_BIT(0),
-    UCT_CB_PARAM_FLAG_FIRST = UCS_BIT(1),
-    UCT_CB_PARAM_FLAG_MORE  = UCS_BIT(2)
+    UCT_CB_PARAM_FLAG_DESC   = UCS_BIT(0),
+    UCT_CB_PARAM_FLAG_FIRST  = UCS_BIT(1),
+    UCT_CB_PARAM_FLAG_MORE   = UCS_BIT(2),
+    UCT_CB_PARAM_FLAG_SHARED = UCS_BIT(3),
+    UCT_CB_PARAM_FLAG_STRIDE = UCS_BIT(4)
 };
 
 /**
@@ -107,6 +129,7 @@ typedef struct uct_tag_context       uct_tag_context_t;
 typedef uint64_t                     uct_tag_t;  /* tag type - 64 bit */
 typedef int                          uct_worker_cb_id_t;
 typedef void*                        uct_conn_request_h;
+typedef struct uct_recv_desc         uct_recv_desc_t;
 
 /**
  * @}

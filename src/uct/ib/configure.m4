@@ -237,7 +237,8 @@ AS_IF([test "x$with_ib" = "xyes"],
              [AC_MSG_NOTICE([Compiling with mlx5 bare-metal support])
               AC_DEFINE([HAVE_MLX5_HW], 1, [mlx5 bare-metal support])
               AS_IF([test "x$has_get_av" = "xyes"],
-                 [AC_DEFINE([HAVE_MLX5_HW_UD], 1, [mlx5 UD bare-metal support])])])
+                 [AC_DEFINE([HAVE_MLX5_HW_UD], 1, [mlx5 UD bare-metal support])])
+             ])
 
        AC_CHECK_DECLS([IBV_LINK_LAYER_INFINIBAND,
                        IBV_LINK_LAYER_ETHERNET,

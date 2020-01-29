@@ -90,7 +90,8 @@ static ucs_status_t uct_rocm_gdr_iface_query(uct_iface_h tl_iface,
     iface_attr->latency                 = ucs_linear_func_make(1e-6, 0);
     iface_attr->bandwidth.dedicated     = 0;
     iface_attr->bandwidth.shared        = 6911.0 * UCS_MBYTE;
-    iface_attr->overhead                = 0;
+    iface_attr->overhead_short          = 0;
+    iface_attr->overhead_bcopy          = 0;
     iface_attr->priority                = 0;
 
     return UCS_OK;

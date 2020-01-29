@@ -208,7 +208,8 @@ static ucs_status_t uct_ugni_smsg_iface_query(uct_iface_h tl_iface, uct_iface_at
                                          UCT_IFACE_FLAG_CB_SYNC  |
                                          UCT_IFACE_FLAG_PENDING;
 
-    iface_attr->overhead               = 1e-6;  /* 1 usec */
+    iface_attr->overhead_short         = 1e-6;  /* 1 usec */
+    iface_attr->overhead_bcopy         = 1e-6;  /* 1 usec */
     iface_attr->latency                = ucs_linear_func_make(40e-6, 0); /* 40 usec */
     iface_attr->bandwidth.dedicated    = 1.0 * UCS_MBYTE; /* bytes */
     iface_attr->bandwidth.shared       = 0;

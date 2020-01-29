@@ -14,6 +14,7 @@
 #include <ucs/arch/cpu.h>
 #include <ucs/debug/assert.h>
 #include <ucs/profile/profile.h>
+#include <ucs/type/spinlock.h>
 
 
 /**

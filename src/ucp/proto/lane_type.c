@@ -38,6 +38,12 @@ const ucp_lane_type_info_t ucp_lane_type_info[] = {
     [UCP_LANE_TYPE_CM] = {
         .short_name = "cm"
     },
+    [UCP_LANE_TYPE_INCAST] = {
+        .short_name = "incast"
+    },
+    [UCP_LANE_TYPE_BCAST] = {
+        .short_name = "bcast"
+    },
     [UCP_LANE_TYPE_LAST] = {
         .short_name = NULL
     },

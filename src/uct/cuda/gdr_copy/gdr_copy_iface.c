@@ -89,7 +89,8 @@ uct_gdr_copy_iface_query(uct_iface_h tl_iface, uct_iface_attr_t *iface_attr)
     iface_attr->latency                 = ucs_linear_func_make(1e-6, 0);
     iface_attr->bandwidth.dedicated     = 0;
     iface_attr->bandwidth.shared        = UCT_GDR_COPY_IFACE_DEFAULT_BANDWIDTH;
-    iface_attr->overhead                = UCT_GDR_COPY_IFACE_OVERHEAD;
+    iface_attr->overhead_short          = UCT_GDR_COPY_IFACE_OVERHEAD;
+    iface_attr->overhead_bcopy          = UCT_GDR_COPY_IFACE_OVERHEAD;
     iface_attr->priority                = 0;
 
     return UCS_OK;

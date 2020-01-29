@@ -252,7 +252,8 @@ static ucs_status_t uct_tcp_iface_query(uct_iface_h tl_iface,
 
     attr->bandwidth.dedicated = 0;
     attr->latency.m           = 0;
-    attr->overhead            = 50e-6;  /* 50 usec */
+    attr->overhead_short      = 50e-6;  /* 50 usec */
+    attr->overhead_bcopy      = 51e-6;  /* 51 usec */
 
     if (iface->config.prefer_default) {
         status = uct_tcp_netif_is_default(iface->if_name, &is_default);

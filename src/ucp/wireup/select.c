@@ -118,7 +118,9 @@ static const char *ucp_wireup_iface_flags[] = {
     [ucs_ilog2(UCT_IFACE_FLAG_TAG_EAGER_ZCOPY)]  = "tag eager zcopy",
     [ucs_ilog2(UCT_IFACE_FLAG_TAG_RNDV_ZCOPY)]   = "tag rndv zcopy",
     [ucs_ilog2(UCT_IFACE_FLAG_EP_CHECK)]         = "ep check",
-    [ucs_ilog2(UCT_IFACE_FLAG_EP_KEEPALIVE)]     = "ep keepalive"
+    [ucs_ilog2(UCT_IFACE_FLAG_EP_KEEPALIVE)]     = "ep keepalive",
+    [ucs_ilog2(UCT_IFACE_FLAG_BCAST)]            = "brodcast",
+    [ucs_ilog2(UCT_IFACE_FLAG_INCAST)]           = "incast"
 };
 
 static const char *ucp_wireup_event_flags[] = {
@@ -778,7 +780,7 @@ static double ucp_wireup_rma_score_func(ucp_context_h context,
 {
     /* best for 4k messages */
     return 1e-3 / (ucp_wireup_tl_iface_latency(context, iface_attr, remote_iface_attr) +
-                   iface_attr->overhead +
+                   iface_attr->overhead_short +
                    (4096.0 / ucs_min(ucp_tl_iface_bandwidth(context, &iface_attr->bandwidth),
                                      ucp_tl_iface_bandwidth(context, &remote_iface_attr->bandwidth))));
 }
@@ -902,7 +904,7 @@ double ucp_wireup_amo_score_func(ucp_context_h context,
 {
     /* best one-sided latency */
     return 1e-3 / (ucp_wireup_tl_iface_latency(context, iface_attr, remote_iface_attr) +
-                   iface_attr->overhead);
+                   iface_attr->overhead_short);
 }
 
 static ucs_status_t
@@ -957,7 +959,7 @@ static double ucp_wireup_am_score_func(ucp_context_h context,
 {
     /* best end-to-end latency */
     return 1e-3 / (ucp_wireup_tl_iface_latency(context, iface_attr, remote_iface_attr) +
-                   iface_attr->overhead + remote_iface_attr->overhead);
+                   iface_attr->overhead_short + remote_iface_attr->overhead_short);
 }
 
 static double ucp_wireup_rma_bw_score_func(ucp_context_h context,
@@ -972,7 +974,7 @@ static double ucp_wireup_rma_bw_score_func(ucp_context_h context,
                 ucs_min(ucp_tl_iface_bandwidth(context, &iface_attr->bandwidth),
                         ucp_tl_iface_bandwidth(context, &remote_iface_attr->bandwidth))) +
                 ucp_wireup_tl_iface_latency(context, iface_attr, remote_iface_attr) +
-                iface_attr->overhead +
+                iface_attr->overhead_short +
                 ucs_linear_func_apply(md_attr->reg_cost,
                                       UCP_WIREUP_RMA_BW_TEST_MSG_SIZE));
 }
@@ -1093,7 +1095,7 @@ static double ucp_wireup_am_bw_score_func(ucp_context_h context,
     double size = iface_attr->cap.am.max_bcopy;
     double t    = (size / ucs_min(ucp_tl_iface_bandwidth(context, &iface_attr->bandwidth),
                                   ucp_tl_iface_bandwidth(context, &remote_iface_attr->bandwidth))) +
-                  iface_attr->overhead + remote_iface_attr->overhead +
+                  iface_attr->overhead_short + remote_iface_attr->overhead_short +
                   ucp_wireup_tl_iface_latency(context, iface_attr, remote_iface_attr);
 
     return size / t * 1e-5;
@@ -1508,6 +1510,70 @@ ucp_wireup_select_wireup_msg_lane(ucp_worker_h worker,
     return p2p_lane;
 }
 
+static ucp_lane_index_t
+ucp_wireup_add_incast_lane(const ucp_wireup_select_params_t *select_params,
+                           const ucp_wireup_select_info_t *am_info,
+                           ucp_err_handling_mode_t err_mode,
+                           ucp_wireup_select_context_t *select_ctx)
+{
+    ucp_ep_h ep                          = select_params->ep;
+    ucp_wireup_criteria_t criteria       = {0};
+    ucp_wireup_select_info_t select_info = {0};
+    ucs_status_t status;
+
+    if (!(ucp_ep_get_context_features(ep) & UCP_FEATURE_GROUPS) ||
+        (err_mode != UCP_ERR_HANDLING_MODE_NONE)) {
+        return UCS_OK;
+    }
+
+    criteria.title              = "incast";
+    criteria.remote_iface_flags = /* the same as local_iface_flags */
+    criteria.local_iface_flags  = UCT_IFACE_FLAG_INCAST;
+    criteria.calc_score         = ucp_wireup_am_score_func;
+
+    status = ucp_wireup_select_transport(select_params, &criteria,
+                                         UINT64_MAX, UINT64_MAX, UINT64_MAX,
+                                         UINT64_MAX, 0, &select_info);
+    if (status == UCS_OK) {
+        ucp_wireup_add_lane(select_params, &select_info, UCP_LANE_TYPE_INCAST,
+                            select_ctx);
+    }
+
+    return UCS_OK;
+}
+
+static ucp_lane_index_t
+ucp_wireup_add_bcast_lane(const ucp_wireup_select_params_t *select_params,
+                          const ucp_wireup_select_info_t *am_info,
+                          ucp_err_handling_mode_t err_mode,
+                          ucp_wireup_select_context_t *select_ctx)
+{
+    ucp_ep_h ep                          = select_params->ep;
+    ucp_wireup_criteria_t criteria       = {0};
+    ucp_wireup_select_info_t select_info = {0};
+    ucs_status_t status;
+
+    if (!(ucp_ep_get_context_features(ep) & UCP_FEATURE_GROUPS) ||
+        (err_mode != UCP_ERR_HANDLING_MODE_NONE)) {
+        return UCS_OK;
+    }
+
+    criteria.title              = "bcast";
+    criteria.remote_iface_flags = /* the same as local_iface_flags */
+    criteria.local_iface_flags  = UCT_IFACE_FLAG_BCAST;
+    criteria.calc_score         = ucp_wireup_am_score_func;
+
+    status = ucp_wireup_select_transport(select_params, &criteria,
+                                         UINT64_MAX, UINT64_MAX, UINT64_MAX,
+                                         UINT64_MAX, 0, &select_info);
+    if (status == UCS_OK) {
+        ucp_wireup_add_lane(select_params, &select_info, UCP_LANE_TYPE_BCAST,
+                            select_ctx);
+    }
+
+    return UCS_OK;
+}
+
 static UCS_F_NOINLINE void
 ucp_wireup_select_params_init(ucp_wireup_select_params_t *select_params,
                               ucp_ep_h ep, unsigned ep_init_flags,
@@ -1562,6 +1628,18 @@ ucp_wireup_search_lanes(const ucp_wireup_select_params_t *select_params,
 
     status = ucp_wireup_add_tag_lane(select_params, &am_info, err_mode,
                                      select_ctx);
+    if (status != UCS_OK) {
+        return status;
+    }
+
+    status = ucp_wireup_add_incast_lane(select_params, &am_info, err_mode,
+                                        select_ctx);
+    if (status != UCS_OK) {
+        return status;
+    }
+
+    status = ucp_wireup_add_bcast_lane(select_params, &am_info, err_mode,
+                                       select_ctx);
     if (status != UCS_OK) {
         return status;
     }
@@ -1714,6 +1792,12 @@ ucp_wireup_construct_lanes(const ucp_wireup_select_params_t *select_params,
             ucs_assert(key->tag_lane == UCP_NULL_LANE);
             key->tag_lane = lane;
         }
+        if (select_ctx->lane_descs[lane].lane_types & UCS_BIT(UCP_LANE_TYPE_INCAST)) {
+            key->incast_lane = lane;
+        }
+        if (select_ctx->lane_descs[lane].lane_types & UCS_BIT(UCP_LANE_TYPE_BCAST)) {
+            key->bcast_lane = lane;
+        }
     }
 
     /* Sort AM, RMA and AMO lanes according to score */
@@ -1826,7 +1910,7 @@ static double ucp_wireup_aux_score_func(ucp_context_h context,
 {
     /* best end-to-end latency and larger bcopy size */
     return (1e-3 / (ucp_wireup_tl_iface_latency(context, iface_attr, remote_iface_attr) +
-            iface_attr->overhead + remote_iface_attr->overhead));
+            iface_attr->overhead_short + remote_iface_attr->overhead_short));
 }
 
 ucs_status_t

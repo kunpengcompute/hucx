@@ -373,7 +373,7 @@ typedef struct uct_iface_local_addr_ns {
     uct_tl_t uct_##_name##_tl = { \
         .name               = #_name, \
         .query_devices      = _query_devices, \
-        .iface_open         = UCS_CLASS_NEW_FUNC_NAME(_iface_class), \
+        .iface_open         = (void*)UCS_CLASS_NEW_FUNC_NAME(_iface_class), \
         .config = { \
             .name           = #_name" transport", \
             .prefix         = _cfg_prefix, \

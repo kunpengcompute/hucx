@@ -220,7 +220,8 @@ static ucs_status_t uct_rc_verbs_iface_query(uct_iface_h tl_iface, uct_iface_att
 
     iface_attr->cap.flags |= UCT_IFACE_FLAG_EP_CHECK;
     iface_attr->latency.m += 1e-9;  /* 1 ns per each extra QP */
-    iface_attr->overhead   = 75e-9; /* Software overhead */
+    iface_attr->overhead_short = 75e-9; /* Software overhead */
+    iface_attr->overhead_bcopy = 76e-9; /* Software overhead */
 
     iface_attr->ep_addr_len = sizeof(uct_rc_verbs_ep_address_t);
     if (md->ops->get_atomic_mr_id(md, &mr_id) == UCS_OK) {

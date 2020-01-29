@@ -134,7 +134,7 @@ ucp_stream_rdesc_dequeue_and_release(ucp_recv_desc_t *rdesc,
                                                       ucp_recv_desc_t,
                                                       stream_queue));
     ucp_stream_rdesc_dequeue(ep_ext);
-    ucp_recv_desc_release(rdesc);
+    ucp_recv_desc_release(rdesc, NULL);
 }
 
 UCS_PROFILE_FUNC_VOID(ucp_stream_data_release, (ep, data),
@@ -144,7 +144,7 @@ UCS_PROFILE_FUNC_VOID(ucp_stream_data_release, (ep, data),
 
     UCP_WORKER_THREAD_CS_ENTER_CONDITIONAL(ep->worker);
 
-    ucp_recv_desc_release(rdesc);
+    ucp_recv_desc_release(rdesc, NULL);
 
     UCP_WORKER_THREAD_CS_EXIT_CONDITIONAL(ep->worker);
 }

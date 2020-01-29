@@ -134,7 +134,10 @@ void ucs_ptr_array_cleanup(ucs_ptr_array_t *ptr_array)
         }
     }
 
-    ucs_free(ptr_array->start);
+    if (ptr_array->start != NULL) {
+        ucs_free(ptr_array->start);
+    }
+
     ucs_ptr_array_clear(ptr_array);
 }
 

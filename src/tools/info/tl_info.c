@@ -120,16 +120,21 @@ static void print_iface_info(uct_worker_h worker, uct_md_h md,
 {
     char buf[256]                   = {0};
     uct_iface_params_t iface_params = {
-        .field_mask            = UCT_IFACE_PARAM_FIELD_OPEN_MODE   |
-                                 UCT_IFACE_PARAM_FIELD_DEVICE      |
-                                 UCT_IFACE_PARAM_FIELD_STATS_ROOT  |
-                                 UCT_IFACE_PARAM_FIELD_RX_HEADROOM |
-                                 UCT_IFACE_PARAM_FIELD_CPU_MASK,
-        .open_mode             = UCT_IFACE_OPEN_MODE_DEVICE,
-        .mode.device.tl_name   = resource->tl_name,
-        .mode.device.dev_name  = resource->dev_name,
-        .stats_root            = ucs_stats_get_root(),
-        .rx_headroom           = 0
+        .field_mask           = UCT_IFACE_PARAM_FIELD_OPEN_MODE   |
+                                UCT_IFACE_PARAM_FIELD_DEVICE      |
+                                UCT_IFACE_PARAM_FIELD_STATS_ROOT  |
+                                UCT_IFACE_PARAM_FIELD_RX_HEADROOM |
+                                UCT_IFACE_PARAM_FIELD_CPU_MASK    |
+                                UCT_IFACE_PARAM_FIELD_COLL_INFO,
+        .open_mode            = UCT_IFACE_OPEN_MODE_DEVICE,
+        .mode.device.tl_name  = resource->tl_name,
+        .mode.device.dev_name = resource->dev_name,
+        .host_info.proc_cnt   = 2,
+        .host_info.proc_idx   = 0,
+        .global_info.proc_cnt = 2,
+        .global_info.proc_idx = 0,
+        .stats_root           = ucs_stats_get_root(),
+        .rx_headroom          = 0
     };
     uct_iface_config_t *iface_config;
     uct_iface_attr_t iface_attr;
@@ -172,7 +177,8 @@ static void print_iface_info(uct_worker_h worker, uct_md_h md,
                iface_attr.bandwidth.dedicated / UCS_MBYTE);
         printf("#              latency: ");
         PRINT_LINEAR_FUNC_NS(&iface_attr.latency);
-        printf("#             overhead: %-.0f nsec\n", iface_attr.overhead * 1e9);
+        printf("#             overhead (short): %-.0f nsec\n", iface_attr.overhead_short * 1e9);
+        printf("#             overhead (bcopy): %-.0f nsec\n", iface_attr.overhead_bcopy * 1e9);
 
         PRINT_CAP(PUT_SHORT, iface_attr.cap.flags, iface_attr.cap.put.max_short);
         PRINT_CAP(PUT_BCOPY, iface_attr.cap.flags, iface_attr.cap.put.max_bcopy);
@@ -260,6 +266,9 @@ static void print_iface_info(uct_worker_h worker, uct_md_h md,
             PRINT_ATOMIC_FETCH(SWAP , iface_attr.cap, "");
             PRINT_ATOMIC_FETCH(CSWAP, iface_attr.cap, "");
         }
+
+        PRINT_CAP(INCAST, iface_attr.cap.flags, iface_attr.cap.flags)
+        PRINT_CAP(BCAST, iface_attr.cap.flags, iface_attr.cap.flags);
 
         buf[0] = '\0';
         if (iface_attr.cap.flags & (UCT_IFACE_FLAG_CONNECT_TO_EP |

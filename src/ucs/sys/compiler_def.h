@@ -164,6 +164,14 @@
     typeof(((_type*)0)->_field)
 
 /**
+ * @param _bytes  Structure type.
+ *
+ * @return Number of bits composing the given number of bytes.
+ */
+#define ucs_bytes_to_bits(_bytes) \
+    (_bits << 3)
+
+/**
  * Prevent compiler from reordering instructions
  */
 #define ucs_compiler_fence()       asm volatile(""::: "memory")

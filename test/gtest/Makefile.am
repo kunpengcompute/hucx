@@ -50,6 +50,7 @@ gtest_LDADD = \
 	$(top_builddir)/src/uct/libuct.la \
 	$(top_builddir)/src/ucm/libucm.la \
 	$(top_builddir)/src/ucp/libucp.la \
+	$(top_builddir)/src/ucg/libucg.la \
 	$(top_builddir)/src/tools/perf/lib/libucxperf.la \
 	$(OPENMP_CFLAGS) \
 	$(GTEST_LIBS)
@@ -149,6 +150,9 @@ gtest_SOURCES = \
 	ucp/test_ucp_sockaddr.cc \
 	ucp/ucp_test.cc \
 	ucp/ucp_datatype.cc \
+	\
+	ucg/test_ucg_coll.cc \
+	ucg/ucg_test.cc \
 	\
 	ucs/test_algorithm.cc \
 	ucs/test_arbiter.cc \
@@ -272,7 +276,9 @@ noinst_HEADERS = \
 	ucp/test_ucp_memheap.h \
 	ucp/test_ucp_tag.h \
 	ucp/ucp_test.h \
-	ucp/ucp_datatype.h
+	ucp/ucp_datatype.h \
+	\
+	ucg/ucg_test.h
 
 .PHONY: test test gdb valgrind fix_rpath ucx
 

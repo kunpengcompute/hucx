@@ -159,7 +159,7 @@ typedef struct uct_mm_component {
  * @param _rkey_release Remote key release function.
  * @param _cfg_prefix   Prefix for configuration environment vars.
  */
-#define UCT_MM_COMPONENT_DEFINE(_var, _name, _md_ops, _rkey_unpack, \
+#define UCT_MM_COMPONENT_DEFINE(_var, _name, _tl_suffix, _md_ops, _rkey_unpack, \
                                 _rkey_release, _cfg_prefix) \
     \
     static uct_mm_component_t _var = { \
@@ -170,9 +170,9 @@ typedef struct uct_mm_component {
             .rkey_unpack        = _rkey_unpack, \
             .rkey_ptr           = uct_mm_rkey_ptr, \
             .rkey_release       = _rkey_release, \
-            .name               = #_name, \
+            .name               = #_name #_tl_suffix, \
             .md_config          = { \
-                .name           = #_name " memory domain", \
+                .name           = #_name #_tl_suffix " memory domain", \
                 .prefix         = _cfg_prefix, \
                 .table          = uct_##_name##_md_config_table, \
                 .size           = sizeof(uct_##_name##_md_config_t), \

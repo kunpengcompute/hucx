@@ -329,6 +329,12 @@ ADD_COMPILER_FLAG_IF_SUPPORTED([-fmax-type-align=$UCX_ALLOC_ALIGN],
 #
 # SSE/AVX
 #
+COMPILER_CPU_OPTIMIZATION([avx512f], [AVX512F], [-mavx512f],
+                          [#include <immintrin.h>
+                           int main(int argc, char** argv) {
+                               return _mm512_reduce_add_epi32(_mm512_setzero_epi32());
+                           }
+                          ])
 COMPILER_CPU_OPTIMIZATION([avx], [AVX], [-mavx],
                           [#include <immintrin.h>
                            int main(int argc, char** argv) {
@@ -529,8 +535,7 @@ ADD_COMPILER_FLAGS_IF_SUPPORTED([[-Wno-pointer-sign],
                                  [-Werror-implicit-function-declaration],
                                  [-Wno-format-zero-length],
                                  [-Wnested-externs],
-                                 [-Wshadow],
-                                 [-Werror=declaration-after-statement]],
+                                 [-Wshadow]],
                                 [AC_LANG_SOURCE([[int main(int argc, char **argv){return 0;}]])])
 
 

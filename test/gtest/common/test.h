@@ -185,7 +185,7 @@ public:
 };
 
 /**
- * UCT/UCP tests common storage for tests entities
+ * UCT/UCP/UCG tests common storage for tests entities
  */
 template <typename T>
 class entities_storage {

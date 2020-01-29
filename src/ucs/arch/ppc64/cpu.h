@@ -96,6 +96,11 @@ static inline ucs_status_t ucs_arch_get_cache_size(size_t *cache_sizes)
     return UCS_ERR_UNSUPPORTED;
 }
 
+static inline int ucs_arch_cache_line_is_equal(const void *a, const void *b)
+{
+    return (0 == memcmp(a, b, UCS_ARCH_CACHE_LINE_SIZE));
+}
+
 END_C_DECLS
 
 #endif

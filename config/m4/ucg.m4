@@ -27,3 +27,5 @@ AS_IF([test -f ${ac_confdir}/src/ucg/Makefile.am],
       [AC_SUBST([UCG_SUBDIR], [src/ucg])])
 
 AM_CONDITIONAL([HAVE_UCG], [test "x$enable_ucg" != xno])
+AC_DEFINE([HAVE_UCP_EXTENSIONS], [1], [UCP Worker supports extensions])
+AC_DEFINE([HAVE_UCT_COLLECTIVES], [1], [UCT supports shared-memory collectives])

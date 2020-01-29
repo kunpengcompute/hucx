@@ -601,7 +601,8 @@ uct_ud_mlx5_iface_query(uct_iface_h tl_iface, uct_iface_attr_t *iface_attr)
         return status;
     }
 
-    iface_attr->overhead = 80e-9; /* Software overhead */
+    iface_attr->overhead_short = 80e-9; /* Software overhead (short sends) */
+    iface_attr->overhead_bcopy = 81e-9; /* Software overhead (bcopy sends) */
 
     return UCS_OK;
 }

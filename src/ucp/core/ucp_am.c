@@ -86,7 +86,7 @@ void ucp_am_ep_cleanup(ucp_ep_h ep)
     ucs_queue_for_each_safe(rdesc, iter, &ep_ext->am.mid_rdesc_q,
                             am_mid_queue) {
         ucs_queue_del_iter(&ep_ext->am.mid_rdesc_q, iter);
-        ucp_recv_desc_release(rdesc);
+        ucp_recv_desc_release(rdesc, NULL);
         ++count;
     }
     ucs_trace_data("worker %p: %zu unhandled middle AM fragments have been"
@@ -213,8 +213,9 @@ UCS_PROFILE_FUNC_VOID(ucp_am_data_release, (worker, data),
         ucp_am_rndv_send_ats(worker, data, UCS_OK);
     }
 
+    ucs_assert(!(rdesc->flags & UCP_RECV_DESC_FLAG_UCT_DESC_SHARED));
     UCP_WORKER_THREAD_CS_ENTER_CONDITIONAL(worker);
-    ucp_recv_desc_release(rdesc);
+    ucp_recv_desc_release(rdesc, NULL);
     UCP_WORKER_THREAD_CS_EXIT_CONDITIONAL(worker);
 }
 
@@ -1502,7 +1503,7 @@ UCS_PROFILE_FUNC(ucs_status_t, ucp_am_long_first_handler,
                                   mid_rdesc->length - UCP_AM_MID_FRAG_META_LEN,
                                   mid_hdr->offset +
                                           first_rdesc->payload_offset);
-        ucp_recv_desc_release(mid_rdesc);
+        ucp_recv_desc_release(mid_rdesc, NULL);
     }
 
     ucs_list_add_tail(&ep_ext->am.started_ams, &first_rdesc->am_first.list);
@@ -1658,7 +1659,7 @@ out:
         if (!(desc->flags & UCP_RECV_DESC_FLAG_UCT_DESC)) {
             /* Release descriptor if it was allocated on UCP mpool, otherwise it
              * will be freed by UCT, when UCS_OK is returned from this func. */
-            ucp_recv_desc_release(desc);
+            ucp_recv_desc_release(desc, NULL);
         }
     }
 

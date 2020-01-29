@@ -59,7 +59,8 @@ typedef struct {
 
 
 typedef struct {
-    float            overhead;
+    float            overhead_short;
+    float            overhead_bcopy;
     float            bandwidth;
     float            lat_ovh;
     uint32_t         prio_cap_flags; /* 8 lsb : prio
@@ -419,7 +420,8 @@ static int ucp_address_pack_iface_attr(ucp_worker_h worker, void *ptr,
 
     packed                 = ptr;
     packed->prio_cap_flags = (uint8_t)iface_attr->priority;
-    packed->overhead       = iface_attr->overhead;
+    packed->overhead_short = iface_attr->overhead_short;
+    packed->overhead_bcopy = iface_attr->overhead_bcopy;
     packed->bandwidth      = iface_attr->bandwidth.dedicated - iface_attr->bandwidth.shared;
     packed->lat_ovh        = iface_attr->latency.c;
 
@@ -487,12 +489,13 @@ ucp_address_unpack_iface_attr(ucp_worker_t *worker,
         }
 
         /* Just take the rest of iface attrs from the local resource. */
-        wiface                    = ucp_worker_iface(worker, rsc_idx);
-        iface_attr->cap_flags     = wiface->attr.cap.flags;
-        iface_attr->event_flags   = wiface->attr.cap.event_flags;
-        iface_attr->priority      = wiface->attr.priority;
-        iface_attr->overhead      = wiface->attr.overhead;
-        iface_attr->bandwidth     = wiface->attr.bandwidth;
+        wiface                     = ucp_worker_iface(worker, rsc_idx);
+        iface_attr->cap_flags      = wiface->attr.cap.flags;
+        iface_attr->event_flags    = wiface->attr.cap.event_flags;
+        iface_attr->priority       = wiface->attr.priority;
+        iface_attr->overhead_short = wiface->attr.overhead_short;
+        iface_attr->overhead_bcopy = wiface->attr.overhead_bcopy;
+        iface_attr->bandwidth      = wiface->attr.bandwidth;
         iface_attr->dst_rsc_index = rsc_idx;
         if (signbit(unified->lat_ovh)) {
             iface_attr->atomic.atomic32.op_flags  = wiface->attr.cap.atomic32.op_flags;
@@ -507,7 +510,8 @@ ucp_address_unpack_iface_attr(ucp_worker_t *worker,
 
     packed                          = ptr;
     iface_attr->priority            = packed->prio_cap_flags & UCS_MASK(8);
-    iface_attr->overhead            = packed->overhead;
+    iface_attr->overhead_short      = packed->overhead_short;
+    iface_attr->overhead_bcopy      = packed->overhead_bcopy;
     iface_attr->bandwidth.dedicated = ucs_max(0.0, packed->bandwidth);
     iface_attr->bandwidth.shared    = ucs_max(0.0, -packed->bandwidth);
     iface_attr->lat_ovh             = packed->lat_ovh;
@@ -853,9 +857,9 @@ ucp_address_do_pack(ucp_worker_h worker, ucp_ep_h ep, void *buffer, size_t size,
                 ucs_trace("pack addr[%d] : " UCT_TL_RESOURCE_DESC_FMT
                           " sysdev %d paths %d eps %u md_flags 0x%" PRIx64
                           " tl_flags 0x%" PRIx64 " bw %.2f+%.2f/nMBs"
-                          " ovh %.0fns lat_ovh %.0fns dev_priority %d"
-                          " a32 0x%" PRIx64 "/0x%" PRIx64 " a64 0x%" PRIx64
-                          "/0x%" PRIx64,
+                          " sht_ovh %.0fns bcp_ovh %.0fns lat_ovh %.0fns"
+                          " dev_priority %d a32 0x%" PRIx64 "/0x%" PRIx64
+                          " a64 0x%" PRIx64 "/0x%" PRIx64,
                           addr_index,
                           UCT_TL_RESOURCE_DESC_ARG(
                                   &context->tl_rscs[rsc_index].tl_rsc),
@@ -863,7 +867,8 @@ ucp_address_do_pack(ucp_worker_h worker, ucp_ep_h ep, void *buffer, size_t size,
                           iface_attr->cap.flags,
                           iface_attr->bandwidth.dedicated / UCS_MBYTE,
                           iface_attr->bandwidth.shared / UCS_MBYTE,
-                          iface_attr->overhead * 1e9,
+                          iface_attr->overhead_short * 1e9,
+                          iface_attr->overhead_bcopy * 1e9,
                           iface_attr->latency.c * 1e9, iface_attr->priority,
                           iface_attr->cap.atomic32.op_flags,
                           iface_attr->cap.atomic32.fop_flags,
@@ -1121,16 +1126,17 @@ ucs_status_t ucp_address_unpack(ucp_worker_t *worker, const void *buffer,
                 ucs_trace("unpack addr[%d] : sysdev %d paths %d eps %u"
                           " md_flags 0x%" PRIx64 " tl_iface_flags 0x%" PRIx64
                           " tl_event_flags 0x%" PRIx64 " bw %.2f+%.2f/nMBs"
-                          " ovh %.0fns lat_ovh %.0fns dev_priority %d"
-                          " a32 0x%" PRIx64 "/0x%" PRIx64 " a64 0x%" PRIx64
-                          "/0x%" PRIx64,
+                          " sht_ovh %.0fns bcp_ovh %.0fns lat_ovh %.0fns"
+                          " dev_priority %d a32 0x%" PRIx64 "/0x%" PRIx64
+                          " a64 0x%" PRIx64 "/0x%" PRIx64,
                           (int)(address - address_list), address->sys_dev,
                           address->dev_num_paths, address->num_ep_addrs,
                           address->md_flags, address->iface_attr.cap_flags,
                           address->iface_attr.event_flags,
                           address->iface_attr.bandwidth.dedicated / UCS_MBYTE,
                           address->iface_attr.bandwidth.shared / UCS_MBYTE,
-                          address->iface_attr.overhead * 1e9,
+                          address->iface_attr.overhead_short * 1e9,
+                          address->iface_attr.overhead_bcopy * 1e9,
                           address->iface_attr.lat_ovh * 1e9,
                           address->iface_attr.priority,
                           address->iface_attr.atomic.atomic32.op_flags,

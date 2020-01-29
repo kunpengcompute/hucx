@@ -116,6 +116,20 @@ ucs_memcpy_nontemporal(void *dst, const void *src, size_t len)
     ucs_x86_memcpy_sse_movntdqa(dst, src, len);
 }
 
+static inline int ucs_arch_cache_line_is_equal(const void *a, const void *b)
+{
+#ifdef __AVX512F__
+    ucs_assert(((uintptr_t)a % UCS_ARCH_CACHE_LINE_SIZE) == 0);
+    ucs_assert(((uintptr_t)b % UCS_ARCH_CACHE_LINE_SIZE) == 0);
+
+    return (0 == _mm512_cmp_ps_mask(_mm512_load_ps(a),
+                                    _mm512_load_ps(b),
+                                    _MM_CMPINT_NE));
+#else
+    return (0 == memcmp(a, b, UCS_ARCH_CACHE_LINE_SIZE));
+#endif
+}
+
 END_C_DECLS
 
 #endif

@@ -155,6 +155,8 @@ struct ucp_ep_config_key {
     ucp_lane_index_t         tag_lane;        /* Lane for tag matching offload (can be NULL) */
     ucp_lane_index_t         wireup_msg_lane; /* Lane for wireup messages (can be NULL) */
     ucp_lane_index_t         cm_lane;         /* Lane for holding a CM connection (can be NULL) */
+    ucp_lane_index_t         incast_lane;     /* Lane for incast collectives (can be NULL) */
+    ucp_lane_index_t         bcast_lane;      /* Lane for bcast collectives (can be NULL) */
 
     /* Lanes for remote memory access, sorted by priority, highest first */
     ucp_lane_index_t         rma_lanes[UCP_MAX_LANES];

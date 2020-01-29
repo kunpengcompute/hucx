@@ -23,6 +23,8 @@ typedef enum {
     UCP_LANE_TYPE_AMO,                      /* Atomic memory access */
     UCP_LANE_TYPE_TAG,                      /* Tag matching offload */
     UCP_LANE_TYPE_CM,                       /* CM wireup */
+    UCP_LANE_TYPE_INCAST,                   /* Collective incast */
+    UCP_LANE_TYPE_BCAST,                    /* Collective broadcast */
     UCP_LANE_TYPE_LAST
 } ucp_lane_type_t;
 
