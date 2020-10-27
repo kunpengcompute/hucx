@@ -81,7 +81,19 @@ static inline ucs_status_t uct_ib_query_device(struct ibv_context *ctx,
 #else
     attr->comp_mask = IBV_EXP_DEVICE_ATTR_RESERVED - 1;
 #endif
+
+#if HAVE_DECL_IBV_EXP_QUERY_DEVICE
     ret = ibv_exp_query_device(ctx, attr);
+#elif HAVE_DECL_IBV_QUERY_DEVICE_EX
+    if (uct_ib_device_is_hns(ctx)) {
+        memset(attr, 0, sizeof(*attr));
+        ret = ibv_query_device(ctx, attr);
+    } else {
+        ret = ibv_query_device_ex(ctx, NULL, attr);
+    }
+#else
+    ret = ibv_query_device(ctx, attr);
+#endif
     if (ret != 0) {
         ucs_error("ibv_exp_query_device(%s) returned %d: %m",
                   ibv_get_device_name(ctx->device), ret);

@@ -410,6 +410,20 @@ AS_IF([test "x$with_ib" = "xyes"],
                [AC_DEFINE([HAVE_IBV_DM], 1, [Device Memory support])],
                [], [[#include <infiniband/verbs.h>]])])
 
+       # Hns RoCE support
+       AC_CHECK_FILE(/usr/lib64/libibverbs/libhns-rdmav25.so,
+       [
+            AC_CHECK_FILE(/usr/lib/modules/$(uname --release)/updates/drivers/infiniband/hw/hns/hns-roce-cae.ko,
+            [
+                AC_CHECK_FILE(/usr/lib/modules/$(uname --release)/updates/drivers/infiniband/hw/hns/hns-roce-hw-v2.ko,
+                [
+                    with_hns_roce=yes
+                ],[with_hns_roce=no])
+            ],[with_hns_roce=no])
+       ],[with_hns_roce=no])
+       AS_IF([test "x$with_hns_roce" != xno],
+           [AC_DEFINE([HAVE_HNS_ROCE], 1, [Hns RoCE support])])
+
        AC_CHECK_DECLS([ibv_cmd_modify_qp],
                       [], [], [[#include <infiniband/driver.h>]])
 
