@@ -214,9 +214,11 @@ AS_IF([test "x$with_docs_only" = xyes],
      AM_CONDITIONAL([HAVE_AARCH64_HI1620], [false])
      AM_CONDITIONAL([HAVE_FUSE3], [false])
      AM_CONDITIONAL([IODEMO_CUDA], [false])
+     AM_CONDITIONAL([HAVE_UCG], [true]) # docs include UCG headers
     ],
     [
      AM_CONDITIONAL([DOCS_ONLY], [false])
+     AM_CONDITIONAL([HAVE_UCG], [true])
      m4_include([config/m4/compiler.m4])
      m4_include([config/m4/sysdep.m4])
      m4_include([config/m4/ucm.m4])
@@ -328,7 +330,12 @@ AS_IF([test "x$with_docs_only" = xyes],
                                   [Enable examples build, default: NO]),
                    [],
                    [enable_examples=no])
-    AM_CONDITIONAL([HAVE_EXAMPLES], [test "x$enable_examples" = "xyes"])
+     AM_CONDITIONAL([HAVE_EXAMPLES], [test "x$enable_examples" = "xyes"])
+
+     #
+     # UCG - Group collective operations component (Always enabled in this version)
+     #
+     AC_DEFINE([ENABLE_UCG], [1], [Enable Groups and collective operations support (UCG)])
     ]) # Docs only
 
 #
@@ -424,6 +431,6 @@ AC_MSG_NOTICE([          IB modules:   <$(echo ${uct_ib_modules}|tr ':' ' ') >])
 AC_MSG_NOTICE([         UCM modules:   <$(echo ${ucm_modules}|tr ':' ' ') >])
 AC_MSG_NOTICE([        Perf modules:   <$(echo ${ucx_perftest_modules}|tr ':' ' ') >])
 AS_IF([test "x$enable_ucg" != "xno"], [
-    AC_MSG_NOTICE([       UCG modules:   <$(echo ${ucg_modules}|tr ':' ' ') >])])
+AC_MSG_NOTICE([       UCG modules:   <$(echo ${ucg_modules}|tr ':' ' ') >])])
 ])
 AC_MSG_NOTICE([=========================================================])
