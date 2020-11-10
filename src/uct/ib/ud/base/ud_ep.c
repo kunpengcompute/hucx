@@ -18,6 +18,7 @@
 #include <ucs/debug/memtrack_int.h>
 #include <ucs/debug/log.h>
 #include <ucs/time/time.h>
+#include <uct/ib/ud/accel/ud_mcast_mlx5.h>
 
 
 /* Must be less then peer_timeout to avoid false positive errors taking into
@@ -116,20 +117,26 @@ static void uct_ud_ep_reset_max_psn(uct_ud_ep_t *ep)
 
 static void uct_ud_ep_reset(uct_ud_ep_t *ep)
 {
+    uct_ud_iface_t *iface = ucs_derived_of(ep->super.super.iface, uct_ud_iface_t);
     ep->tx.psn         = UCT_UD_INITIAL_PSN;
     ep->ca.cwnd        = UCT_UD_CA_MIN_WINDOW;
-    ep->ca.wmax        = ucs_derived_of(ep->super.super.iface,
-                                        uct_ud_iface_t)->config.max_window;
+    ep->ca.wmax        = iface->config.max_window;
     ep->tx.acked_psn   = UCT_UD_INITIAL_PSN - 1;
     ep->tx.pending.ops = UCT_UD_EP_OP_NONE;
+
     uct_ud_ep_reset_max_psn(ep);
     ucs_queue_head_init(&ep->tx.window);
+
+    if (iface->is_mcast_iface) {
+        uct_reset_mcast_reliability_arr(iface);
+    }
 
     ep->resend.pos       = ucs_queue_iter_begin(&ep->tx.window);
     ep->resend.psn       = ep->tx.psn;
     ep->resend.max_psn   = ep->tx.acked_psn;
     ep->tx.resend_count  = 0;
     ep->rx_creq_count    = 0;
+    ep->rx_crep_count    = 0;
 
     ep->rx.acked_psn = UCT_UD_INITIAL_PSN - 1;
     ucs_frag_list_init(ep->tx.psn-1, &ep->rx.ooo_pkts, 0 /*TODO: ooo support */
@@ -570,7 +577,6 @@ ucs_status_t uct_ud_ep_create_connected_common(const uct_ep_params_t *ep_params,
 
     ep          = ucs_derived_of(new_ep_h, uct_ud_ep_t);
     ep->conn_sn = conn_sn;
-
     status = uct_ud_ep_connect_to_iface(ep, ib_addr, if_addr);
     if (status != UCS_OK) {
         goto out;
@@ -622,7 +628,6 @@ ucs_status_t uct_ud_ep_connect_to_ep(uct_ep_h tl_ep,
     ucs_trace_func("");
 
     uct_ud_ep_set_dest_ep_id(ep, uct_ib_unpack_uint24(ep_addr->ep_id));
-
     ucs_frag_list_cleanup(&ep->rx.ooo_pkts);
     uct_ud_ep_reset(ep);
 
@@ -786,12 +791,17 @@ static void uct_ud_ep_rx_ctl(uct_ud_iface_t *iface, uct_ud_ep_t *ep,
     ucs_trace_func("");
     ucs_assert_always(ctl->type == UCT_UD_PACKET_CREP);
 
-    if (uct_ud_ep_is_connected(ep)) {
+    if (uct_ud_ep_is_connected(ep) && (ep->rx_crep_count == 0)) {
         ucs_assertv_always(ep->dest_ep_id == ctl->conn_rep.src_ep_id,
                            "ep=%p [id=%d dest_ep_id=%d flags=0x%x] "
                            "crep [neth->dest=%d dst_ep_id=%d src_ep_id=%d]",
                            ep, ep->ep_id, ep->dest_ep_id, ep->path_index, ep->flags,
                            uct_ud_neth_get_dest_id(neth), ctl->conn_rep.src_ep_id);
+    }
+
+    /* Multicast root endpoints need to wait for all CREPs to arrive */
+    if ((ep->rx_crep_count > 1) && (--ep->rx_crep_count > 1)) {
+        return;
     }
 
     /* Discard duplicate CREP */
@@ -844,7 +854,6 @@ uct_ud_send_skb_t *uct_ud_ep_prepare_creq(uct_ud_ep_t *ep)
     creq->type                = UCT_UD_PACKET_CREQ;
     creq->conn_req.conn_sn    = ep->conn_sn;
     creq->conn_req.path_index = ep->path_index;
-
     status = uct_ud_ep_get_address(&ep->super.super,
                                    (void*)&creq->conn_req.ep_addr);
     if (status != UCS_OK) {
@@ -884,12 +893,44 @@ void uct_ud_ep_process_rx(uct_ud_iface_t *iface, uct_ud_neth_t *neth, unsigned b
     } else if (ucs_unlikely(!ucs_ptr_array_lookup(&iface->eps, dest_id, ep) ||
                             (ep->ep_id != dest_id)))
     {
-        /* Drop the packet because it is
-         * allowed to do disconnect without flush/barrier. So it
-         * is possible to get packet for the ep that has been destroyed
-         */
-        ucs_trace("RX: failed to find ep %d, dropping packet", dest_id);
-        goto out;
+        if(iface->is_mcast_iface) {
+            uct_ud_mcast_mlx5_iface_t *mcast_iface = (uct_ud_mcast_mlx5_iface_t*)iface;
+            uint32_t src_coll_id = (dest_id & UCT_UD_PACKET_COLL_ID_MASK) >> 8;
+            dest_id = dest_id & UCS_MASK(8);
+            if (ucs_unlikely(!ucs_ptr_array_lookup(&iface->eps, dest_id, ep) || (ep->ep_id != dest_id))) {
+                ucs_trace("RX: failed to find ep %d, dropping packet", dest_id);
+                goto out;
+            }
+            if(mcast_iface->coll_id == 0 && (src_coll_id > 0) && ep->rx_crep_count == 0) {
+                if (ucs_unlikely(UCT_UD_PSN_COMPARE(neth->ack_psn, <=, mcast_iface->acked_psn_by_src[src_coll_id]))) {
+                    return;
+                }
+                mcast_iface->acked_psn_by_src[src_coll_id] = neth->ack_psn;
+                uct_ud_psn_t min_ack_psn = mcast_iface->acked_psn_by_src[1];
+                int update = 1;
+                for (int i = 1; i < mcast_iface->coll_cnt; i++) {
+                    if (ucs_unlikely(UCT_UD_PSN_COMPARE(mcast_iface->acked_psn_by_src[i], <=, ep->tx.acked_psn))) {
+                        ucs_debug("didn't receive all ACKs!");
+                        update = 0;
+                        return;
+                    }
+                    if (ucs_unlikely(UCT_UD_PSN_COMPARE(mcast_iface->acked_psn_by_src[i], <, min_ack_psn))) {
+                        min_ack_psn = mcast_iface->acked_psn_by_src[i];
+                    }
+                }
+                if (update) {
+                    ucs_debug("all ACKs were received!");
+                    neth->ack_psn = min_ack_psn;
+                }
+            }
+        } else {
+            /* Drop the packet because it is
+            * allowed to do disconnect without flush/barrier. So it
+            * is possible to get packet for the ep that has been destroyed
+            */
+            ucs_trace("RX: failed to find ep %d, dropping packet", dest_id);
+            goto out;
+        }
     }
 
     ucs_assert(ep->ep_id != UCT_UD_EP_NULL_ID);
@@ -1128,14 +1169,14 @@ static uct_ud_send_skb_t *uct_ud_ep_prepare_crep(uct_ud_ep_t *ep)
     ucs_assert_always(ep->dest_ep_id != UCT_UD_EP_NULL_ID);
     ucs_assert_always(ep->ep_id != UCT_UD_EP_NULL_ID);
 
-    /* Check that CREQ is neither sheduled nor waiting for CREP ack */
+    /* Check that CREQ is neither scheduled nor waiting for CREP ack */
     ucs_assertv_always(!uct_ud_ep_ctl_op_check(ep, UCT_UD_EP_OP_CREQ) &&
-                       uct_ud_ep_is_last_ack_received(ep),
+                       (iface->is_mcast_iface || uct_ud_ep_is_last_ack_received(ep)),
                        "iface=%p ep=%p conn_sn=%d ep_id=%d, dest_ep_id=%d rx_psn=%u "
-                       "ep_flags=0x%x ctl_ops=0x%x rx_creq_count=%d",
+                       "ep_flags=0x%x ctl_ops=0x%x rx_creq_count=%d rx_crep_count=%d",
                        iface, ep, ep->conn_sn, ep->ep_id, ep->dest_ep_id,
                        ep->rx.ooo_pkts.head_sn, ep->flags, ep->tx.pending.ops,
-                       ep->rx_creq_count);
+                       ep->rx_creq_count, ep->rx_crep_count);
 
     skb = uct_ud_iface_get_tx_skb(iface, ep);
     if (!skb) {
@@ -1146,6 +1187,12 @@ static uct_ud_send_skb_t *uct_ud_ep_prepare_crep(uct_ud_ep_t *ep)
     uct_ud_neth_init_data(ep, neth);
 
     neth->packet_type  = ep->dest_ep_id;
+    if (iface->is_mcast_iface) {
+        if (ep->dest_ep_id != UCT_UD_EP_NULL_ID) {
+            uct_ud_mcast_mlx5_iface_t *mcast_iface = (uct_ud_mcast_mlx5_iface_t *)iface;
+            neth->packet_type |= mcast_iface->coll_id << 8;
+        }
+    }
     neth->packet_type |= (UCT_UD_PACKET_FLAG_ACK_REQ|UCT_UD_PACKET_FLAG_CTL);
 
     crep = (uct_ud_ctl_hdr_t *)(neth + 1);
@@ -1340,6 +1387,12 @@ static void uct_ud_ep_send_ack(uct_ud_iface_t *iface, uct_ud_ep_t *ep)
     skb->flags             = UCT_UD_SEND_SKB_FLAG_CTL_ACK;
     skb->len               = sizeof(uct_ud_neth_t);
     skb->neth->packet_type = ep->dest_ep_id;
+    if (iface->is_mcast_iface) {
+        if (ep->dest_ep_id != UCT_UD_EP_NULL_ID) {
+            uct_ud_mcast_mlx5_iface_t *mcast_iface = (uct_ud_mcast_mlx5_iface_t *)iface;
+            skb->neth->packet_type |= mcast_iface->coll_id << 8;
+        }
+    }
     if (uct_ud_ep_ctl_op_check(ep, UCT_UD_EP_OP_ACK_REQ)) {
         skb->neth->packet_type |= UCT_UD_PACKET_FLAG_ACK_REQ;
         if (ep->tx.tick >= iface->config.min_poke_time) {

@@ -257,6 +257,7 @@ struct uct_ud_ep {
     uct_ud_ep_conn_sn_t   conn_sn;      /* connection sequence number. assigned in connect_to_iface() */
     uint16_t              flags;
     uint8_t               rx_creq_count; /* TODO: remove when reason for DUP/OOO CREQ is found */
+    uint8_t               rx_crep_count;
     uint8_t               path_index;
     ucs_wtimer_t          timer;
     ucs_time_t            close_time;   /* timestamp of closure */

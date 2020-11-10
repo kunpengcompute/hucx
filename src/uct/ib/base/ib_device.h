@@ -469,4 +469,10 @@ static inline ucs_status_t uct_ib_poll_cq(struct ibv_cq *cq, unsigned *count, st
 
 void uct_ib_handle_async_event(uct_ib_device_t *dev, uct_ib_async_event_t *event);
 
+ucs_status_t uct_ib_device_get_roce_ndev_name(uct_ib_device_t *dev,
+                                              uint8_t port_num,
+                                              uint8_t gid_index,
+                                              char *ndev_name,
+                                              size_t max);
+
 #endif

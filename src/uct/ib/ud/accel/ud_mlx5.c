@@ -31,7 +31,7 @@
 #include <uct/ib/ud/base/ud_inl.h>
 
 
-static ucs_config_field_t uct_ud_mlx5_iface_config_table[] = {
+ucs_config_field_t uct_ud_mlx5_iface_config_table[] = {
   {"UD_", "", NULL,
    ucs_offsetof(uct_ud_mlx5_iface_config_t, super),
    UCS_CONFIG_TYPE_TABLE(uct_ud_iface_config_table)},
@@ -200,7 +200,7 @@ uct_ud_mlx5_iface_post_recv(uct_ud_mlx5_iface_t *iface)
     *iface->rx.wq.dbrec = htonl(pi);
 }
 
-static UCS_CLASS_INIT_FUNC(uct_ud_mlx5_ep_t, const uct_ep_params_t *params)
+UCS_CLASS_INIT_FUNC(uct_ud_mlx5_ep_t, const uct_ep_params_t *params)
 {
     uct_ud_mlx5_iface_t *iface = ucs_derived_of(params->iface,
                                                 uct_ud_mlx5_iface_t);
@@ -209,17 +209,17 @@ static UCS_CLASS_INIT_FUNC(uct_ud_mlx5_ep_t, const uct_ep_params_t *params)
     return UCS_OK;
 }
 
-static UCS_CLASS_CLEANUP_FUNC(uct_ud_mlx5_ep_t)
+UCS_CLASS_CLEANUP_FUNC(uct_ud_mlx5_ep_t)
 {
     ucs_trace_func("");
 }
 
 UCS_CLASS_DEFINE(uct_ud_mlx5_ep_t, uct_ud_ep_t);
-static UCS_CLASS_DEFINE_NEW_FUNC(uct_ud_mlx5_ep_t, uct_ep_t,
+UCS_CLASS_DEFINE_NEW_FUNC(uct_ud_mlx5_ep_t, uct_ep_t,
                                  const uct_ep_params_t*);
 UCS_CLASS_DEFINE_DELETE_FUNC(uct_ud_mlx5_ep_t, uct_ep_t);
 
-
+#include "ud_mcast_mlx5.h"
 /*
  * Generic inline+iov post-send function
  * The caller should check that header size + sg list would not exceed WQE size.
@@ -273,6 +273,12 @@ static UCS_F_ALWAYS_INLINE ucs_status_t uct_ud_mlx5_ep_inline_iov_post(
     neth->packet_type = (am_id << UCT_UD_PACKET_AM_ID_SHIFT) |
                         ep->super.dest_ep_id |
                         packet_flags;
+    if (iface->super.is_mcast_iface) {
+        if (ep->super.dest_ep_id != UCT_UD_EP_NULL_ID) {
+            uct_ud_mcast_mlx5_iface_t *mcast_iface = (uct_ud_mcast_mlx5_iface_t *)iface;
+            neth->packet_type |= mcast_iface->coll_id << 8;
+        }
+    }
     uct_ud_neth_init_data(&ep->super, neth);
     if (!(packet_flags & UCT_UD_PACKET_FLAG_ACK_REQ)) {
         /* check for ACK_REQ, if not already enabled by packet_flags */
@@ -631,7 +637,6 @@ uct_ud_mlx5_iface_unpack_peer_address(uct_ud_iface_t *ud_iface,
 
     peer_address->is_global   = is_global;
     peer_address->av.dqp_dct |= htonl(uct_ib_unpack_uint24(if_addr->qp_num));
-
     return UCS_OK;
 }
 
@@ -738,7 +743,7 @@ static void uct_ud_mlx5_iface_destroy_qp(uct_ud_iface_t *ud_iface)
     uct_ib_mlx5_destroy_qp(ib_md, qp);
 }
 
-static void UCS_CLASS_DELETE_FUNC_NAME(uct_ud_mlx5_iface_t)(uct_iface_t*);
+void UCS_CLASS_DELETE_FUNC_NAME(uct_ud_mlx5_iface_t)(uct_iface_t*);
 
 static void uct_ud_mlx5_iface_handle_failure(uct_ib_iface_t *ib_iface, void *arg,
                                              ucs_status_t status)
@@ -751,7 +756,7 @@ static void uct_ud_mlx5_iface_handle_failure(uct_ib_iface_t *ib_iface, void *arg
                                     UCS_LOG_LEVEL_FATAL);
 }
 
-static uct_ud_iface_ops_t uct_ud_mlx5_iface_ops = {
+uct_ud_iface_ops_t uct_ud_mlx5_iface_ops = {
     .super = {
         .super = {
             .iface_estimate_perf = uct_base_iface_estimate_perf,
@@ -803,10 +808,11 @@ static uct_iface_ops_t uct_ud_mlx5_iface_tl_ops = {
     .iface_is_reachable       = uct_ib_iface_is_reachable
 };
 
-static UCS_CLASS_INIT_FUNC(uct_ud_mlx5_iface_t,
-                           uct_md_h md, uct_worker_h worker,
-                           const uct_iface_params_t *params,
-                           const uct_iface_config_t *tl_config)
+// CALLED BY (A) uct_ud_mlx5_iface_wrapper_t and (B) uct_ud_mcast_mlx5_iface_t
+UCS_CLASS_INIT_FUNC(uct_ud_mlx5_iface_t, uct_ud_iface_ops_t *ops,
+                    uct_md_h md, uct_worker_h worker,
+                    const uct_iface_params_t *params,
+                    const uct_iface_config_t *tl_config)
 {
     uct_ud_mlx5_iface_config_t *config = ucs_derived_of(tl_config,
                                                         uct_ud_mlx5_iface_config_t);
@@ -815,7 +821,6 @@ static UCS_CLASS_INIT_FUNC(uct_ud_mlx5_iface_t,
     int i;
 
     ucs_trace_func("");
-
     init_attr.flags                 = UCT_IB_CQ_IGNORE_OVERRUN;
     init_attr.cq_len[UCT_IB_DIR_TX] = config->super.super.tx.queue_len * UCT_IB_MLX5_MAX_BB;
     init_attr.cq_len[UCT_IB_DIR_RX] = config->super.super.rx.queue_len;
@@ -823,9 +828,8 @@ static UCS_CLASS_INIT_FUNC(uct_ud_mlx5_iface_t,
     self->tx.mmio_mode     = config->mlx5_common.mmio_mode;
     self->tx.wq.super.type = UCT_IB_MLX5_OBJ_TYPE_LAST;
 
-    UCS_CLASS_CALL_SUPER_INIT(uct_ud_iface_t, &uct_ud_mlx5_iface_ops,
-                              &uct_ud_mlx5_iface_tl_ops, md, worker, params,
-                              &config->super, &init_attr);
+    UCS_CLASS_CALL_SUPER_INIT(uct_ud_iface_t, ops, &uct_ud_mlx5_iface_tl_ops,
+                              md, worker, params, &config->super, &init_attr);
 
     self->super.config.max_inline = uct_ud_mlx5_max_inline();
 
@@ -876,21 +880,46 @@ static UCS_CLASS_INIT_FUNC(uct_ud_mlx5_iface_t,
     return uct_ud_iface_complete_init(&self->super);
 }
 
+// Called from outside UCT
+UCS_CLASS_INIT_FUNC(uct_ud_mlx5_iface_wrapper_t, 
+                    uct_md_h md, uct_worker_h worker,
+                    const uct_iface_params_t *params,
+                    const uct_iface_config_t *tl_config)
+{
+    ucs_status_t status = UCS_OK;
+    UCS_CLASS_CALL_SUPER_INIT(uct_ud_mlx5_iface_t, &uct_ud_mlx5_iface_ops,
+                              md, worker, params, tl_config);
+    return status;
+}
 
-static UCS_CLASS_CLEANUP_FUNC(uct_ud_mlx5_iface_t)
+UCS_CLASS_CLEANUP_FUNC(uct_ud_mlx5_iface_t)
+{
+    ucs_trace_func("");
+}
+
+UCS_CLASS_CLEANUP_FUNC(uct_ud_mlx5_iface_wrapper_t)
 {
     ucs_trace_func("");
 }
 
 UCS_CLASS_DEFINE(uct_ud_mlx5_iface_t, uct_ud_iface_t);
 
-static UCS_CLASS_DEFINE_NEW_FUNC(uct_ud_mlx5_iface_t, uct_iface_t, uct_md_h,
+UCS_CLASS_DEFINE_NEW_FUNC(uct_ud_mlx5_iface_t, uct_iface_t, uct_ud_iface_ops_t *,uct_md_h,
                                  uct_worker_h, const uct_iface_params_t*,
                                  const uct_iface_config_t*);
 
-static UCS_CLASS_DEFINE_DELETE_FUNC(uct_ud_mlx5_iface_t, uct_iface_t);
+UCS_CLASS_DEFINE_DELETE_FUNC(uct_ud_mlx5_iface_t, uct_iface_t);
 
-static ucs_status_t
+
+UCS_CLASS_DEFINE(uct_ud_mlx5_iface_wrapper_t, uct_ud_iface_t);
+
+UCS_CLASS_DEFINE_NEW_FUNC(uct_ud_mlx5_iface_wrapper_t, uct_iface_t, uct_md_h,
+                                 uct_worker_h, const uct_iface_params_t*,
+                                 const uct_iface_config_t*);
+
+UCS_CLASS_DEFINE_DELETE_FUNC(uct_ud_mlx5_iface_wrapper_t, uct_iface_t);
+
+ucs_status_t
 uct_ud_mlx5_query_tl_devices(uct_md_h md,
                              uct_tl_device_resource_t **tl_devices_p,
                              unsigned *num_tl_devices_p)
@@ -901,5 +930,5 @@ uct_ud_mlx5_query_tl_devices(uct_md_h md,
 }
 
 UCT_TL_DEFINE(&uct_ib_component, ud_mlx5, uct_ud_mlx5_query_tl_devices,
-              uct_ud_mlx5_iface_t, "UD_MLX5_", uct_ud_mlx5_iface_config_table,
+              uct_ud_mlx5_iface_wrapper_t, "UD_MLX5_", uct_ud_mlx5_iface_config_table,
               uct_ud_mlx5_iface_config_t);

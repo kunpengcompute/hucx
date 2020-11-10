@@ -136,11 +136,14 @@ libuct_ib_la_SOURCES += \
 if HAVE_MLX5_HW_UD
 noinst_HEADERS += \
 	ud/accel/ud_mlx5_common.h \
-	ud/accel/ud_mlx5.h
+	ud/accel/ud_mlx5.h \
+    ud/accel/ud_mcast_mlx5.h
+
 
 libuct_ib_la_SOURCES += \
 	ud/accel/ud_mlx5_common.c \
-	ud/accel/ud_mlx5.c
+	ud/accel/ud_mlx5.c \
+	ud/accel/ud_mcast_mlx5.c
 
 endif # HAVE_MLX5_HW_UD
 

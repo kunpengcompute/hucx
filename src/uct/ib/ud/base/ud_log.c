@@ -57,9 +57,9 @@ void uct_ud_dump_packet(uct_base_iface_t *iface, uct_am_trace_type_t type,
                      ctlh->conn_req.conn_sn, ctlh->conn_req.path_index);
             break;
         case UCT_UD_PACKET_CREP:
-            snprintf(p, endp - p, " CREP from %s:%d src_ep_id %d",
+            snprintf(p, endp - p, " CREP from %s:%d src_ep_id %d coll_id %d",
                      ctlh->peer.name, ctlh->peer.pid,
-                     ctlh->conn_rep.src_ep_id);
+                     ctlh->conn_rep.src_ep_id, ctlh->conn_rep.coll_id);
             break;
         default:
             snprintf(p, endp - p, " <unknown control packet %d> from %s:%d",

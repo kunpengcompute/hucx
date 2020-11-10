@@ -45,8 +45,22 @@ typedef struct {
     uct_ud_mlx5_iface_common_t          ud_mlx5_common;
 } uct_ud_mlx5_iface_t;
 
+typedef struct uct_ud_mlx5_iface_wrapper {
+    uct_ud_mlx5_iface_t super; 
+} uct_ud_mlx5_iface_wrapper_t;
 
-static UCS_F_ALWAYS_INLINE unsigned
+UCS_CLASS_DECLARE(uct_ud_mlx5_iface_t, uct_ud_iface_ops_t *, uct_md_h, uct_worker_h,
+                    const uct_iface_params_t *,
+                    const uct_iface_config_t *);
+
+UCS_CLASS_DECLARE(uct_ud_mlx5_iface_wrapper_t, uct_md_h, uct_worker_h,
+                    const uct_iface_params_t *,
+                    const uct_iface_config_t *);
+
+UCS_CLASS_DECLARE(uct_ud_mlx5_ep_t, const uct_ep_params_t*);
+UCS_CLASS_DECLARE_NEW_FUNC(uct_ud_mlx5_ep_t, uct_ep_t, const uct_ep_params_t*);
+
+UCS_F_ALWAYS_INLINE unsigned
 uct_ud_mlx5_tx_moderation(uct_ud_mlx5_iface_t *iface, uint8_t ce_se)
 {
     if ((ce_se & MLX5_WQE_CTRL_CQ_UPDATE) ||
