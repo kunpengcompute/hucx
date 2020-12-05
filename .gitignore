@@ -6,7 +6,7 @@ test/test
 Makefile
 Makefile.in
 aclocal.m4
-compile
+compile 
 config.guess
 config.h.in
 config.h.in~
