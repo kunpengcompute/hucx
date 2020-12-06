@@ -35,6 +35,8 @@ ucg_builtin_comp_slot_t *ucg_step_test::create_slot(ucg_builtin_op_step_t *step)
     comp_req->status = UCS_OK;
     req->comp_req = comp_req;
     ucg_builtin_op_t *op = new ucg_builtin_op_t;
+    op->send_dt = NULL;
+    op->recv_dt = NULL;
     op->final_cb = NULL;
     req->op = op;
 

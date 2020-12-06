@@ -33,6 +33,8 @@ ucg_builtin_request_t* ucg_cb_test::create_request(ucg_builtin_op_step_t *step) 
     comp_req->status = UCS_OK;
     req->comp_req = comp_req;
     ucg_builtin_op_t *op = new ucg_builtin_op_t;
+    op->send_dt = NULL;
+    op->recv_dt = NULL;
     op->final_cb = NULL;
     req->op = op;
 
