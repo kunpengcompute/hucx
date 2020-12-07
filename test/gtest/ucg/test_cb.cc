@@ -158,9 +158,6 @@ TEST_F(ucg_cb_test, test_op_cb_init) {
     ucg_builtin_init_reduce_and_unpack((ucg_builtin_op_t *)op);
     ASSERT_EQ(send_buf[0], recv_buf[0]);
 
-    ucg_builtin_init_reduce_and_pack_and_unpack((ucg_builtin_op_t *)op);
-    ASSERT_EQ(send_buf[0], recv_buf[0]);
-
     params->send.buf = MPI_IN_PLACE;
     ucg_builtin_init_reduce((ucg_builtin_op_t *)op);
     ASSERT_EQ(recv_buf[0], recv_buf[0]);
