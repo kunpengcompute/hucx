@@ -351,6 +351,19 @@ static void uct_ud_ep_timer(ucs_wtimer_t *self)
     uct_ud_ep_timer_backoff(ep);
 }
 
+#if HAVE_HNS_ROCE
+static void uct_ud_ep_pskb_free(uct_ud_ep_t *ep)
+{
+    uct_ud_send_skb_t *skb;
+
+    ucs_queue_for_each_extract(skb, &ep->pending_skb, queue, 1) {
+        ucs_mpool_put(skb);
+    }
+}
+#else
+#define uct_ud_ep_pskb_free(ep)
+#endif
+
 UCS_CLASS_INIT_FUNC(uct_ud_ep_t, uct_ud_iface_t *iface,
                     const uct_ep_params_t* params)
 {
@@ -367,6 +380,9 @@ UCS_CLASS_INIT_FUNC(uct_ud_ep_t, uct_ud_iface_t *iface,
     uct_ud_iface_add_ep(iface, self);
     self->tx.tick = iface->tx.tick;
     ucs_wtimer_init(&self->timer, uct_ud_ep_timer);
+#if HAVE_HNS_ROCE
+    ucs_queue_head_init(&self->pending_skb);
+#endif
     ucs_arbiter_group_init(&self->tx.pending.group);
     ucs_arbiter_elem_init(&self->tx.pending.elem);
 
@@ -434,6 +450,7 @@ static UCS_CLASS_CLEANUP_FUNC(uct_ud_ep_t)
                             uct_ud_ep_remove_timeout_filter, self);
     uct_ud_ep_purge(self, UCS_ERR_CANCELED);
 
+    uct_ud_ep_pskb_free(self);
     ucs_wtimer_remove(&iface->tx.timer, &self->timer);
     uct_ud_iface_remove_ep(iface, self);
     uct_ud_iface_cep_remove_ep(iface, self);
@@ -626,12 +643,19 @@ ucs_status_t uct_ud_ep_connect_to_ep(uct_ep_h tl_ep,
 
 static UCS_F_ALWAYS_INLINE void
 uct_ud_ep_process_ack(uct_ud_iface_t *iface, uct_ud_ep_t *ep,
-                      uct_ud_psn_t ack_psn, int is_async)
+                      uct_ud_psn_t ack_psn, int is_async, int dummy_ack)
 {
     /* Ignore duplicate ACK */
     if (ucs_unlikely(UCT_UD_PSN_COMPARE(ack_psn, <=, ep->tx.acked_psn))) {
         return;
     }
+
+#if HAVE_HNS_ROCE
+    if (dummy_ack) {
+        ucs_queue_push(&ep->pending_skb, &skb->queue);
+        return;
+    }
+#endif
 
     ep->tx.acked_psn = ack_psn;
 
@@ -715,7 +739,7 @@ static void uct_ud_ep_rx_creq(uct_ud_iface_t *iface, uct_ud_neth_t *neth)
                 /* our own creq was sent, treat incoming creq as ack and remove our own
                  * from tx window
                  */
-                uct_ud_ep_process_ack(iface, ep, UCT_UD_INITIAL_PSN, 0);
+                uct_ud_ep_process_ack(iface, ep, UCT_UD_INITIAL_PSN, 0, 1);
             }
             uct_ud_ep_ctl_op_add(iface, ep, UCT_UD_EP_OP_CREP);
         }
@@ -747,6 +771,7 @@ static void uct_ud_ep_rx_creq(uct_ud_iface_t *iface, uct_ud_neth_t *neth)
     /* scedule connection reply op */
     UCT_UD_EP_HOOK_CALL_RX(ep, neth, sizeof(*neth) + sizeof(*ctl));
     if (uct_ud_ep_ctl_op_check(ep, UCT_UD_EP_OP_CREQ)) {
+        uct_ud_ep_pskb_free(ep);
         uct_ud_ep_set_state(ep, UCT_UD_EP_FLAG_CREQ_NOTSENT);
     }
     uct_ud_ep_ctl_op_del(ep, UCT_UD_EP_OP_CREQ);
@@ -773,6 +798,8 @@ static void uct_ud_ep_rx_ctl(uct_ud_iface_t *iface, uct_ud_ep_t *ep,
     if (UCT_UD_PSN_COMPARE(neth->psn, <, ep->rx.ooo_pkts.head_sn)) {
         return;
     }
+
+    uct_ud_ep_pskb_free(ep);
 
     ep->rx.ooo_pkts.head_sn = neth->psn;
     uct_ud_ep_set_dest_ep_id(ep, ctl->conn_rep.src_ep_id);
@@ -868,7 +895,7 @@ void uct_ud_ep_process_rx(uct_ud_iface_t *iface, uct_ud_neth_t *neth, unsigned b
     ucs_assert(ep->ep_id != UCT_UD_EP_NULL_ID);
     UCT_UD_EP_HOOK_CALL_RX(ep, neth, byte_len);
 
-    uct_ud_ep_process_ack(iface, ep, neth->ack_psn, is_async);
+    uct_ud_ep_process_ack(iface, ep, neth->ack_psn, is_async, 0);
 
     if (ucs_unlikely(neth->packet_type & UCT_UD_PACKET_FLAG_ACK_REQ)) {
         uct_ud_ep_ctl_op_add(iface, ep, UCT_UD_EP_OP_ACK);
