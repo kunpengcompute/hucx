@@ -1339,11 +1339,7 @@ ucs_status_t ucp_wireup_init_lanes(ucp_ep_h ep, unsigned ep_init_flags,
          */
         ucs_debug("cannot reconfigure ep %p from [%d] to [%d]", ep, ep->cfg_index,
                   new_cfg_index);
-        ucp_wireup_print_config(worker, &ucp_ep_config(ep)->key, "old",
-                                NULL, cm_idx, UCS_LOG_LEVEL_ERROR);
-        ucp_wireup_print_config(worker, &key, "new", NULL,
-                                cm_idx, UCS_LOG_LEVEL_ERROR);
-        ucs_fatal("endpoint reconfiguration not supported yet");
+        return UCS_OK; /* No change */
     }
 
     ep->cfg_index = new_cfg_index;
