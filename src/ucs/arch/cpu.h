@@ -52,7 +52,8 @@ typedef enum ucs_cpu_flag {
     UCS_CPU_FLAG_SSE42      = UCS_BIT(8),
     UCS_CPU_FLAG_AVX        = UCS_BIT(9),
     UCS_CPU_FLAG_AVX2       = UCS_BIT(10),
-    UCS_CPU_FLAG_AVX512F    = UCS_BIT(11)
+    UCS_CPU_FLAG_AVX512F    = UCS_BIT(11),
+    UCS_CPU_FLAG_CLWB       = UCS_BIT(12)
 } ucs_cpu_flag_t;
 
 
@@ -141,6 +142,18 @@ static inline void ucs_clear_cache(void *start, void *end)
 #else
     ucs_arch_clear_cache(start, end);
 #endif
+}
+
+
+/**
+ * Initiate write-back of caches, intended for NUMA shared-memory communication.
+ *
+ * @start start of region to write-back cache, including address
+ * @end   end of region to write-back cache, excluding address
+ */
+static inline void ucs_writeback_cache(void *start, void *end)
+{
+    ucs_arch_writeback_cache(start, end);
 }
 
 /**

@@ -265,6 +265,15 @@ typedef struct uct_mm_iface {
 extern ucs_config_field_t uct_mm_iface_config_table[];
 
 static UCS_F_ALWAYS_INLINE int
+uct_mm_iface_fifo_flag_has_new_data(uint8_t flags,
+                                    uint64_t read_index,
+                                    uint8_t fifo_shift)
+{
+    return (((read_index >> fifo_shift) & 1) !=
+            (UCT_MM_FIFO_ELEM_FLAG_OWNER & flags));
+}
+
+static UCS_F_ALWAYS_INLINE int
 uct_mm_iface_fifo_has_new_data(uct_mm_fifo_check_t *check_info)
 {
     /* check the flags_cache to see if anything changed */
@@ -275,8 +284,10 @@ uct_mm_iface_fifo_has_new_data(uct_mm_fifo_check_t *check_info)
     }
 
     /* check the read_index to see if there is a new item to read (checking the owner bit) */
-    uint8_t owner_bit = flags & UCT_MM_FIFO_ELEM_FLAG_OWNER;
-    if (((check_info->read_index >> check_info->fifo_shift) & 1) != owner_bit) {
+
+    if (uct_mm_iface_fifo_flag_has_new_data(flags,
+                                            check_info->read_index,
+                                            check_info->fifo_shift)) {
         check_info->is_flags_cached = 1;
         check_info->flags_cache     = flags;
         return 0;

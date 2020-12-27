@@ -1259,7 +1259,7 @@ static UCS_F_ALWAYS_INLINE ucs_status_t ucp_am_handler_common(
         desc->flags &= ~UCP_RECV_DESC_FLAG_AM_CB_INPROGRESS;
         return desc_status;
     } else if (!(am_flags & UCT_CB_PARAM_FLAG_DESC)) {
-        ucp_recv_desc_release(desc);
+        ucp_recv_desc_release(desc, NULL);
     }
 
     return UCS_OK;

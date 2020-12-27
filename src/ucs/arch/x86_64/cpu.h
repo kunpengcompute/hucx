@@ -22,6 +22,9 @@
 #ifdef __AVX__
 #  include <immintrin.h>
 #endif
+#ifdef __CLWB__
+#  include <x86intrin.h>
+#endif
 
 BEGIN_C_DECLS
 
@@ -90,6 +93,15 @@ static inline void ucs_arch_clear_cache(void *start, void *end)
     }
 }
 #endif
+
+static inline void ucs_arch_writeback_cache(void *start, void *end)
+{
+#if __CLWB__
+    for(; start < end; start = (uint8_t*)start + UCS_ARCH_CACHE_LINE_SIZE) {
+        _mm_clwb(start);
+    }
+#endif
+}
 
 static inline void *ucs_memcpy_relaxed(void *dst, const void *src, size_t len)
 {

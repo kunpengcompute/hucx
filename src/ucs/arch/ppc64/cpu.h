@@ -101,6 +101,11 @@ static inline int ucs_arch_cache_line_is_equal(const void *a, const void *b)
     return (0 == memcmp(a, b, UCS_ARCH_CACHE_LINE_SIZE));
 }
 
+static inline void ucs_arch_writeback_cache(void *start, void *end)
+{
+    ucs_memory_cpu_fence();
+}
+
 END_C_DECLS
 
 #endif

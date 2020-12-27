@@ -13,7 +13,7 @@
                 (((_index) & (_ep)->fifo_mask) * (_ep)->elem_size)))
 
 #define UCT_MM_COLL_GET_BASE_ADDRESS(_is_short, _is_batch, _elem, _ep, \
-                                     _iface, _is_loopback, _is_recv, _stride) \
+                                     _is_loopback, _is_recv, _stride) \
 ({ \
     uint8_t *ret_address; \
     if (_is_short) { \
@@ -41,6 +41,194 @@
     } \
     ret_address; \
 })
+
+static UCS_F_ALWAYS_INLINE uint8_t
+uct_mm_coll_ep_centralized_check_buffer(uint8_t *slot_ptr, unsigned slot_size)
+{
+    uint8_t pending_counter;
+    volatile uint8_t *slot_iter_ptr = slot_ptr + slot_size - 1;
+    uint8_t slot_counter            = *slot_iter_ptr;
+
+    if (slot_counter == 0) {
+        return 0;
+    }
+
+    pending_counter = 0;
+
+    do {
+        *slot_iter_ptr   = 0;
+        pending_counter += slot_counter;
+        slot_iter_ptr   += slot_size * slot_counter;
+        slot_counter     = *slot_iter_ptr;
+    } while (slot_counter != 0);
+    /*
+     * Note: no need to check if slot_iter reaches the limit, because the last
+     * slot is reserved - and is always empty.
+     */
+
+    return pending_counter;
+}
+
+static UCS_F_ALWAYS_INLINE void
+uct_mm_coll_iface_centralized_set_slot_counter(uint8_t *slot_ptr,
+                                               unsigned slot_size,
+                                               uint8_t slot_counter)
+{
+    ucs_assert(slot_ptr[slot_size - 1] == 0);
+
+    slot_ptr[slot_size - 1] = slot_counter;
+}
+
+static UCS_F_ALWAYS_INLINE size_t
+uct_mm_coll_iface_centralized_get_slot_size(uct_mm_coll_ep_t *ep,
+                                            size_t data_length,
+                                            int is_short)
+{
+    return is_short ?
+        ucs_align_up(data_length + 1, UCS_SYS_CACHE_LINE_SIZE) :
+        (ep->seg_size / (ep->tx_cnt + 1));
+}
+
+static UCS_F_ALWAYS_INLINE size_t
+uct_mm_coll_iface_centralized_get_slot_offset(uct_mm_coll_ep_t *ep,
+                                              int is_incast,
+                                              int is_short,
+                                              size_t slot_size,
+                                              unsigned slot_index)
+{
+    if (is_incast) {
+        return slot_size * slot_index;
+    }
+
+    /* For broadcast - it's one cache-line per process indicating completion */
+    size_t total_size = is_short ?
+            ep->elem_size - sizeof(uct_mm_coll_fifo_element_t) : ep->seg_size;
+    return total_size - (UCS_SYS_CACHE_LINE_SIZE * (ep->tx_cnt - slot_index));
+}
+
+static UCS_F_ALWAYS_INLINE ucs_status_t
+uct_mm_coll_iface_centralized_get_ptr(uct_mm_coll_fifo_element_t *elem,
+                                      uct_mm_coll_ep_t *ep,
+                                      int is_incast,
+                                      int is_short,
+                                      int is_loopback,
+                                      uint8_t **base_address)
+{
+    *base_address = UCT_MM_COLL_GET_BASE_ADDRESS(is_short, 1 /* _is_batch */,
+            elem, ep, is_loopback, 1 /* _is_recv */, 0 /* _stride */);
+
+    return UCS_OK;
+}
+
+static UCS_F_ALWAYS_INLINE uint8_t*
+uct_mm_coll_iface_centralized_get_slot(uct_mm_coll_fifo_element_t *elem,
+                                       uct_mm_coll_ep_t *ep,
+                                       int is_incast,
+                                       int is_short,
+                                       int is_loopback,
+                                       size_t slot_size,
+                                       unsigned slot_index)
+{
+    uint8_t *base_address = NULL;
+
+    (void) uct_mm_coll_iface_centralized_get_ptr(elem, ep,
+            is_incast, is_short, is_loopback, &base_address);
+
+    return base_address + uct_mm_coll_iface_centralized_get_slot_offset(ep,
+            is_incast, is_short, slot_size, slot_index);
+}
+
+static UCS_F_ALWAYS_INLINE void
+uct_mm_coll_ep_centralized_mark_done(uct_mm_coll_fifo_element_t *elem,
+                                     uct_mm_coll_ep_t *ep,
+                                     uint8_t *slot_ptr,
+                                     unsigned slot_size)
+{
+    uint8_t* next_slot = slot_ptr + slot_size;
+    uint8_t cnt        = 1 + uct_mm_coll_ep_centralized_check_buffer(next_slot,
+                                                                     slot_size);
+
+    if (ucs_likely(elem->pending == ep->my_offset)) {
+        uct_mm_coll_iface_centralized_set_slot_counter(slot_ptr, slot_size, 0);
+        elem->pending += cnt;
+    } else {
+        uct_mm_coll_iface_centralized_set_slot_counter(slot_ptr, slot_size, cnt);
+    }
+}
+
+static UCS_F_ALWAYS_INLINE void
+uct_mm_coll_ep_centralized_mark_incast_tx_done(uct_mm_coll_fifo_element_t *elem,
+                                               uct_mm_coll_ep_t *ep,
+                                               uint8_t *slot_ptr,
+                                               unsigned slot_size)
+{
+    uct_mm_coll_ep_centralized_mark_done(elem, ep, slot_ptr, slot_size);
+}
+
+static UCS_F_ALWAYS_INLINE void
+uct_mm_coll_ep_centralized_mark_bcast_rx_done(uct_mm_coll_fifo_element_t *elem,
+                                              uct_mm_coll_ep_t *ep,
+                                              int is_short)
+{
+    uint8_t *slot_ptr = uct_mm_coll_iface_centralized_get_slot(elem, ep, 0,
+                                                               is_short, 0, 0,
+                                                               ep->my_offset);
+
+    uct_mm_coll_ep_centralized_mark_done(elem, ep, slot_ptr, UCS_SYS_CACHE_LINE_SIZE);
+}
+
+static UCS_F_ALWAYS_INLINE int
+uct_mm_coll_ep_centralized_is_elem_ready(uct_mm_coll_fifo_element_t *elem,
+                                         uct_mm_coll_ep_t *ep,
+                                         int is_incast,
+                                         int is_short,
+                                         int is_loopback)
+{
+    uint32_t writers = ep->tx_cnt;
+    uint32_t pending = elem->pending;
+    if (ucs_likely(pending == writers)) {
+        return 1;
+    }
+
+    size_t slot_size = is_incast ? elem->super.length : UCS_SYS_CACHE_LINE_SIZE;
+    uint8_t *slot    = uct_mm_coll_iface_centralized_get_slot(elem, ep,
+                                                              is_incast,
+                                                              is_short,
+                                                              is_loopback,
+                                                              slot_size,
+                                                              elem->pending);
+    uint8_t cnt      = uct_mm_coll_ep_centralized_check_buffer(slot, slot_size);
+
+    ucs_assert(slot[slot_size - 1] == 0);
+    ucs_assert((slot_size % UCS_SYS_CACHE_LINE_SIZE) == 0);
+
+    /* This branch is not really likely, but we optimize the critical path */
+    if (ucs_likely(cnt > 0)) {
+        pending += cnt;
+        elem->pending = pending;
+        return (pending == writers);
+    }
+
+    return 0;
+}
+
+void uct_mm_coll_ep_centralized_reset_bcast_elem(uct_mm_coll_fifo_element_t* elem,
+                                                 uct_mm_coll_ep_t *ep,
+                                                 int is_short)
+{
+    uint8_t  slot_idx;
+    uint8_t  slot_cnt = ep->tx_cnt;
+    uint8_t* slot_ptr = uct_mm_coll_iface_centralized_get_slot(elem, ep, 0,
+                                                               is_short, 1,
+                                                               0, 0);
+
+    for (slot_idx = 0; slot_idx < slot_cnt; slot_idx++) {
+        uct_mm_coll_iface_centralized_set_slot_counter(slot_ptr,
+                                                       UCS_SYS_CACHE_LINE_SIZE,
+                                                       0);
+        slot_ptr += UCS_SYS_CACHE_LINE_SIZE;
+    }
+}
 
 /*
  * This function is the common send function for three types of shared-memory
@@ -73,12 +261,14 @@
  *   | element->pending = 2 |      | 111p | 222p |      |
  *   | element->pending = 3 |      | 111p | 222p | 333p |
  *
- * 4. CENTRALIZED mode, like "batched" but with recv-side completion:
+ * 4. CENTRALIZED mode, like "batched" but with root checking each slot:
  *
- *   | element->pending = 0 | ???-0 | ???-0 | ???-0 |
- *   | element->pending = 0 | ???-0 | 222-1 | ???-0 |
- *   | element->pending = 2 | 111-1 | 222-1 | ???-0 | < rank#0 "triggers" checks
- *   | element->pending = 3 | 111-1 | 222-1 | 333-1 |
+ *                                            Dummy slot, always empty
+ *                                                    VVVVV
+ *   | element->pending = 0 | ???-0 | ???-0 | ???-0 | ...-0 |
+ *   | element->pending = 0 | ???-0 | 222-1 | ???-0 | ...-0 |
+ *   | element->pending = 0 | 111-2 | 222-0 | ???-0 | ...-0 | < #1 sets #2 to 0
+ *   | element->pending = 3 | 111-0 | 222-0 | 333-1 | ...-0 |
  *                        ^       ^       ^       ^
  *                        ^      #1      #2      #3  -> the last byte is polled
  *                        ^                             by the receiver process.
@@ -86,6 +276,43 @@
  *                        the receiver process polls all these last bytes, and
  *                        once all the bytes have been set - the receiver knows
  *                        this operation is complete (none of the senders know).
+ *
+ *   The CENTRALIZED algorithm is slightly more complicated than the rest:
+ *   - Each writer N checks if writer N+1 has a non-zero counter:
+ *       > If writer N+1 has counter=0 - then set writer N counter to 1
+ *       > If writer N+1 has counter=X - then set writer N+1 counter to 0 and
+ *         writer N counter to X+1.
+ *   - When polling, the reader checks counters starting from element->pending:
+ *       > If element->pending is X - start by checking the counter of writer X
+ *       > If writer X counter is Y - skip to writer X+Y (and continue checking
+ *         from there), and also set the counter of writer X to 0.
+ *       > If writer X counter is 0 - set element->pending=X
+ *
+ *   *Note: if element->pending is X - it means that all the writers 0,1,...,X-1
+ *          have finished, and their counters should be 0 (so that those are
+ *          ready for the next usage of this element).
+ *
+ * What is the size of each slot?
+ * - Short messages have data-length-based slot size:
+ *       ucs_align_up(data_length + 1, UCS_SYS_CACHE_LINE_SIZE);
+ * - Bcopy messages have a fixed slot size: the segment_size / num_senders
+ *   This is because you need to pass the slot offset to the packer callback -
+ *   before you know the length actually written.
+ * - Zcopy messages are not supported yet...
+ *
+ * The text above mostly focuses on incast (many-to-one communication), but
+ * broadcast is also supported. In the broadcast case, each receiver needs to
+ * indicate completion - which turns into incast again. For broadcast, the
+ * layout is slightly different, and all the completion flags are grouped at the
+ * end of the element (short/long sends) or segment (medium sends):
+ *
+ * 4. CENTRALIZED mode, like "batched" but with root checking each slot:
+ *                            No flag     Padding   Dummy slot, always empty
+ *                               V           V       VVVVV
+ *   | element->pending = 0 | 0000 | ...-0 | ...-0 | ...-0 |
+ *   | element->pending = 0 | 0000 | ...-0 | ...-1 | ...-0 | < #2 ACK-s
+ *                                   ^^^^^   ^^^^^   ^^^^^
+ *                                   Each ACK flag is in a separate cache-line
  *
  * To summarize the differences:
  *
@@ -144,27 +371,15 @@ uct_mm_coll_ep_am_common_send(uct_coll_dtype_mode_t op_mode, int is_bcast,
     }
 
     /* Determine function parameters based on the collective operation type */
-    int is_tight   = (op_mode != UCT_COLL_DTYPE_MODE_PADDED);
-    int is_batched = !is_bcast && !is_tight;
+    int is_tight       = (op_mode != UCT_COLL_DTYPE_MODE_PADDED);
+    int is_centralized = !is_bcast && !is_tight;
+    uint16_t stride    = is_tight ? length :
+            uct_mm_coll_iface_centralized_get_slot_size(ep, length, is_short);
 
-    /* Calculate stride: distance between the start of two consecutive items */
-    uint16_t stride;
-    if (is_tight) {
-        stride = length;
-        ucs_assert(length > 0);
-    } else {
-        if (is_short) {
-            stride = ep->elem_size - sizeof(uct_mm_coll_fifo_element_t);
-        } else {
-            stride = ep->seg_size;
-        }
-        if (!is_bcast) {
-            stride /= ep->tx_cnt + 1;
-        }
-    }
+    ucs_assert(!is_tight || (length > 0));
+    // TODO: currently BATCHED mode is never used - consider some PPN threshold?
 
     /* Check my "position" in the order of writers to this element */
-    uint8_t *base_address;
     uint32_t previous_pending = 0;
     uct_mm_coll_fifo_element_t *elem = ep->tx_elem;
     int is_lock_needed = !is_short && !is_bcast && (flags & UCT_SEND_FLAG_PACK_LOCK);
@@ -174,15 +389,15 @@ uct_mm_coll_ep_am_common_send(uct_coll_dtype_mode_t op_mode, int is_bcast,
     }
 
     /* Write the buffer (or reduce onto an existing buffer) */
-    base_address = UCT_MM_COLL_GET_BASE_ADDRESS(is_short, is_batched,
-            elem, ep, iface, is_bcast, 0 /* _is_recv */, stride);
+    uint8_t *base_address = UCT_MM_COLL_GET_BASE_ADDRESS(is_short,
+            is_centralized, elem, ep, is_bcast, 0 /* _is_recv */, stride);
     if (is_short) {
         /* Last writer writes the header too, the rest - only payload */
         memcpy(base_address, payload, length);
     } else {
         /* For some reduce operations - ask the callback to do the reduction */
         if (!is_bcast &&
-            !is_batched &&
+            !is_centralized &&
             ucs_likely(previous_pending != 0)) {
             ucs_assert_always((((uintptr_t)arg) & UCT_PACK_CALLBACK_REDUCE) == 0);
             arg = (void*)((uintptr_t)arg | UCT_PACK_CALLBACK_REDUCE);
@@ -195,37 +410,39 @@ uct_mm_coll_ep_am_common_send(uct_coll_dtype_mode_t op_mode, int is_bcast,
     /* No need to mess with coordination if I'm the only writer (broadcast) */
     if (is_bcast) {
         ucs_assert(elem->pending == 0);
-        elem->pending = 1;
         goto last_writer;
     }
 
-    /* CENTRALIZED mode only: mark my slot as "written" */
-    if (is_batched) {
-        ucs_assert(length < stride);
+    if (is_centralized) {
+        /* CENTRALIZED mode only: mark my slot as "written" */
+        uct_mm_coll_ep_centralized_mark_incast_tx_done(elem, ep, base_address,
+                                                       stride);
 
-        /* Make sure data is written before the "done" flag */
-        ucs_memory_cpu_store_fence();
-
-        /* Mark own slot as "done" */
-        base_address[stride - 1] = UCT_MM_FIFO_ELEM_FLAG_OWNER;
-
-        /* One process notifies the receiver (doesn't mean others are done) */
+        /*
+         * One process signals this element is "ready for inspection", but not
+         * necessarily ready for the receiver to process (#0 did write his piece
+         * but others may still be pending). Another important part of this step
+         * is to notify the receiver what the stride is - so it can poll the
+         * flags of each slot.
+         */
         if (ep->my_offset == 0) {
             goto last_writer;
         } else {
             goto trace_send;
         }
     } else if (is_tight) {
+        /* BATCHED mode - update the central counter about my completion */
         ucs_memory_cpu_store_fence();
-        ucs_assert(!is_batched);
         previous_pending = ucs_atomic_fadd32(&elem->pending, 1);
     } else if (is_lock_needed) {
+        /* LOCKED mode - just unlock before finishing */
         ucs_spin_unlock(&elem->lock);
+        /* Note: 'previous_pending' was already updated when locking */
     }
 
 skip_payload:
     /* Check if this sender is the last expected sender for this element */
-    if (previous_pending == ep->tx_cnt) {
+    if (previous_pending == ep->tx_cnt - 1) {
 last_writer:
         /* Change the owner bit to indicate that the writing is complete.
          * The owner bit flips after every FIFO wraparound */
@@ -238,9 +455,9 @@ last_writer:
 
         elem->op_mode      = op_mode;
         elem->super.am_id  = am_id;
-        elem->super.length = is_batched ? stride :
+        elem->super.length = is_centralized ? stride :
                              (!is_tight ? length + (is_short * sizeof(header)) :
-                                          (length * (ep->tx_cnt + 1)) +
+                                          (length * ep->tx_cnt) +
                                           (is_short * sizeof(header)));
 
         /* memory barrier - make sure that the memory is flushed before setting the
@@ -272,6 +489,14 @@ trace_send:
     /* Update both the index and the pointer to the next element */
     ep->tx_elem = UCT_MM_COLL_EP_GET_FIFO_ELEM(ep, ++ep->tx_index);
     ucs_prefetch(ep->tx_elem);
+    if (is_short && is_centralized) {
+        /* Prefetch the slot we will probably write to */
+        ucs_prefetch((uint8_t*)ep->tx_elem + (base_address - (uint8_t*)elem));
+
+        /* Write-back (without invalidating) the modified cache-lines */
+        ucs_arch_writeback_cache(base_address, base_address + stride);
+        // TODO: verify benefit
+    }
 
     return UCS_OK;
 }
@@ -406,7 +631,7 @@ UCS_CLASS_INIT_FUNC(uct_mm_coll_ep_t, const uct_ep_params_t *params)
     self->coll_id    = addr->coll_id;
     self->my_offset  = iface->my_coll_id -
                       (uint32_t)(addr->coll_id < iface->my_coll_id);
-    self->tx_cnt     = iface->sm_proc_cnt - 2;
+    self->tx_cnt     = iface->sm_proc_cnt - 1;
     self->tx_index   = 0;
     self->tx_elem    = self->super.fifo_elems;
     self->elem_size  = iface->super.config.fifo_elem_size;
@@ -466,21 +691,29 @@ UCS_CLASS_DEFINE(uct_mm_bcast_ep_t, uct_mm_coll_ep_t)
 UCS_CLASS_DEFINE(uct_mm_incast_ep_t, uct_mm_coll_ep_t)
 
 static UCS_F_ALWAYS_INLINE void
-uct_mm_coll_ep_update_tail(uct_mm_fifo_ctl_t *fifo_ctl, uint64_t index)
+uct_mm_coll_ep_elem_set_read(uct_mm_coll_fifo_element_t *elem,
+                             uct_mm_fifo_ctl_t *fifo_ctl,
+                             uint64_t index)
 {
-    (void) ucs_atomic_cswap64(&fifo_ctl->tail, index, index + 1);
+    if (index == ucs_atomic_cswap64(&fifo_ctl->tail, index, index + 1)) {
+        elem->pending = 0;
+    }
+
+    ucs_memory_cpu_store_fence();
 }
 
 static UCS_F_ALWAYS_INLINE int
-uct_mm_coll_ep_is_last_to_read(uct_mm_coll_fifo_element_t *elem,
-                               uct_mm_fifo_ctl_t *fifo_ctl,
-                               uint8_t proc_cnt,
-                               uint64_t last_index)
+uct_mm_coll_ep_elem_is_last_to_read(uct_mm_coll_fifo_element_t *elem,
+                                    uct_mm_fifo_ctl_t *fifo_ctl,
+                                    int is_pending_batched,
+                                    uint8_t proc_cnt,
+                                    uint64_t last_index)
 {
-    uint32_t pending = ucs_atomic_fadd32(&elem->pending, 1);
+    uint32_t pending = is_pending_batched ? elem->pending :
+                                            ucs_atomic_fadd32(&elem->pending, 1);
+
     if (pending == proc_cnt) {
-        elem->pending = 0;
-        uct_mm_coll_ep_update_tail(fifo_ctl, last_index);
+        uct_mm_coll_ep_elem_set_read(elem, fifo_ctl, last_index);
         return 1;
     }
     return 0;
@@ -528,34 +761,13 @@ new_segment:
     }
 
     /* Check if this element has been released by all peers and can be re-used */
-    int is_last = uct_mm_coll_ep_is_last_to_read(elem, ep->super.fifo_ctl,
-                                                 ep->tx_cnt + 1, elem_index);
-    if (is_last) {
-        while ((elem_index < ep->tx_index) && (elem->pending == 0)) {
-            uct_mm_coll_ep_update_tail(ep->super.fifo_ctl, elem_index);
-            elem = uct_mm_coll_ep_get_next_rx_elem(elem, ep, &elem_index);
-        }
+    int is_pending_batched = (elem->op_mode == UCT_COLL_DTYPE_MODE_PADDED);
+    while ((elem_index < ep->tx_index) &&
+           (uct_mm_coll_ep_elem_is_last_to_read(elem, ep->super.fifo_ctl,
+                                                is_pending_batched,
+                                                ep->tx_cnt, elem_index))) {
+        elem = uct_mm_coll_ep_get_next_rx_elem(elem, ep, &elem_index);
     }
-}
-
-static UCS_F_ALWAYS_INLINE int
-uct_mm_coll_iface_is_centralized_elem_ready(uct_mm_coll_fifo_element_t *elem,
-                                            uint8_t *base_address,
-                                            uint32_t num_slots,
-                                            unsigned slot_size)
-{
-    uint32_t slot_iter     = elem->pending; /* start from last known position */
-    uint8_t *slot_iter_ptr = base_address + ((slot_iter + 1) * slot_size) - 1;
-
-    while ((slot_iter < num_slots) && (*slot_iter_ptr)) {
-        ucs_assert(*slot_iter_ptr == UCT_MM_FIFO_ELEM_FLAG_OWNER);
-        *slot_iter_ptr = 0;
-        slot_iter_ptr += slot_size;
-        slot_iter++;
-    }
-
-    elem->pending = slot_iter;
-    return (slot_iter == num_slots);
 }
 
 /**
@@ -567,40 +779,40 @@ uct_mm_coll_iface_is_centralized_elem_ready(uct_mm_coll_fifo_element_t *elem,
  * the future (by an upper layer calling @ref uct_iface_release_desc ).
  */
 static UCS_F_ALWAYS_INLINE int
-uct_mm_ep_process_recv(uct_mm_coll_ep_t *ep, uct_mm_coll_iface_t *iface,
-                       uct_mm_coll_fifo_element_t *elem, int is_incast)
+uct_mm_coll_ep_process_recv(uct_mm_coll_ep_t *ep, uct_mm_coll_iface_t *iface,
+                            uct_mm_coll_fifo_element_t *elem, int is_incast,
+                            int is_loopback)
 {
-
     /* Detect incoming message parameters */
-    int is_short          = elem->super.flags & UCT_MM_FIFO_ELEM_FLAG_INLINE;
-    uint8_t *base_address = UCT_MM_COLL_GET_BASE_ADDRESS(is_short,
-                            0 /* _is_batch */, elem, ep, iface, is_incast,
-                            1 /* _is_recv */, 0 /* _stride */);
-    uint16_t stride        = elem->super.length;
-    uint8_t proc_cnt       = iface->sm_proc_cnt - 1;
+    int am_cb_flags;
+    int is_short           = elem->super.flags & UCT_MM_FIFO_ELEM_FLAG_INLINE;
+    int is_pending_batched = (elem->op_mode == UCT_COLL_DTYPE_MODE_PADDED);
 
     /* CENTRALIZED mode only - check if this is the last writer */
-    int is_pending_batched = (elem->op_mode == UCT_COLL_DTYPE_MODE_PADDED);
-    if (is_pending_batched && is_incast) {
-        if (!uct_mm_coll_iface_is_centralized_elem_ready(elem,
-                base_address, proc_cnt, stride)) {
+    if (ucs_likely(is_pending_batched) && is_incast) {
+        if (!uct_mm_coll_ep_centralized_is_elem_ready(elem, ep, 1, is_short,
+                                                      is_loopback)) {
             return 0; /* incast started, but not all peers have written yet */
         }
 
         ucs_memory_cpu_load_fence();
     }
 
+    uint16_t stride       = elem->super.length;
+    uint8_t *base_address = UCT_MM_COLL_GET_BASE_ADDRESS(is_short,
+                            0 /* _is_batch */, elem, ep, is_incast,
+                            1 /* _is_recv */, 0 /* _stride */);
+
     /* choose the flags for the Active Message callback argument */
-    int am_cb_flags = is_incast * UCT_CB_PARAM_FLAG_STRIDE;
-    ucs_assert((is_incast == 0) || (is_incast == 1));
     if (!is_short) {
         if (is_incast) {
-            am_cb_flags |= UCT_CB_PARAM_FLAG_DESC;
+            am_cb_flags = UCT_CB_PARAM_FLAG_DESC | UCT_CB_PARAM_FLAG_STRIDE;
         } else {
-            am_cb_flags |= UCT_CB_PARAM_FLAG_DESC | UCT_CB_PARAM_FLAG_SHARED;
+            am_cb_flags = UCT_CB_PARAM_FLAG_DESC | UCT_CB_PARAM_FLAG_SHARED;
         }
     } else {
-        base_address -= sizeof(elem->header);
+        am_cb_flags     = is_incast ? UCT_CB_PARAM_FLAG_STRIDE : 0;
+        base_address   -= sizeof(elem->header);
     }
 
     uct_iface_trace_am(&iface->super.super.super, UCT_AM_TRACE_TYPE_RECV,
@@ -614,7 +826,7 @@ uct_mm_ep_process_recv(uct_mm_coll_ep_t *ep, uct_mm_coll_iface_t *iface,
                                               stride, am_cb_flags);
 
     /*
-     * This descriptor may resides on memory belonging to another process.
+     * This descriptor may reside on memory belonging to another process.
      * The consequence is that it can only be accessed for reading, not
      * writing (technically writing is possible, but would conflict with
      * other processes using this descriptor). UCT_CB_PARAM_FLAG_SHARED is
@@ -630,30 +842,38 @@ uct_mm_ep_process_recv(uct_mm_coll_ep_t *ep, uct_mm_coll_iface_t *iface,
             /* assign a new receive descriptor to this FIFO element.*/
             uct_mm_assign_desc_to_fifo_elem(&iface->super, &elem->super, 1);
 
-            /* CENTRALIZED mode only - mark my slot as "written" */
-            if (is_pending_batched) {
-                uct_mm_coll_iface_init_centralized_desc(elem, stride, proc_cnt);
-            }
-
             /* later release of this desc - the easy way */
             uct_recv_desc(desc) = (uct_recv_desc_t*)&iface->super.release_desc;
 
             /* Mark element as done (and re-usable) */
             recv_check = &iface->super.recv_check;
         } else {
-            /* set information for @ref uct_mm_coll_iface_release_shared_desc */
-            uct_recv_desc(desc) = (void*)((uintptr_t)ep->coll_id);
+            /* set information for @ref uct_mm_bcast_iface_release_shared_desc_func */
+            base_address = uct_mm_coll_iface_centralized_get_slot(elem, ep, 0,
+                                                                  is_short, 0, 0,
+                                                                  ep->my_offset);
+            base_address += UCS_SYS_CACHE_LINE_SIZE - 1;
+
+            ucs_assert(*base_address == 0);
+
+            uct_recv_desc(desc) = (void*)base_address;
             return 1;
         }
     } else if (is_incast) {
         recv_check = &iface->super.recv_check;
     } else {
         recv_check = &ucs_derived_of(ep, uct_mm_bcast_ep_t)->recv_check;
+
+        if (is_pending_batched) {
+            /* I finished reading the broadcast - let the sender know */
+            uct_mm_coll_ep_centralized_mark_bcast_rx_done(elem, ep, is_short);
+        }
     }
 
     /* Mark element as done (and re-usable) */
-    uct_mm_coll_ep_is_last_to_read(elem, recv_check->fifo_ctl,
-                                   proc_cnt, recv_check->read_index);
+    uct_mm_coll_ep_elem_is_last_to_read(elem, recv_check->fifo_ctl,
+                                        is_pending_batched, ep->tx_cnt,
+                                        recv_check->read_index);
 
     return 1;
 }
@@ -661,7 +881,9 @@ uct_mm_ep_process_recv(uct_mm_coll_ep_t *ep, uct_mm_coll_iface_t *iface,
 int uct_mm_ep_process_recv_loopback(uct_mm_coll_iface_t *iface,
                                     uct_mm_coll_fifo_element_t *elem)
 {
-    return uct_mm_ep_process_recv(NULL, iface, elem, 1);
+    uct_mm_coll_ep_t dummy = { .tx_cnt = iface->sm_proc_cnt - 1 };
+
+    return uct_mm_coll_ep_process_recv(&dummy, iface, elem, 1, 1);
 }
 
 static inline uct_mm_coll_ep_t* uct_mm_coll_ep_find(uct_mm_coll_iface_t *iface,
@@ -760,6 +982,37 @@ void uct_mm_coll_ep_destroy(uct_ep_h tl_ep)
     UCS_CLASS_DELETE(uct_mm_coll_ep_t, ep);
 }
 
+void uct_mm_bcast_ep_poll_tail(uct_mm_bcast_iface_t *iface)
+{
+    uct_mm_base_iface_t *mm_iface = &iface->super.super;
+    uct_mm_fifo_ctl_t *fifo_ctl   = mm_iface->recv_check.fifo_ctl;
+    uct_mm_fifo_element_t* elems  = mm_iface->recv_fifo_elems;
+    uint64_t read_index           = fifo_ctl->tail;
+    uint64_t elem_index           = read_index & mm_iface->fifo_mask;
+    uct_mm_coll_fifo_element_t *e =
+            ucs_container_of(UCT_MM_IFACE_GET_FIFO_ELEM(mm_iface, elems,
+                                                        elem_index),
+                             uct_mm_coll_fifo_element_t, super);
+
+    /* This condition is intentionally backwards, because we're testing tail */
+    if (uct_mm_iface_fifo_flag_has_new_data(e->super.flags, read_index,
+                                            mm_iface->recv_check.fifo_shift)) {
+        return;
+    }
+
+    int is_short                  = e->super.flags & UCT_MM_FIFO_ELEM_FLAG_INLINE;
+    uct_mm_coll_ep_t dummy        = {
+            .tx_cnt     = iface->super.sm_proc_cnt - 1,
+            .elem_size  = mm_iface->config.fifo_elem_size,
+            .seg_size   = mm_iface->config.seg_size
+    };
+
+    if (ucs_unlikely(uct_mm_coll_ep_centralized_is_elem_ready(e, &dummy, 0,
+                                                              is_short, 1))) {
+        uct_mm_coll_ep_elem_set_read(e, fifo_ctl, read_index);
+    }
+}
+
 unsigned uct_mm_bcast_ep_poll_fifo(uct_mm_bcast_iface_t *iface,
                                    uct_mm_bcast_ep_t *ep)
 {
@@ -770,21 +1023,22 @@ unsigned uct_mm_bcast_ep_poll_fifo(uct_mm_bcast_iface_t *iface,
     uct_mm_coll_fifo_element_t *elem = ucs_container_of(ep->recv_check.read_elem,
                                                         uct_mm_coll_fifo_element_t,
                                                         super);
-    if (!uct_mm_ep_process_recv(&ep->super, &iface->super, elem, 0)) {
+    if (!uct_mm_coll_ep_process_recv(&ep->super, &iface->super, elem, 0, 0)) {
         return 0;
     }
 
     /* raise the read_index */
-    uint64_t read_index = ++ep->recv_check.read_index;
+    uint64_t read_index = ++ep->recv_check.read_index & ep->super.fifo_mask;
 
     /* the next fifo_element which the read_index points to */
-    ep->recv_check.read_elem =
-            UCT_MM_IFACE_GET_FIFO_ELEM(&iface->super.super,
-                                       ep->super.super.fifo_elems,
-                                       (read_index & ep->super.fifo_mask));
+    elem = ucs_container_of(UCT_MM_IFACE_GET_FIFO_ELEM(&iface->super.super,
+                                                       ep->super.super.fifo_elems,
+                                                       read_index),
+                            uct_mm_coll_fifo_element_t, super);
 
+    ep->recv_check.read_elem = &elem->super;
 
-    ucs_prefetch(ep->recv_check.read_elem);
+    ucs_prefetch(elem);
 
     /*
      * Note: cannot call uct_mm_progress_fifo_tail() here, because I might have

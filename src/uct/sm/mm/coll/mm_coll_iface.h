@@ -32,6 +32,11 @@ typedef struct uct_mm_coll_fifo_element {
     uint64_t              header;
 } UCS_S_PACKED UCS_V_ALIGNED(UCS_SYS_CACHE_LINE_SIZE) uct_mm_coll_fifo_element_t;
 
+#define UCT_MM_COLL_IFACE_GET_FIFO_ELEM(_iface, _index) \
+   ucs_container_of(UCT_MM_IFACE_GET_FIFO_ELEM(&(_iface)->super.super, \
+                    (_iface)->super.super.recv_fifo_elems, _index), \
+                    uct_mm_coll_fifo_element_t, super)
+
 typedef struct uct_mm_coll_ep uct_mm_coll_ep_t;
 typedef struct uct_mm_bcast_ep uct_mm_bcast_ep_t;
 
@@ -77,28 +82,13 @@ ucs_status_t uct_mm_coll_iface_get_address(uct_iface_t *tl_iface,
 int uct_mm_ep_process_recv_loopback(uct_mm_coll_iface_t *iface,
                                     uct_mm_coll_fifo_element_t *elem);
 
+void uct_mm_bcast_ep_poll_tail(uct_mm_bcast_iface_t *iface);
+
 unsigned uct_mm_bcast_ep_poll_fifo(uct_mm_bcast_iface_t *iface,
                                    uct_mm_bcast_ep_t *ep);
 
-
-static UCS_F_ALWAYS_INLINE void
-uct_mm_coll_iface_init_centralized_buffer(uint8_t* buffer, size_t size_per_proc,
-                                          uint32_t proc_cnt)
-{
-    int i;
-    for (i = 1; i < proc_cnt; i++) {
-        *(buffer + (i * size_per_proc) - 1) = 0;
-    }
-}
-
-
-static UCS_F_ALWAYS_INLINE void
-uct_mm_coll_iface_init_centralized_desc(uct_mm_coll_fifo_element_t* fifo_elem_p,
-                                        size_t bcopy_size_per_proc,
-                                        uint32_t proc_cnt)
-{
-    uct_mm_coll_iface_init_centralized_buffer(fifo_elem_p->super.desc_data,
-                                              bcopy_size_per_proc, proc_cnt);
-}
+void uct_mm_coll_ep_centralized_reset_bcast_elem(uct_mm_coll_fifo_element_t* elem,
+                                                 uct_mm_coll_ep_t *ep,
+                                                 int is_short);
 
 #endif

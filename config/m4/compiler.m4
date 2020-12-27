@@ -354,6 +354,14 @@ AS_IF([test "x$with_avx" != xyes],
                                   }])
       ])
 
+#
+# CLWB
+#
+COMPILER_CPU_OPTIMIZATION([clwb], [CLWB], [-mclwb],
+                          [int main() {
+                               int* a; asm volatile("clwb %0" :: "m" (a)); return 0;
+                           }])
+
 
 DETECT_UARCH()
 

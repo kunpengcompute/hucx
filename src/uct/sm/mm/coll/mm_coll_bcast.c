@@ -15,9 +15,13 @@ static ucs_status_t uct_mm_bcast_iface_query(uct_iface_h tl_iface,
      }
 
     uct_mm_coll_iface_t *iface   = ucs_derived_of(tl_iface, uct_mm_coll_iface_t);
+    size_t bcast_completions     = iface->sm_proc_cnt * UCS_SYS_CACHE_LINE_SIZE;
     iface_attr->cap.flags       |= UCT_IFACE_FLAG_BCAST;
     iface_attr->cap.am.max_short = iface->super.config.fifo_elem_size -
-                                   sizeof(uct_mm_coll_fifo_element_t);
+                                   sizeof(uct_mm_coll_fifo_element_t) -
+                                   bcast_completions;
+    iface_attr->cap.am.max_bcopy = iface->super.config.seg_size -
+                                   bcast_completions;
 
     /* Update expected performance */
     // TODO: measure and update these numbers
@@ -39,6 +43,9 @@ static unsigned uct_mm_bcast_iface_progress(uct_iface_h tl_iface)
     unsigned count, index;
 
     ucs_assert(mm_iface->fifo_poll_count >= UCT_MM_IFACE_FIFO_MIN_POLL);
+
+    /* use the time to check if the tail element has been released */
+    uct_mm_bcast_ep_poll_tail(iface);
 
     ucs_ptr_array_for_each(next_ep, index, &iface->super.ep_ptrs) {
         /* progress receive */
@@ -63,6 +70,7 @@ static int uct_mm_bcast_iface_release_shared_desc_func(uct_iface_h iface,
                                                        uct_recv_desc_t *self,
                                                        void *desc)
 {
+    *(uint8_t*)self = 1;
     return 1;
 }
 
@@ -97,11 +105,39 @@ UCS_CLASS_INIT_FUNC(uct_mm_bcast_iface_t, uct_md_h md, uct_worker_h worker,
                     const uct_iface_params_t *params,
                     const uct_iface_config_t *tl_config)
 {
+    uint32_t procs = ((params->field_mask & UCT_IFACE_PARAM_FIELD_COLL_INFO) &&
+                      (params->host_info.proc_cnt > 2)) ?
+                     params->host_info.proc_cnt : 2;
+
+    uct_mm_iface_config_t *mm_config = ucs_derived_of(tl_config,
+                                                      uct_mm_iface_config_t);
+    mm_config->fifo_elem_size       += procs * UCS_SYS_CACHE_LINE_SIZE;
+
     UCS_CLASS_CALL_SUPER_INIT(uct_mm_coll_iface_t, &uct_mm_bcast_iface_ops, md,
                               worker, params, tl_config);
 
+    int i;
+    uct_mm_coll_fifo_element_t *elem;
+    uct_mm_coll_ep_t dummy = {
+            .tx_cnt    = procs,
+            .elem_size = mm_config->fifo_elem_size,
+            .seg_size  = mm_config->seg_size
+    };
+
+    for (i = 0; i < self->super.super.config.fifo_size; i++) {
+        elem = UCT_MM_COLL_IFACE_GET_FIFO_ELEM(self, i);
+
+        uct_mm_coll_ep_centralized_reset_bcast_elem(elem, &dummy, 0);
+        uct_mm_coll_ep_centralized_reset_bcast_elem(elem, &dummy, 1);
+
+        elem->pending = 0;
+    }
+
+    mm_config->fifo_elem_size -= procs * UCS_SYS_CACHE_LINE_SIZE;
+
     return UCS_OK;
 }
+
 
 UCS_CLASS_CLEANUP_FUNC(uct_mm_bcast_iface_t) {}
 

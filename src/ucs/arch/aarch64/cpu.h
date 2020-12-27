@@ -235,6 +235,19 @@ static inline void ucs_arch_clear_cache(void *start, void *end)
 }
 #endif
 
+static inline void ucs_arch_clear_cache(void *start, void *end)
+{
+    uintptr_t ptr;
+
+    asm volatile ("mrs\t%0, ctr_el0":"=r" (ctr_el0));
+    dcache = sizeof(int) << ((ctr_el0 >> 16) & 0xf);
+
+    for (ptr = ucs_align_down((uintptr_t)start, dcache); ptr < (uintptr_t)end; ptr += dcache) {
+        asm volatile ("dc cvac, %0" :: "r" (ptr) : "memory");
+    }
+    asm volatile ("dsb ish" ::: "memory");
+}
+
 #if defined(__ARM_FEATURE_SVE)
 static inline void *memcpy_aarch64_sve(void *dest, const void *src, size_t len)
 {

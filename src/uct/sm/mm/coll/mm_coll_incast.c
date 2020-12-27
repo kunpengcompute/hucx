@@ -6,11 +6,6 @@
 #include "mm_coll_iface.h"
 #include "mm_coll_ep.h"
 
-#define UCT_MM_COLL_IFACE_GET_FIFO_ELEM(_iface, _index) \
-   ucs_container_of(UCT_MM_IFACE_GET_FIFO_ELEM(&(_iface)->super.super, \
-                    (_iface)->super.super.recv_fifo_elems, _index), \
-                    uct_mm_coll_fifo_element_t, super)
-
 static ucs_status_t uct_mm_incast_iface_query(uct_iface_h tl_iface,
                                               uct_iface_attr_t *iface_attr)
 {
@@ -25,9 +20,9 @@ static ucs_status_t uct_mm_incast_iface_query(uct_iface_h tl_iface,
     uct_mm_coll_iface_t *iface   = ucs_derived_of(tl_iface, uct_mm_coll_iface_t);
     iface_attr->cap.am.max_short = ((iface->super.config.fifo_elem_size -
                                      sizeof(uct_mm_coll_fifo_element_t)) /
-                                    (iface->sm_proc_cnt - 1)) - 1;
-    iface_attr->cap.am.max_bcopy = ((iface->super.config.seg_size) /
-                                    (iface->sm_proc_cnt - 1)) - 1;
+                                    iface->sm_proc_cnt) - 1;
+    iface_attr->cap.am.max_bcopy = (iface->super.config.seg_size /
+                                    iface->sm_proc_cnt) - 1;
 
     /* Update expected performance */
     // TODO: measure and update these numbers
@@ -38,28 +33,6 @@ static ucs_status_t uct_mm_incast_iface_query(uct_iface_h tl_iface,
     iface_attr->overhead_bcopy      = 12e-9; /* 11 ns */
 
     return UCS_OK;
-}
-
-static ucs_status_t uct_mm_coll_iface_init_element(size_t short_size_per_proc,
-                                                   size_t bcopy_size_per_proc,
-                                                   uint32_t proc_cnt,
-                                                   uct_mm_coll_fifo_element_t*
-                                                   fifo_elem_p)
-{
-    ucs_assert(fifo_elem_p->super.flags & UCT_MM_FIFO_ELEM_FLAG_OWNER);
-    fifo_elem_p->pending = 0;
-
-    /* initialization for CENTRALIZED mode */
-    if (proc_cnt) {
-        uct_mm_coll_iface_init_centralized_desc(fifo_elem_p,
-                                                bcopy_size_per_proc,
-                                                proc_cnt);
-
-        uct_mm_coll_iface_init_centralized_buffer((uint8_t*)(fifo_elem_p + 1),
-                                                  short_size_per_proc, proc_cnt);
-    }
-
-    return ucs_spinlock_init(&fifo_elem_p->lock, UCS_SPINLOCK_FLAG_SHARED);
 }
 
 static UCS_F_ALWAYS_INLINE unsigned
@@ -141,6 +114,8 @@ static int uct_mm_incast_iface_release_shared_desc(uct_iface_h tl_iface,
                                                    uct_recv_desc_t *self,
                                                    void *desc)
 {
+
+    printf("uct_mm_incast_iface_release_shared_desc!\n");
     unsigned index;
     uct_mm_coll_ep_t *ep;
     uintptr_t src_coll_id        = (uintptr_t)self;
@@ -197,11 +172,11 @@ UCS_CLASS_INIT_FUNC(uct_mm_incast_iface_t, uct_md_h md, uct_worker_h worker,
     uct_mm_iface_config_t *mm_config = ucs_derived_of(tl_config,
                                                       uct_mm_iface_config_t);
     unsigned orig_fifo_elem_size     = mm_config->fifo_elem_size;
-    size_t bcopy_stride              = mm_config->seg_size / (procs - 1);
-    size_t short_stride              = orig_fifo_elem_size -
-                                       sizeof(uct_mm_coll_fifo_element_t);
+    size_t short_stride              = ucs_align_up(orig_fifo_elem_size -
+                                                    sizeof(uct_mm_coll_fifo_element_t),
+                                                    UCS_SYS_CACHE_LINE_SIZE);
     mm_config->fifo_elem_size        = sizeof(uct_mm_coll_fifo_element_t) +
-                                       ((procs - 1) * short_stride);
+                                       (procs * short_stride);
 
     UCS_CLASS_CALL_SUPER_INIT(uct_mm_coll_iface_t, &uct_mm_incast_iface_ops,
                               md, worker, params, tl_config);
@@ -211,8 +186,11 @@ UCS_CLASS_INIT_FUNC(uct_mm_incast_iface_t, uct_md_h md, uct_worker_h worker,
     uct_mm_coll_fifo_element_t *elem;
     for (i = 0; i < self->super.super.config.fifo_size; i++) {
         elem = UCT_MM_COLL_IFACE_GET_FIFO_ELEM(self, i);
-        status = uct_mm_coll_iface_init_element(short_stride, bcopy_stride,
-                                                procs, elem);
+        ucs_assert(elem->super.flags & UCT_MM_FIFO_ELEM_FLAG_OWNER);
+
+        elem->pending = 0;
+
+        status = ucs_spinlock_init(&elem->lock, UCS_SPINLOCK_FLAG_SHARED);
         if (status != UCS_OK) {
             goto destory_elements;
         }

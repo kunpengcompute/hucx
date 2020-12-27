@@ -286,9 +286,10 @@ void print_type_info(const char * tl_name)
     PRINT_SIZE(ucg_plan_t);
 
     printf("\nUCG - builtin:\n");
-    PRINT_SIZE(ucg_builtin_plan_t);
     PRINT_SIZE(ucg_builtin_op_t);
     PRINT_SIZE(ucg_builtin_op_step_t);
+    PRINT_SIZE(ucg_builtin_request_t);
     PRINT_SIZE(ucg_builtin_comp_slot_t);
+    PRINT_SIZE(ucg_builtin_plan_t);
 #endif
 }
