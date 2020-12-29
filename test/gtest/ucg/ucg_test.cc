@@ -173,6 +173,11 @@ ucs_status_t resolve_address_callback(void *cb_group_obj, ucg_group_member_index
     return UCS_OK;
 }
 
+static ucg_group_member_index_t mpi_global_idx_dummy(void *cb_group_obj, ucg_group_member_index_t index)
+{
+    return 0;
+}
+
 ucg_group_params_t *ucg_resource_factory::create_group_params(
     ucg_rank_info my_rank_info, const std::vector<ucg_rank_info> &rank_infos)
 {
@@ -187,6 +192,7 @@ ucg_group_params_t *ucg_resource_factory::create_group_params(
     args->mpi_dt_convert = mca_coll_ucg_datatype_convert_for_ut;
     args->distance = (ucg_group_member_distance *) malloc(args->member_count * sizeof(*args->distance));
     args->node_index = (uint16_t *) malloc(args->member_count * sizeof(*args->node_index));
+    args->mpi_global_idx_f = mpi_global_idx_dummy;
 
     for (size_t i = 0; i < rank_infos.size(); i++) {
         if (rank_infos[i].rank == my_rank_info.rank) {
