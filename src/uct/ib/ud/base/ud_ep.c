@@ -800,7 +800,8 @@ static void uct_ud_ep_rx_ctl(uct_ud_iface_t *iface, uct_ud_ep_t *ep,
     }
 
     /* Multicast root endpoints need to wait for all CREPs to arrive */
-    if ((ep->rx_crep_count > 1) && (--ep->rx_crep_count > 1)) {
+    if ((iface->is_mcast_iface) && (!uct_ud_ep_is_connected(ep)) &&
+        (ep->rx_crep_count > 1) && (--ep->rx_crep_count > 1)) {
         return;
     }
 
