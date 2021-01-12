@@ -1,0 +1,123 @@
+/*
+ * Copyright (c) Huawei Technologies Co., Ltd. 2021. All rights reserved.
+ * Description: Allreduce复杂内存布局的自定义数据类型测试，覆盖lb > 0、
+ *              lb < 0、多个gap等场景，要检测gap区域操作前后不变
+ * Author: shizhibao
+ * Create: 2021-01-09
+ */
+
+#include "mpi_test_common.h"
+
+static int g_count[] = {0, 1, 100};
+
+/* true_lb > 0 */
+struct complex1 {
+    int dummy0;
+    int real;
+    int dummy1;
+    int imag;
+    int dummy2;
+};
+
+void sum_complex1(void *inP, void *inoutP, int *len, MPI_Datatype *dptr)
+{
+    struct complex1 *in = (struct complex1 *)inP;
+    struct complex1 *io = (struct complex1 *)inoutP;
+    int i;
+    for (i = 0; i < *len; i++) {
+        io->real += in->real;
+        io->imag += in->imag;
+        in++; io++;
+    }
+}
+
+/* for struct complex1 */
+#define mpi_dt_and_op_create1()                         \
+    MPI_Op op_sum_complex1;                             \
+    MPI_Op_create(sum_complex1, 0, &op_sum_complex1);   \
+    MPI_Datatype dt_complex1, dt_tmp;                   \
+    int array_of_blocklen[2] = {1, 1};                  \
+    MPI_Aint array_of_disp[2] = {4, 12};                \
+    MPI_Datatype array_of_type[2] = {MPI_INT, MPI_INT}; \
+    MPI_Type_create_struct(2, array_of_blocklen, array_of_disp, array_of_type, &dt_tmp); \
+    MPI_Type_create_resized(dt_tmp, 0, 20, &dt_complex1); \
+    MPI_Type_commit(&dt_complex1)
+
+#define mpi_dt_and_op_free1()                           \
+    MPI_Op_free(&op_sum_complex1);                      \
+    MPI_Type_free(&dt_complex1)
+
+#define check_and_free1()                                           \
+    if (rc) {                                                       \
+        free(in); free(out); free(sol); free(org);                  \
+        MPI_Abort(MPI_COMM_WORLD, rc);                              \
+    } else {                                                        \
+        for (i = 0; i < count; i++) {                               \
+            if (in[i].dummy0 != org[i].dummy0 ||                    \
+                in[i].real != org[i].real ||                        \
+                in[i].dummy1 != org[i].dummy1 ||                    \
+                in[i].imag != org[i].imag ||                        \
+                in[i].dummy2 != org[i].dummy2 ||                    \
+                out[i].real != sol[i].real ||                       \
+                out[i].imag != sol[i].imag ||                       \
+                out[i].dummy0 != 0 ||                               \
+                out[i].dummy1 != 1 ||                               \
+                out[i].dummy2 != 2) {                               \
+                free(in); free(out); free(sol); free(org);          \
+                MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);            \
+            }                                                       \
+        }                                                           \
+    }                                                               \
+    free(in); free(out); free(sol); free(org);
+
+static void test1(int rank, int size, int count)
+{
+    int i, rc, sum_real, sum_imag;
+
+    sum_real = (size - 1) * size / 2;
+    sum_imag = -sum_real;
+
+    DECL_MALLOC_IN_OUT_SOL(struct complex1);
+    SET_INDEX_STRUCT_SUM(in, rank, real);
+    SET_INDEX_STRUCT_SUM(in, -rank, imag);
+    SET_INDEX_STRUCT_CONST(in, 0, dummy0);
+    SET_INDEX_STRUCT_CONST(in, 1, dummy1);
+    SET_INDEX_STRUCT_CONST(in, 2, dummy2);
+    SET_INDEX_STRUCT_SUM(org, rank, real);
+    SET_INDEX_STRUCT_SUM(org, -rank, imag);
+    SET_INDEX_STRUCT_CONST(org, 0, dummy0);
+    SET_INDEX_STRUCT_CONST(org, 1, dummy1);
+    SET_INDEX_STRUCT_CONST(org, 2, dummy2);
+    SET_INDEX_STRUCT_CONST(out, 0, dummy0);
+    SET_INDEX_STRUCT_CONST(out, 1, dummy1);
+    SET_INDEX_STRUCT_CONST(out, 2, dummy2);
+    SET_INDEX_STRUCT_SUM_SIZE(sol, sum_real, real);
+    SET_INDEX_STRUCT_SUM_SIZE(sol, sum_imag, imag);
+
+    mpi_dt_and_op_create1();
+    rc = MPI_Allreduce(in, out, count, dt_complex1, op_sum_complex1, MPI_COMM_WORLD);
+    mpi_dt_and_op_free1();
+    check_and_free1();
+}
+
+int main(int argc, char *argv[])
+{
+    int rank, size;
+    int i, count;
+
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    /* test small, medium, large and super large length */
+    for (i = 0; i < ARRAY_SIZE(g_count); i++) {
+        count = g_count[i];
+        test1(rank, size, count);
+    }
+
+    WAIT_ALL_SUCCESS();
+
+    MPI_Finalize();
+    return 0;
+}
+
