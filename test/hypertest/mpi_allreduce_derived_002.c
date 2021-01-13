@@ -8,7 +8,7 @@
 
 #include "mpi_test_common.h"
 
-static int g_count[] = {0, 1, 100};
+static int g_count[] = {0, 1, 10};
 
 #define sum_arr_long_int_test(type, mpi_type, mpi_op, n)                \
     {                                                                   \

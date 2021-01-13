@@ -98,12 +98,12 @@ int main(int argc, char *argv[])
     }
 
     /* loop repeats times on contiguous datatype */
-    repeats = 20000;
+    repeats = 10000;
     count = 10;
     repeat_maxloc_test1(struct int_test, MPI_2INT);
 
     /* loop repeats times on non-contiguous datatype */
-    repeats = 20000;
+    repeats = 10000;
     count = 10;
     repeat_maxloc_test1(struct long_test, MPI_LONG_INT);
 

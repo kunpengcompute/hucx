@@ -43,6 +43,13 @@
             arr[i] = i + val;                   \
     }
 
+#define SET_INDEX_SUM_SIZE(arr, val)            \
+    {                                           \
+        int i;                                  \
+        for (i = 0; i < count; i++)             \
+            arr[i] = i * size + val;            \
+    }
+
 #define SET_INDEX_FACTOR(arr, val)              \
     {                                           \
         int i;                                  \
