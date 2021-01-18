@@ -95,8 +95,13 @@ function run_with_source()
     run_cmd="${MPI_RUN} ${MPI_OPT} ${alg_opt} ${exc_file}"
     echo "$run_cmd" >> "$origin_output"
     eval "timeout 5m $run_cmd >> $origin_output 2>&1"
-    if [ $? -ne 0 ]; then
-        echo "Failed, case test error" | tee -a "$summary_output"
+    err_code=$?
+    if [ $err_code -ne 0 ]; then
+        if [[ $err_code -eq 124 ]]; then
+            echo "Failed, case test timeout, the timeout value is 5 minute" | tee -a "$summary_output"
+        else
+            echo "Failed, case test error" | tee -a "$summary_output"
+        fi
         failed_files[$fail_num]=$source_file
         failed_alg[$fail_num]="${alg_opt}"
         ((fail_num++))
@@ -120,6 +125,29 @@ function algorithm_traversal()
         run_with_source "$source" "$allreduce_opt"
     done
     IFS="$old_IFS"
+}
+
+function run_limit_np()
+{
+    local line=$1
+    local largest_np_for_matrix=$2
+    local largest_nm_for_matrix=$3
+
+    if [ $NP -gt "$largest_np_for_matrix" ]; then
+        limit_nm=$NM
+        if [ "$limit_nm" -gt "$largest_nm_for_matrix" ]; then
+            limit_nm=8
+        fi
+        limit_ppn=$((largest_np_for_matrix / limit_nm))
+        limit_np=$((limit_nm * limit_ppn))
+        echo "total process num is too large for case ${line}, use available parameters: np ${limit_np}, ppn ${limit_ppn}, node_num ${limit_nm}"  | tee -a "$summary_output"
+        old_MPI_RUN=$MPI_RUN
+        MPI_RUN="mpirun -np ${limit_np} -N ${limit_ppn} --hostfile ${HOME}/hostfile/${arch}_hf_${limit_nm}"
+        run_with_source "$line" ""
+        MPI_RUN=$old_MPI_RUN
+    else
+        run_with_source "$line" ""
+    fi
 }
 
 # search for all files with suffix ".c", ".cc" and ".cpp " in the current directory.
@@ -150,19 +178,8 @@ for line in $files; do
     case=$(echo "$line" | awk -F/ '{print $NF}')
     if [[ $case =~ "allreduce" ]]; then
         if [[ $case == "mpi_allreduce_basic_006.c" ]]; then
-            if [ $NP -gt $largest_np_for_matrix ]; then
-                limit_nm=$NM
-                if [ "$limit_nm" -gt 8 ]; then
-                    limit_nm=8
-                fi
-                limit_ppn=$((largest_np_for_matrix / limit_nm))
-                limit_np=$((limit_nm * limit_ppn))
-                echo "total process num is too large for case ${line}, use available parameters: np ${limit_np}, ppn ${limit_ppn}, node_num ${limit_nm}"  | tee -a "$summary_output"
-                old_MPI_RUN=$MPI_RUN
-                MPI_RUN="mpirun -np ${limit_np} -N ${limit_ppn} --hostfile ${HOME}/hostfile/${arch}_hf_${limit_nm}"
-                run_with_source "$line" ""
-                MPI_RUN=$old_MPI_RUN
-            fi
+            # for this case, the np is limited to 8 and the number of node is limited to 8
+            run_limit_np "$line" 8 8
         elif [[ $traversal_files =~ $case ]]; then
             algorithm_traversal "$line" "allreduce"
         else
@@ -175,7 +192,15 @@ for line in $files; do
             run_with_source "$line" ""
         fi
     elif [[ ! $case =~ "barrier" ]]; then
-        run_with_source "$line" ""
+        if [[ $case == "mpi_comm_split.c" ]]; then
+            # for this case, the np is limited to 256 and the number of node is limited to 8
+            run_limit_np "$line" 256 8
+        elif [[ $case == "mpi_comm_create.c" ]]; then
+            # for this case, the np is limited to 256 and the number of node is limited to 8
+            run_limit_np "$line" 256 8
+        else
+            run_with_source "$line" ""
+        fi
     fi
 done
 IFS="$old_IFS"

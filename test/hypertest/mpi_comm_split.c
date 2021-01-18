@@ -7,7 +7,8 @@
 
 #include "mpi_test_common.h"
 
-static int g_count[] = {0, 1, 10, 1000, 10000};
+#define NEW_COMM_COUNT 1000
+static int g_count[] = {0, 1, 10, 1000};
 
 #define check_and_return()              \
     if (rc) {                           \
@@ -76,8 +77,6 @@ static int test_bcast(MPI_Comm mpi_comm)
     }                                       \
     MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE)
 
-#define NEW_COMM_COUNT 10000
-
 int main(int argc, char *argv[])
 {
     int world_rank, world_size;
@@ -93,17 +92,19 @@ int main(int argc, char *argv[])
         goto wait_and_out;
     }
 
-    repeats = 10;
+    repeats = 3;
     while (repeats--) {
         for (k = 0; k < NEW_COMM_COUNT; k++) {
             color = world_rank % 2;
             key = (repeats % 2) ? world_rank : -world_rank;
             MPI_Comm_split(MPI_COMM_WORLD, color, key, &new_comm[k]);
-            if (new_comm[k] != MPI_COMM_NULL && test_allreduce(new_comm[k])) {
-                free_and_abort();
-            }
-            if (new_comm[k] != MPI_COMM_NULL && test_bcast(new_comm[k])) {
-                free_and_abort();
+            if (k == 0) {
+                if (new_comm[k] != MPI_COMM_NULL && test_allreduce(new_comm[k])) {
+                    free_and_abort();
+                }
+                if (new_comm[k] != MPI_COMM_NULL && test_bcast(new_comm[k])) {
+                    free_and_abort();
+                }
             }
         }
         for (k = 0; k < NEW_COMM_COUNT; k++) {

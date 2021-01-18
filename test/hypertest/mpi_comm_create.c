@@ -7,7 +7,8 @@
 
 #include "mpi_test_common.h"
 
-static int g_count[] = {0, 1, 10, 1000, 10000};
+#define NEW_COMM_COUNT 1000
+static int g_count[] = {0, 1, 10, 1000};
 
 #define check_and_return()              \
     if (rc) {                           \
@@ -77,8 +78,6 @@ static int test_bcast(MPI_Comm mpi_comm)
     }                                       \
     MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE)
 
-#define NEW_COMM_COUNT 10000
-
 int main(int argc, char *argv[])
 {
     int world_rank, world_size;
@@ -97,7 +96,7 @@ int main(int argc, char *argv[])
         goto wait_and_out;
     }
 
-    repeats = 10;
+    repeats = 3;
     new_member = (int *)calloc(new_size, sizeof(int));
     while (repeats--) {
         for (i = 0, j = repeats % 2; i < new_size && j < world_size; i++, j += 2) {
@@ -106,11 +105,13 @@ int main(int argc, char *argv[])
         MPI_Group_incl(world_group, i, new_member, &new_group);
         for (k = 0; k < NEW_COMM_COUNT; k++) {
             MPI_Comm_create(MPI_COMM_WORLD, new_group, &new_comm[k]);
-            if (new_comm[k] != MPI_COMM_NULL && test_allreduce(new_comm[k])) {
-                free_and_abort();
-            }
-            if (new_comm[k] != MPI_COMM_NULL && test_bcast(new_comm[k])) {
-                free_and_abort();
+            if  (k == 0) {
+                if (new_comm[k] != MPI_COMM_NULL && test_allreduce(new_comm[k])) {
+                    free_and_abort();
+                }
+                if (new_comm[k] != MPI_COMM_NULL && test_bcast(new_comm[k])) {
+                    free_and_abort();
+                }
             }
         }
         for (k = 0; k < NEW_COMM_COUNT; k++) {
