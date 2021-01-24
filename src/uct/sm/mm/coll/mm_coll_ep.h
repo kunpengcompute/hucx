@@ -12,12 +12,16 @@
 
 #include <uct/sm/mm/base/mm_ep.h>
 
+#define UCT_MM_COLL_EP_NEXT_FIFO_ELEM(_ep, _elem, _elem_index) \
+    UCT_MM_COLL_NEXT_FIFO_ELEM(_ep, _elem, _elem_index, \
+                               (_ep)->super.fifo_elems, (_ep)->elem_size)
+
 struct uct_mm_coll_ep {
     uct_mm_ep_t                 super;
     uct_mm_coll_fifo_element_t *tx_elem;    /* next TX element pointer */
     uint64_t                    tx_index;   /* next TX element index */
-    uint8_t                     tx_cnt;     /* shortcut to iface->sm_proc_cnt */
-    uint8_t                     coll_id;    /* ID of the connected remote peer */
+    uint8_t                     proc_cnt;   /* shortcut to iface->sm_proc_cnt */
+    uint8_t                     remote_id;  /* ID of the connected remote peer */
     uint8_t                     my_offset;  /* where to write in "batch mode" */
     uint8_t                     fifo_shift; /* shortcut to iface->fifo_shift */
     uint16_t                    elem_size;  /* fifo_elem_size used for RX */

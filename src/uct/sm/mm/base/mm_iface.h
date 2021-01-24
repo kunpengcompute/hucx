@@ -284,7 +284,6 @@ uct_mm_iface_fifo_has_new_data(uct_mm_fifo_check_t *check_info)
     }
 
     /* check the read_index to see if there is a new item to read (checking the owner bit) */
-
     if (uct_mm_iface_fifo_flag_has_new_data(flags,
                                             check_info->read_index,
                                             check_info->fifo_shift)) {
@@ -294,8 +293,6 @@ uct_mm_iface_fifo_has_new_data(uct_mm_fifo_check_t *check_info)
     }
 
     ucs_memory_cpu_load_fence();
-
-    check_info->is_flags_cached = 0;
     return 1;
 }
 
@@ -351,12 +348,14 @@ uct_mm_progress_fifo_tail(uct_mm_fifo_check_t *recv_check)
 {
     ucs_prefetch(recv_check->read_elem);
 
+    recv_check->is_flags_cached = 0;
+
     /* don't progress the tail every time - release in batches. improves performance */
     if (recv_check->read_index & recv_check->fifo_release_factor_mask) {
         return;
     }
 
-    recv_check->fifo_ctl->tail = recv_check->read_index;
+    recv_check->fifo_ctl->tail  = recv_check->read_index;
 }
 
 

@@ -16,6 +16,10 @@
 ucs_status_t uct_mm_coll_iface_query(uct_iface_h tl_iface,
                                      uct_iface_attr_t *iface_attr)
 {
+
+    uct_mm_base_iface_t *iface = ucs_derived_of(tl_iface, uct_mm_base_iface_t);
+    uct_mm_md_t         *md    = ucs_derived_of(iface->super.super.md, uct_mm_md_t);
+
     ucs_status_t status = uct_mm_iface_query(tl_iface, iface_attr);
     if (status != UCS_OK) {
         return status;
@@ -25,7 +29,8 @@ ucs_status_t uct_mm_coll_iface_query(uct_iface_h tl_iface,
     iface_attr->cap.atomic32.fop_flags    =
     iface_attr->cap.atomic64.op_flags     =
     iface_attr->cap.atomic64.fop_flags    = 0; /* TODO: use in MPI_Accumulate */
-    iface_attr->iface_addr_len            = sizeof(uct_mm_coll_iface_addr_t);
+    iface_attr->iface_addr_len            = sizeof(uct_mm_coll_iface_addr_t) +
+                                            md->iface_addr_len;
     iface_attr->cap.flags                 = UCT_IFACE_FLAG_AM_SHORT          |
                                             UCT_IFACE_FLAG_AM_BCOPY          |
                                             UCT_IFACE_FLAG_PENDING           |
@@ -48,9 +53,21 @@ ucs_status_t uct_mm_coll_iface_get_address(uct_iface_t *tl_iface,
     uct_mm_coll_iface_addr_t *iface_addr = (void*)addr;
     uct_mm_coll_iface_t *iface           = ucs_derived_of(tl_iface,
                                                           uct_mm_coll_iface_t);
-    iface_addr->coll_id                  = iface->my_coll_id;
 
-    return uct_mm_iface_get_address(tl_iface, addr);
+    iface_addr->coll_id = iface->my_coll_id;
+
+    return uct_mm_iface_get_address(tl_iface,
+                                    (uct_iface_addr_t*)&iface_addr->super);
+}
+
+int uct_mm_coll_iface_is_reachable(const uct_iface_h tl_iface,
+                                   const uct_device_addr_t *dev_addr,
+                                   const uct_iface_addr_t *tl_iface_addr)
+{
+    uct_mm_coll_iface_addr_t *iface_addr = (void*)tl_iface_addr;
+
+    return uct_mm_iface_is_reachable(tl_iface, dev_addr,
+                                     (uct_iface_addr_t*)&iface_addr->super);
 }
 
 UCS_CLASS_INIT_FUNC(uct_mm_coll_iface_t, uct_iface_ops_t *ops, uct_md_h md,

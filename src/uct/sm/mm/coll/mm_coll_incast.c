@@ -39,53 +39,47 @@ static UCS_F_ALWAYS_INLINE unsigned
 uct_mm_incast_iface_poll_fifo(uct_mm_incast_iface_t *iface)
 {
     uct_mm_base_iface_t *mm_iface = &iface->super.super;
-    if (!uct_mm_iface_fifo_has_new_data(&mm_iface->recv_check)) {
-        return 0;
-    }
+    uint64_t read_index           = mm_iface->recv_check.read_index;
+    unsigned poll_count           = mm_iface->fifo_poll_count;
+    unsigned poll_total           = mm_iface->fifo_poll_count;
+
+    ucs_assert(poll_count >= UCT_MM_IFACE_FIFO_MIN_POLL);
 
     uct_mm_coll_fifo_element_t *elem = ucs_derived_of(mm_iface->recv_check.read_elem,
                                                       uct_mm_coll_fifo_element_t);
-    if (!uct_mm_ep_process_recv_loopback(&iface->super, elem)) {
-        return 0;
+
+    while ((uct_mm_iface_fifo_has_new_data(&mm_iface->recv_check)) &&
+           (uct_mm_ep_process_recv_loopback(&iface->super, elem))) {
+        elem->pending = 0;
+
+        UCT_MM_COLL_IFACE_NEXT_RECV_FIFO_ELEM(mm_iface, elem, read_index);
+
+        uct_mm_progress_fifo_tail(&mm_iface->recv_check);
+
+        if (ucs_likely(--poll_count == 0)) {
+            break;
+        }
     }
 
-    /* raise the read_index */
-    uint64_t read_index = ++mm_iface->recv_check.read_index;
+    mm_iface->recv_check.read_index = read_index;
+    mm_iface->recv_check.read_elem  = &elem->super;
 
-    /* the next fifo_element which the read_index points to */
-    mm_iface->recv_check.read_elem =
-        UCT_MM_IFACE_GET_FIFO_ELEM(mm_iface, mm_iface->recv_fifo_elems,
-                                   (read_index & mm_iface->fifo_mask));
-
-    uct_mm_progress_fifo_tail(&mm_iface->recv_check);
-
-    return 1;
+    return poll_total - poll_count;
 }
 
 unsigned uct_mm_incast_iface_progress(uct_iface_h tl_iface)
 {
     uct_mm_incast_iface_t *iface  = ucs_derived_of(tl_iface, uct_mm_incast_iface_t);
     uct_mm_base_iface_t *mm_iface = ucs_derived_of(tl_iface, uct_mm_base_iface_t);
-    unsigned total_count  = 0;
-    unsigned count;
 
-    ucs_assert(mm_iface->fifo_poll_count >= UCT_MM_IFACE_FIFO_MIN_POLL);
+    unsigned ret = uct_mm_incast_iface_poll_fifo(iface);
 
-    /* progress receive */
-    do {
-        count = uct_mm_incast_iface_poll_fifo(iface);
-        ucs_assert(count < 2);
-        total_count += count;
-        ucs_assert(total_count < UINT_MAX);
-    } while ((count != 0) && (total_count < mm_iface->fifo_poll_count));
-
-    uct_mm_iface_fifo_window_adjust(mm_iface, total_count);
+    uct_mm_iface_fifo_window_adjust(mm_iface, ret);
 
     /* progress the pending sends (if there are any) */
-    ucs_arbiter_dispatch(&mm_iface->arbiter, 1, uct_mm_ep_process_pending,
-                         &total_count);
+    ucs_arbiter_dispatch(&mm_iface->arbiter, 1, uct_mm_ep_process_pending, &ret);
 
-    return total_count;
+    return ret;
 }
 
 /**
@@ -114,8 +108,6 @@ static int uct_mm_incast_iface_release_shared_desc(uct_iface_h tl_iface,
                                                    uct_recv_desc_t *self,
                                                    void *desc)
 {
-
-    printf("uct_mm_incast_iface_release_shared_desc!\n");
     unsigned index;
     uct_mm_coll_ep_t *ep;
     uintptr_t src_coll_id        = (uintptr_t)self;
@@ -123,7 +115,7 @@ static int uct_mm_incast_iface_release_shared_desc(uct_iface_h tl_iface,
 
     /* Find the endpoint - based on the ID of the sender of this descriptor */
     ucs_ptr_array_for_each(ep, index, &iface->super.ep_ptrs) {
-        if (ep->coll_id == src_coll_id) {
+        if (ep->remote_id == src_coll_id) {
             uct_mm_coll_ep_release_desc(ep, desc);
             return 1;
         }
@@ -157,7 +149,7 @@ static uct_iface_ops_t uct_mm_incast_iface_ops = {
     .iface_query               = uct_mm_incast_iface_query,
     .iface_get_device_address  = uct_sm_iface_get_device_address,
     .iface_get_address         = uct_mm_coll_iface_get_address,
-    .iface_is_reachable        = uct_mm_iface_is_reachable,
+    .iface_is_reachable        = uct_mm_coll_iface_is_reachable,
     .iface_release_shared_desc = uct_mm_incast_iface_release_shared_desc
 };
 

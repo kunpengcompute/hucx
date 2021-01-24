@@ -34,38 +34,6 @@ static ucs_status_t uct_mm_bcast_iface_query(uct_iface_h tl_iface,
     return UCS_OK;
 }
 
-static unsigned uct_mm_bcast_iface_progress(uct_iface_h tl_iface)
-{
-    uct_mm_bcast_iface_t *iface   = ucs_derived_of(tl_iface, uct_mm_bcast_iface_t);
-    uct_mm_base_iface_t *mm_iface = ucs_derived_of(tl_iface, uct_mm_base_iface_t);
-    uct_mm_bcast_ep_t *next_ep;
-    unsigned total_count = 0;
-    unsigned count, index;
-
-    ucs_assert(mm_iface->fifo_poll_count >= UCT_MM_IFACE_FIFO_MIN_POLL);
-
-    /* use the time to check if the tail element has been released */
-    uct_mm_bcast_ep_poll_tail(iface);
-
-    ucs_ptr_array_for_each(next_ep, index, &iface->super.ep_ptrs) {
-        /* progress receive */
-        do {
-            count = uct_mm_bcast_ep_poll_fifo(iface, next_ep);
-            ucs_assert(count < 2);
-            total_count += count;
-            ucs_assert(count < UINT_MAX);
-        } while ((count != 0) && (total_count < mm_iface->fifo_poll_count));
-    }
-
-    uct_mm_iface_fifo_window_adjust(mm_iface, total_count);
-
-    /* progress the pending sends (if there are any) */
-    ucs_arbiter_dispatch(&mm_iface->arbiter, 1, uct_mm_ep_process_pending,
-                         &total_count);
-
-    return total_count;
-}
-
 static int uct_mm_bcast_iface_release_shared_desc_func(uct_iface_h iface,
                                                        uct_recv_desc_t *self,
                                                        void *desc)
@@ -97,7 +65,7 @@ static uct_iface_ops_t uct_mm_bcast_iface_ops = {
     .iface_query               = uct_mm_bcast_iface_query,
     .iface_get_device_address  = uct_sm_iface_get_device_address,
     .iface_get_address         = uct_mm_coll_iface_get_address,
-    .iface_is_reachable        = uct_mm_iface_is_reachable,
+    .iface_is_reachable        = uct_mm_coll_iface_is_reachable,
     .iface_release_shared_desc = uct_mm_bcast_iface_release_shared_desc_func
 };
 
@@ -116,17 +84,14 @@ UCS_CLASS_INIT_FUNC(uct_mm_bcast_iface_t, uct_md_h md, uct_worker_h worker,
     UCS_CLASS_CALL_SUPER_INIT(uct_mm_coll_iface_t, &uct_mm_bcast_iface_ops, md,
                               worker, params, tl_config);
 
+    UCT_MM_COLL_BCAST_EP_DUMMY(dummy, self);
+
     int i;
     uct_mm_coll_fifo_element_t *elem;
-    uct_mm_coll_ep_t dummy = {
-            .tx_cnt    = procs,
-            .elem_size = mm_config->fifo_elem_size,
-            .seg_size  = mm_config->seg_size
-    };
-
-    for (i = 0; i < self->super.super.config.fifo_size; i++) {
-        elem = UCT_MM_COLL_IFACE_GET_FIFO_ELEM(self, i);
-
+    for (i = 0, elem = self->super.super.recv_fifo_elems;
+         i < self->super.super.config.fifo_size;
+         i++, elem = UCS_PTR_BYTE_OFFSET(elem,
+                 self->super.super.config.fifo_elem_size)) {
         uct_mm_coll_ep_centralized_reset_bcast_elem(elem, &dummy, 0);
         uct_mm_coll_ep_centralized_reset_bcast_elem(elem, &dummy, 1);
 
