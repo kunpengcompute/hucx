@@ -45,6 +45,7 @@ void ucg_op_test::init_phase(ucg_builtin_plan_method_type method, ucg_builtin_pl
     phase->send_thresh.max_bcopy_one = 128;
     phase->send_thresh.max_bcopy_max = 256;
     phase->send_thresh.max_zcopy_one = 1024;
+    phase->send_thresh.md_attr_cap_max_reg = 8128;
 
     phase->recv_thresh.max_short_one = phase->send_thresh.max_short_one;
     phase->recv_thresh.max_short_max = phase->send_thresh.max_short_max;
