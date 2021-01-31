@@ -64,6 +64,15 @@ typedef struct uct_mm_coll_iface {
     uct_mm_coll_ep_t   *loopback_ep; /**< endpoint connected to this iface */
 } uct_mm_coll_iface_t;
 
+typedef struct uct_mm_bcast_iface_config {
+    uct_mm_iface_config_t super;
+} uct_mm_bcast_iface_config_t;
+
+typedef struct uct_mm_incast_iface_config {
+    uct_mm_iface_config_t super;
+    unsigned                 batched_thresh; /* batched-centralized threshold */
+} uct_mm_incast_iface_config_t;
+
 typedef struct uct_mm_bcast_iface {
     uct_mm_coll_iface_t super;
 } uct_mm_bcast_iface_t;

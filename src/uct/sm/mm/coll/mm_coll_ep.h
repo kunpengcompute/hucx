@@ -48,15 +48,26 @@ UCS_CLASS_DECLARE_DELETE_FUNC(uct_mm_bcast_ep_t,  uct_ep_t);
 
 ucs_status_t uct_mm_bcast_ep_am_short(uct_ep_h ep, uint8_t id, uint64_t header,
                                       const void *payload, unsigned length);
-ucs_status_t uct_mm_incast_ep_am_short(uct_ep_h ep, uint8_t id, uint64_t header,
-                                       const void *payload, unsigned length);
+ucs_status_t uct_mm_incast_ep_am_short_batched(uct_ep_h ep,
+                                               uint8_t id,
+                                               uint64_t header,
+                                               const void *payload,
+                                               unsigned length);
+ucs_status_t uct_mm_incast_ep_am_short_centralized(uct_ep_h ep,
+                                                   uint8_t id,
+                                                   uint64_t header,
+                                                   const void *payload,
+                                                   unsigned length);
 
 ssize_t uct_mm_bcast_ep_am_bcopy(uct_ep_h ep, uint8_t id,
                                  uct_pack_callback_t pack_cb,
                                  void *arg, unsigned flags);
-ssize_t uct_mm_incast_ep_am_bcopy(uct_ep_h ep, uint8_t id,
-                                  uct_pack_callback_t pack_cb,
-                                  void *arg, unsigned flags);
+ssize_t uct_mm_incast_ep_am_bcopy_batched(uct_ep_h ep, uint8_t id,
+                                          uct_pack_callback_t pack_cb,
+                                          void *arg, unsigned flags);
+ssize_t uct_mm_incast_ep_am_bcopy_centralized(uct_ep_h ep, uint8_t id,
+                                              uct_pack_callback_t pack_cb,
+                                              void *arg, unsigned flags);
 
 ucs_status_t uct_mm_bcast_ep_am_zcopy(uct_ep_h ep, uint8_t id, const void *header,
                                       unsigned header_length, const uct_iov_t *iov,

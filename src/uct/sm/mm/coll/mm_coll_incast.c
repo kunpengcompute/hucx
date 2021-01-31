@@ -6,6 +6,18 @@
 #include "mm_coll_iface.h"
 #include "mm_coll_ep.h"
 
+ucs_config_field_t uct_mm_incast_iface_config_table[] = {
+    {"SM_", "", NULL,
+     ucs_offsetof(uct_mm_incast_iface_config_t, super),
+     UCS_CONFIG_TYPE_TABLE(uct_mm_iface_config_table)},
+
+    {"BATCHED_THRESH", "5",
+     "Threshold for switching from batched to centralized mode",
+     ucs_offsetof(uct_mm_incast_iface_config_t, batched_thresh), UCS_CONFIG_TYPE_UINT},
+
+    {NULL}
+};
+
 static ucs_status_t uct_mm_incast_iface_query(uct_iface_h tl_iface,
                                               uct_iface_attr_t *iface_attr)
 {
@@ -129,8 +141,10 @@ static int uct_mm_incast_iface_release_shared_desc(uct_iface_h tl_iface,
 static UCS_CLASS_DECLARE_DELETE_FUNC(uct_mm_incast_iface_t, uct_iface_t);
 
 static uct_iface_ops_t uct_mm_incast_iface_ops = {
-    .ep_am_short               = uct_mm_incast_ep_am_short,
-    .ep_am_bcopy               = uct_mm_incast_ep_am_bcopy,
+/*
+ *  .ep_am_short               = uct_mm_incast_ep_am_short_batched/centralized,
+ *  .ep_am_bcopy               = uct_mm_incast_ep_am_bcopy_batched/centralized,
+ */
     .ep_am_zcopy               = uct_mm_incast_ep_am_zcopy,
     .ep_pending_add            = uct_mm_ep_pending_add,
     .ep_pending_purge          = uct_mm_ep_pending_purge,
@@ -161,14 +175,22 @@ UCS_CLASS_INIT_FUNC(uct_mm_incast_iface_t, uct_md_h md, uct_worker_h worker,
                       (params->host_info.proc_cnt > 2)) ?
                      params->host_info.proc_cnt : 2;
 
-    uct_mm_iface_config_t *mm_config = ucs_derived_of(tl_config,
-                                                      uct_mm_iface_config_t);
-    unsigned orig_fifo_elem_size     = mm_config->fifo_elem_size;
-    size_t short_stride              = ucs_align_up(orig_fifo_elem_size -
-                                                    sizeof(uct_mm_coll_fifo_element_t),
-                                                    UCS_SYS_CACHE_LINE_SIZE);
-    mm_config->fifo_elem_size        = sizeof(uct_mm_coll_fifo_element_t) +
-                                       (procs * short_stride);
+    uct_mm_incast_iface_config_t *cfg = ucs_derived_of(tl_config,
+                                                       uct_mm_incast_iface_config_t);
+    unsigned orig_fifo_elem_size      = cfg->super.fifo_elem_size;
+    size_t short_stride               = ucs_align_up(orig_fifo_elem_size -
+                                                     sizeof(uct_mm_coll_fifo_element_t),
+                                                     UCS_SYS_CACHE_LINE_SIZE);
+    cfg->super.fifo_elem_size         = sizeof(uct_mm_coll_fifo_element_t) +
+                                        (procs * short_stride);
+
+    if (procs > cfg->batched_thresh) {
+        uct_mm_incast_iface_ops.ep_am_short = uct_mm_incast_ep_am_short_centralized;
+        uct_mm_incast_iface_ops.ep_am_bcopy = uct_mm_incast_ep_am_bcopy_centralized;
+    } else {
+        uct_mm_incast_iface_ops.ep_am_short = uct_mm_incast_ep_am_short_batched;
+        uct_mm_incast_iface_ops.ep_am_bcopy = uct_mm_incast_ep_am_bcopy_batched;
+    }
 
     UCS_CLASS_CALL_SUPER_INIT(uct_mm_coll_iface_t, &uct_mm_incast_iface_ops,
                               md, worker, params, tl_config);
@@ -188,7 +210,7 @@ UCS_CLASS_INIT_FUNC(uct_mm_incast_iface_t, uct_md_h md, uct_worker_h worker,
         }
     }
 
-    mm_config->fifo_elem_size = orig_fifo_elem_size;
+    cfg->super.fifo_elem_size = orig_fifo_elem_size;
 
     return UCS_OK;
 

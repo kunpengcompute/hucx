@@ -205,10 +205,8 @@ uct_mm_coll_ep_centralized_mark_bcast_rx_done(uct_mm_coll_fifo_element_t *elem,
 
 static UCS_F_ALWAYS_INLINE int
 uct_mm_coll_ep_centralized_is_elem_ready(uct_mm_coll_fifo_element_t *elem,
-                                         uct_mm_coll_ep_t *ep,
-                                         int is_incast,
-                                         int is_short,
-                                         int is_loopback)
+                                         uct_mm_coll_ep_t *ep, int is_incast,
+                                         int is_short, int is_loopback)
 {
     uint32_t writers = ep->proc_cnt;
     uint32_t pending = elem->pending;
@@ -238,10 +236,9 @@ uct_mm_coll_ep_centralized_is_elem_ready(uct_mm_coll_fifo_element_t *elem,
                 slot = UCS_PTR_BYTE_OFFSET(slot, UCS_SYS_CACHE_LINE_SIZE);
             }
 
-            /* TODO: consider doing the incast reduction itself at this time */
+            slot = next_slot;
 
-            ucs_assert(((uintptr_t)slot % UCS_SYS_CACHE_LINE_SIZE) == 0);
-            ucs_assert(slot == next_slot);
+            /* TODO: consider doing the incast reduction itself at this time */
         }
 
         if ((pending = pending + cnt) == writers) {
@@ -387,7 +384,7 @@ uct_mm_coll_ep_am_common_send(uct_coll_dtype_mode_t op_mode, int is_bcast,
                               int is_short, uct_ep_h tl_ep, uint8_t am_id,
                               size_t length, uint64_t header,
                               const void *payload, uct_pack_callback_t pack_cb,
-                              void *arg, unsigned flags)
+                              void *arg, unsigned flags, int is_centralized)
 {
     uct_mm_coll_iface_t *iface = ucs_derived_of(tl_ep->iface, uct_mm_coll_iface_t);
     uct_mm_coll_ep_t *ep       = ucs_derived_of(tl_ep, uct_mm_coll_ep_t);
@@ -422,12 +419,11 @@ uct_mm_coll_ep_am_common_send(uct_coll_dtype_mode_t op_mode, int is_bcast,
 
     /* Determine function parameters based on the collective operation type */
     int is_tight       = (op_mode != UCT_COLL_DTYPE_MODE_PADDED);
-    int is_centralized = !is_bcast && !is_tight;
+    int is_batched     = !is_bcast && !is_tight;
     uint16_t stride    = is_tight ? length :
             uct_mm_coll_iface_centralized_get_slot_size(ep, length, is_short);
 
     ucs_assert(!is_tight || (length > 0));
-    // TODO: currently BATCHED mode is never used - consider some PPN threshold?
 
     /* Check my "position" in the order of writers to this element */
     uint32_t previous_pending = 0;
@@ -439,15 +435,17 @@ uct_mm_coll_ep_am_common_send(uct_coll_dtype_mode_t op_mode, int is_bcast,
     }
 
     /* Write the buffer (or reduce onto an existing buffer) */
-    uint8_t *base_address = UCT_MM_COLL_GET_BASE_ADDRESS(is_short,
-            is_centralized, elem, ep, is_bcast, 0 /* _is_recv */, stride);
+    uint8_t *base_address = UCT_MM_COLL_GET_BASE_ADDRESS(is_short, is_batched,
+                                                         elem, ep, is_bcast,
+                                                         0 /* _is_recv */,
+                                                         stride);
     if (is_short) {
         /* Last writer writes the header too, the rest - only payload */
         memcpy(base_address, payload, length);
     } else {
         /* For some reduce operations - ask the callback to do the reduction */
         if (!is_bcast &&
-            !is_centralized &&
+            !is_batched &&
             ucs_likely(previous_pending != 0)) {
             ucs_assert_always((((uintptr_t)arg) & UCT_PACK_CALLBACK_REDUCE) == 0);
             arg = (void*)((uintptr_t)arg | UCT_PACK_CALLBACK_REDUCE);
@@ -463,10 +461,15 @@ uct_mm_coll_ep_am_common_send(uct_coll_dtype_mode_t op_mode, int is_bcast,
         goto last_writer;
     }
 
-    if (is_centralized) {
-        /* CENTRALIZED mode only: mark my slot as "written" */
-        uct_mm_coll_ep_centralized_mark_incast_tx_done(elem, ep, base_address,
-                                                       stride);
+    if (is_batched) {
+        /* BATCHED or CENTRALIZED modes only: mark my slot as "written" */
+        if (is_centralized) {
+            uct_mm_coll_ep_centralized_mark_incast_tx_done(elem, ep,
+                                                           base_address,
+                                                           stride);
+        } else {
+            uct_mm_coll_iface_centralized_set_slot_counter(base_address, stride, 1);
+        }
 
         /*
          * One process signals this element is "ready for inspection", but not
@@ -505,7 +508,7 @@ last_writer:
 
         elem->op_mode      = op_mode;
         elem->super.am_id  = am_id;
-        elem->super.length = is_centralized ? stride :
+        elem->super.length = is_batched ? stride :
                              (!is_tight ? length + (is_short * sizeof(header)) :
                                           (length * ep->proc_cnt) +
                                           (is_short * sizeof(header)));
@@ -549,7 +552,7 @@ trace_send:
     ep->tx_elem = UCT_MM_COLL_EP_NEXT_FIFO_ELEM(ep, elem, ep->tx_index);
 
     ucs_prefetch(ep->tx_elem);
-    if (is_short && is_centralized) {
+    if (is_short && is_batched) {
         /* Prefetch the slot we will probably write to */
         ucs_prefetch((uint8_t*)ep->tx_elem + (base_address - (uint8_t*)elem));
     }
@@ -559,7 +562,8 @@ trace_send:
 
 static UCS_F_ALWAYS_INLINE ucs_status_t
 uct_mm_coll_ep_am_short(uct_ep_h ep, uint8_t id, uint64_t header,
-                        const void *payload, unsigned length, int is_bcast)
+                        const void *payload, unsigned length,
+                        int is_bcast, int is_centralized)
 {
     unsigned orig_length          = UCT_COLL_DTYPE_MODE_UNPACK_VALUE(length);
     uct_coll_dtype_mode_t op_mode = UCT_COLL_DTYPE_MODE_UNPACK_MODE(length);
@@ -568,7 +572,7 @@ uct_mm_coll_ep_am_short(uct_ep_h ep, uint8_t id, uint64_t header,
                (op_mode == UCT_COLL_DTYPE_MODE_PACKED));
 
     ssize_t ret = uct_mm_coll_ep_am_common_send(op_mode, is_bcast, 1, ep, id,
-            orig_length, header, payload, NULL, NULL, 0);
+            orig_length, header, payload, NULL, NULL, 0, is_centralized);
 
     return (ret > 0) ? UCS_OK : (ucs_status_t)ret;
 }
@@ -576,18 +580,30 @@ uct_mm_coll_ep_am_short(uct_ep_h ep, uint8_t id, uint64_t header,
 ucs_status_t uct_mm_bcast_ep_am_short(uct_ep_h ep, uint8_t id, uint64_t header,
                                       const void *payload, unsigned length)
 {
-    return uct_mm_coll_ep_am_short(ep, id, header, payload, length, 1);
+    return uct_mm_coll_ep_am_short(ep, id, header, payload, length, 1, 1);
 }
 
-ucs_status_t uct_mm_incast_ep_am_short(uct_ep_h ep, uint8_t id, uint64_t header,
-                                       const void *payload, unsigned length)
+ucs_status_t uct_mm_incast_ep_am_short_batched(uct_ep_h ep,
+                                               uint8_t id,
+                                               uint64_t header,
+                                               const void *payload,
+                                               unsigned length)
 {
-    return uct_mm_coll_ep_am_short(ep, id, header, payload, length, 0);
+    return uct_mm_coll_ep_am_short(ep, id, header, payload, length, 0, 0);
+}
+
+ucs_status_t uct_mm_incast_ep_am_short_centralized(uct_ep_h ep,
+                                                   uint8_t id,
+                                                   uint64_t header,
+                                                   const void *payload,
+                                                   unsigned length)
+{
+    return uct_mm_coll_ep_am_short(ep, id, header, payload, length, 0, 1);
 }
 
 static UCS_F_ALWAYS_INLINE ssize_t
 uct_mm_coll_ep_am_bcopy(uct_ep_h ep, uint8_t id, uct_pack_callback_t pack_cb,
-                        void *arg, unsigned flags, int is_bcast)
+                        void *arg, unsigned flags, int is_bcast, int is_centralized)
 {
     unsigned orig_flags           = UCT_COLL_DTYPE_MODE_UNPACK_VALUE(flags);
     uct_coll_dtype_mode_t op_mode = UCT_COLL_DTYPE_MODE_UNPACK_MODE(flags);
@@ -596,7 +612,8 @@ uct_mm_coll_ep_am_bcopy(uct_ep_h ep, uint8_t id, uct_pack_callback_t pack_cb,
                (op_mode == UCT_COLL_DTYPE_MODE_PACKED));
 
     ssize_t ret = uct_mm_coll_ep_am_common_send(op_mode, is_bcast, 0, ep, id, 0,
-            0, NULL, pack_cb, arg, orig_flags);
+                                                0, NULL, pack_cb, arg,
+                                                orig_flags, is_centralized);
 
     return ret;
 }
@@ -605,14 +622,21 @@ ssize_t uct_mm_bcast_ep_am_bcopy(uct_ep_h ep, uint8_t id,
                                  uct_pack_callback_t pack_cb,
                                  void *arg, unsigned flags)
 {
-    return uct_mm_coll_ep_am_bcopy(ep, id, pack_cb, arg, flags, 1);
+    return uct_mm_coll_ep_am_bcopy(ep, id, pack_cb, arg, flags, 1, 0);
 }
 
-ssize_t uct_mm_incast_ep_am_bcopy(uct_ep_h ep, uint8_t id,
-                                  uct_pack_callback_t pack_cb,
-                                  void *arg, unsigned flags)
+ssize_t uct_mm_incast_ep_am_bcopy_batched(uct_ep_h ep, uint8_t id,
+                                          uct_pack_callback_t pack_cb,
+                                          void *arg, unsigned flags)
 {
-    return uct_mm_coll_ep_am_bcopy(ep, id, pack_cb, arg, flags, 0);
+    return uct_mm_coll_ep_am_bcopy(ep, id, pack_cb, arg, flags, 0, 0);
+}
+
+ssize_t uct_mm_incast_ep_am_bcopy_centralized(uct_ep_h ep, uint8_t id,
+                                              uct_pack_callback_t pack_cb,
+                                              void *arg, unsigned flags)
+{
+    return uct_mm_coll_ep_am_bcopy(ep, id, pack_cb, arg, flags, 0, 1);
 }
 
 static UCS_F_ALWAYS_INLINE ucs_status_t
@@ -633,7 +657,7 @@ uct_mm_coll_ep_am_zcopy(uct_ep_h ep, uint8_t id, const void *header,
             ucs_derived_of(ep->iface, uct_mm_coll_iface_t)->sm_proc_cnt));
 
     ssize_t ret = uct_mm_coll_ep_am_common_send(op_mode, is_bcast, 1, ep, id,
-            length, header_value, payload, NULL, offsets, orig_flags);
+            length, header_value, payload, NULL, offsets, orig_flags, 1);
 
     return (ret > 0) ? UCS_OK : (ucs_status_t)ret;
 }

@@ -258,11 +258,13 @@ typedef struct uct_mm_iface {
                   _cfg_prefix, \
                   uct_mm##_tl_suffix##iface_t, \
                   "MM_" _cfg_prefix, \
-                  _cfg_table, \
-                  uct_mm_iface_config_t);
+                  _cfg_table##_tl_suffix, \
+                  uct_mm##_tl_suffix##iface_config_t);
 
 
 extern ucs_config_field_t uct_mm_iface_config_table[];
+extern ucs_config_field_t uct_mm_incast_iface_config_table[];
+extern ucs_config_field_t uct_mm_bcast_iface_config_table[];
 
 static UCS_F_ALWAYS_INLINE int
 uct_mm_iface_fifo_flag_has_new_data(uint8_t flags,
