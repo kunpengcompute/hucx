@@ -465,8 +465,8 @@ int ucs_arch_get_cpu_flag()
                     result |= UCS_CPU_FLAG_AVX512F;
                 }
             }
-            if (_ebx & (1 << 24)) {
-                result |= UCS_CPU_FLAG_CLWB;
+            if (_ecx & (1 << 25)) {
+                result |= UCS_CPU_FLAG_CLDEMOTE;
             }
         }
         cpu_flag = result;

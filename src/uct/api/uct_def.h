@@ -84,11 +84,12 @@ enum uct_am_trace_type {
  * this information from the data buffer itself.
  */
 enum uct_cb_param_flags {
-    UCT_CB_PARAM_FLAG_DESC   = UCS_BIT(0),
-    UCT_CB_PARAM_FLAG_FIRST  = UCS_BIT(1),
-    UCT_CB_PARAM_FLAG_MORE   = UCS_BIT(2),
-    UCT_CB_PARAM_FLAG_SHARED = UCS_BIT(3),
-    UCT_CB_PARAM_FLAG_STRIDE = UCS_BIT(4)
+    UCT_CB_PARAM_FLAG_DESC    = UCS_BIT(0),
+    UCT_CB_PARAM_FLAG_FIRST   = UCS_BIT(1),
+    UCT_CB_PARAM_FLAG_MORE    = UCS_BIT(2),
+    UCT_CB_PARAM_FLAG_SHARED  = UCS_BIT(3),
+    UCT_CB_PARAM_FLAG_STRIDE  = UCS_BIT(4),
+    UCT_CB_PARAM_FLAG_SHIFTED = UCS_BIT(5)
 };
 
 /**
@@ -897,6 +898,16 @@ typedef ucs_status_t (*uct_tag_unexp_rndv_cb_t)(void *arg, unsigned flags,
  *                       future use).
  */
 typedef void (*uct_async_event_cb_t)(void *arg, unsigned flags);
+
+
+/**
+ * @ingroup UCT_AM
+ * @brief Callback for incast (reduction) operations.
+ *
+ * @param [inout]  dst      Destination buffer for the incast (reduction).
+ * @param [in]     src      Source buffer for the incast (reduction).
+ */
+typedef void (*uct_incast_cb_t)(void *dst, const void *src);
 
 
 #endif

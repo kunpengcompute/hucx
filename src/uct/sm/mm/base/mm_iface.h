@@ -30,6 +30,12 @@ enum {
     UCT_MM_FIFO_ELEM_FLAG_INLINE = UCS_BIT(1),
 };
 
+typedef enum uct_mm_fifo_flag_state {
+    UCT_MM_FIFO_FLAG_STATE_UNCACHED,
+    UCT_MM_FIFO_FLAG_STATE_CACHED_WAITING,
+    UCT_MM_FIFO_FLAG_STATE_CACHED_READY
+} uct_mm_fifo_flag_state_t;
+
 
 #define UCT_MM_FIFO_CTL_SIZE \
     ucs_align_up(sizeof(uct_mm_fifo_ctl_t), UCS_SYS_CACHE_LINE_SIZE)
@@ -177,7 +183,7 @@ typedef struct uct_mm_recv_desc {
 
 
 typedef struct uct_mm_fifo_check {
-    int                      is_flags_cached;
+    uct_mm_fifo_flag_state_t flags_state;
     uint8_t                  flags_cache;
     uint8_t                  fifo_shift;  /* = log2(fifo_size) */
     uint64_t                 read_index;  /* actual reading location */
@@ -263,38 +269,46 @@ typedef struct uct_mm_iface {
 
 
 extern ucs_config_field_t uct_mm_iface_config_table[];
+extern ucs_config_field_t uct_mm_coll_iface_config_table[];
 extern ucs_config_field_t uct_mm_incast_iface_config_table[];
 extern ucs_config_field_t uct_mm_bcast_iface_config_table[];
 
 static UCS_F_ALWAYS_INLINE int
-uct_mm_iface_fifo_flag_has_new_data(uint8_t flags,
-                                    uint64_t read_index,
-                                    uint8_t fifo_shift)
+uct_mm_iface_fifo_flag_no_new_data(uint8_t flags,
+                                   uint64_t read_index,
+                                   uint8_t fifo_shift)
 {
     return (((read_index >> fifo_shift) & 1) !=
             (UCT_MM_FIFO_ELEM_FLAG_OWNER & flags));
 }
 
 static UCS_F_ALWAYS_INLINE int
-uct_mm_iface_fifo_has_new_data(uct_mm_fifo_check_t *check_info)
+uct_mm_iface_fifo_has_new_data(uct_mm_fifo_check_t *check_info,
+                               uct_mm_fifo_element_t *read_elem,
+                               int is_exclusive)
 {
-    /* check the flags_cache to see if anything changed */
-    uint8_t flags = check_info->read_elem->flags;
-    if (ucs_likely((check_info->is_flags_cached) &&
+    /* Flags already indicate an incoming message - proceed */
+    if ((!is_exclusive) &&
+        (check_info->flags_state == UCT_MM_FIFO_FLAG_STATE_CACHED_READY)) {
+        return 1;
+    }
+
+    /* Start by checking the flags to see if anything changed */
+    uint8_t flags = read_elem->flags;
+    if (ucs_likely((check_info->flags_state == UCT_MM_FIFO_FLAG_STATE_CACHED_WAITING) &&
                    (check_info->flags_cache == flags))) {
         return 0;
     }
 
     /* check the read_index to see if there is a new item to read (checking the owner bit) */
-    if (uct_mm_iface_fifo_flag_has_new_data(flags,
-                                            check_info->read_index,
-                                            check_info->fifo_shift)) {
-        check_info->is_flags_cached = 1;
-        check_info->flags_cache     = flags;
+    if (uct_mm_iface_fifo_flag_no_new_data(flags,
+                                           check_info->read_index,
+                                           check_info->fifo_shift)) {
+        check_info->flags_state = UCT_MM_FIFO_FLAG_STATE_CACHED_WAITING;
+        check_info->flags_cache = flags;
         return 0;
     }
 
-    ucs_memory_cpu_load_fence();
     return 1;
 }
 
@@ -350,7 +364,7 @@ uct_mm_progress_fifo_tail(uct_mm_fifo_check_t *recv_check)
 {
     ucs_prefetch(recv_check->read_elem);
 
-    recv_check->is_flags_cached = 0;
+    recv_check->flags_state = UCT_MM_FIFO_FLAG_STATE_UNCACHED;
 
     /* don't progress the tail every time - release in batches. improves performance */
     if (recv_check->read_index & recv_check->fifo_release_factor_mask) {

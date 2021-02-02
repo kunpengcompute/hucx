@@ -267,27 +267,30 @@ uct_mm_iface_process_recv(uct_mm_base_iface_t *iface,
 static UCS_F_ALWAYS_INLINE unsigned
 uct_mm_iface_poll_fifo(uct_mm_base_iface_t *iface)
 {
-    if (!uct_mm_iface_fifo_has_new_data(&iface->recv_check)) {
+    uct_mm_fifo_check_t *recv_check = &iface->recv_check;
+    uct_mm_fifo_element_t *elem     = recv_check->read_elem;
+
+    if (!uct_mm_iface_fifo_has_new_data(recv_check, elem, 1)) {
         return 0;
     }
 
     /* read from read_index_elem */
     ucs_memory_cpu_load_fence();
-    uct_mm_fifo_element_t* elem = iface->recv_check.read_elem;
-    ucs_assert(iface->recv_check.read_index <=
-               (iface->recv_check.fifo_ctl->head & ~UCT_MM_IFACE_FIFO_HEAD_EVENT_ARMED));
+
+    ucs_assert(recv_check->read_index <= (recv_check->fifo_ctl->head &
+                                          ~UCT_MM_IFACE_FIFO_HEAD_EVENT_ARMED));
 
     uct_mm_iface_process_recv(iface, elem);
 
     /* raise the read_index */
-    uint64_t read_index = ++iface->recv_check.read_index;
+    uint64_t read_index = ++recv_check->read_index;
 
     /* the next fifo_element which the read_index points to */
     iface->recv_check.read_elem =
         UCT_MM_IFACE_GET_FIFO_ELEM(iface, iface->recv_fifo_elems,
                                    (read_index & iface->fifo_mask));
 
-    uct_mm_progress_fifo_tail(&iface->recv_check);
+    uct_mm_progress_fifo_tail(recv_check);
 
     return 1;
 }
@@ -636,7 +639,7 @@ UCS_CLASS_INIT_FUNC(uct_mm_base_iface_t, uct_iface_ops_t *ops, uct_md_h md,
     self->recv_check.fifo_ctl->head      = 0;
     self->recv_check.fifo_ctl->tail      = 0;
     self->recv_check.fifo_ctl->pid       = getpid();
-    self->recv_check.is_flags_cached     = 0;
+    self->recv_check.flags_state         = UCT_MM_FIFO_FLAG_STATE_UNCACHED;
     self->recv_check.read_index          = 0;
     self->recv_check.read_elem           = self->recv_fifo_elems;
     self->recv_check.fifo_shift          =

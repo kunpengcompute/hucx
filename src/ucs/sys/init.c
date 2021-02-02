@@ -46,7 +46,7 @@ static UCS_F_NOOPTIMIZE void ucs_check_cpu_flags(void)
         { "avx", UCS_CPU_FLAG_AVX },
         { "avx2", UCS_CPU_FLAG_AVX2 },
         { "avx512f", UCS_CPU_FLAG_AVX512F },
-        { "clwb", UCS_CPU_FLAG_CLWB },
+        { "cldemote", UCS_CPU_FLAG_CLDEMOTE },
         { NULL, UCS_CPU_FLAG_UNKNOWN },
     };
 

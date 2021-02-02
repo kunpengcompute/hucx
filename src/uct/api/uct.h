@@ -696,8 +696,12 @@ enum uct_iface_params_field {
     /** Enables @ref uct_iface_params_t::am_align_offset */
     UCT_IFACE_PARAM_FIELD_AM_ALIGN_OFFSET    = UCS_BIT(17),
 
-    /** Enables @ref uct_iface_params_t::node_info */
-    UCT_IFACE_PARAM_FIELD_COLL_INFO          = UCS_BIT(18)
+    /** Enables @ref uct_iface_params_t::host_info and also
+     *  @ref uct_iface_params_t::host_infoglobal_info */
+    UCT_IFACE_PARAM_FIELD_COLL_INFO          = UCS_BIT(18),
+
+    /** Enables @ref uct_iface_params_t::incast_cb  */
+    UCT_IFACE_PARAM_FIELD_INCAST_CB          = UCS_BIT(19)
 };
 
 /**
@@ -913,6 +917,31 @@ enum uct_ep_connect_params_field {
 };
 
 
+/**
+ * @ingroup UCT_AM
+ * @brief  List of possible incast (reduction) operators.
+ */
+typedef enum {
+    UCT_INCAST_OPERATOR_SUM  = 0,
+    UCT_INCAST_OPERATOR_MIN  = 1,
+    UCT_INCAST_OPERATOR_MAX  = 2,
+
+    UCT_INCAST_OPERATOR_CB   = 7,
+#define UCT_INCAST_SHIFT (3)
+    UCT_INCAST_OPERATOR_MASK = UCS_MASK(UCT_INCAST_SHIFT)
+} uct_incast_operator_t;
+
+
+/**
+ * @ingroup UCT_AM
+ * @brief  List of possible incast (reduction) operands.
+ */
+typedef enum {
+    UCT_INCAST_OPERAND_FLOAT,
+    UCT_INCAST_OPERAND_DOUBLE
+} uct_incast_operand_t;
+
+
 /*
  * @ingroup UCT_RESOURCE
  * @brief Process Per Node (PPN) bandwidth specification: f(ppn) = dedicated + shared / ppn
@@ -1035,6 +1064,10 @@ struct uct_iface_attr {
                                                which are supported by bcopy sends */
             uint64_t         zcopy_flags; /**< Flags from @ref uct_coll_dtype_mode_t
                                                which are supported by zcopy sends */
+            uint64_t         operantors;  /**< Values for @ref uct_incast_operator_t
+                                               which are supported by short sends */
+            uint64_t         operands;    /**< Values for @ref uct_incast_operand_t
+                                               which are supported by short sends */
         } coll_mode;
 
         uint64_t             flags;      /**< Flags from @ref UCT_RESOURCE_IFACE_CAP */
@@ -1184,6 +1217,9 @@ struct uct_iface_params {
         uint32_t                                 proc_cnt;
         uint32_t                                 proc_idx;
     } host_info, global_info;
+
+    /** Incast information */
+    uct_incast_cb_t                              incast_cb;
 };
 
 

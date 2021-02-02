@@ -355,11 +355,11 @@ AS_IF([test "x$with_avx" != xyes],
       ])
 
 #
-# CLWB
+# CLDEMOTE
 #
-COMPILER_CPU_OPTIMIZATION([clwb], [CLWB], [-mclwb],
+COMPILER_CPU_OPTIMIZATION([cldemote], [CLDEMOTE], [-mcldemote],
                           [int main() {
-                               int* a; asm volatile("clwb %0" :: "m" (a)); return 0;
+                               int* a; asm volatile("cldemote %0" :: "m" (a)); return 0;
                            }])
 
 

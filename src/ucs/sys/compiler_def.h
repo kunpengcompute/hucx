@@ -174,19 +174,22 @@
 /**
  * Prevent compiler from reordering instructions
  */
-#define ucs_compiler_fence()       asm volatile(""::: "memory")
+#define ucs_compiler_fence()         asm volatile(""::: "memory")
 
 /**
  * Prefetch cache line
  */
-#define ucs_prefetch(p)            __builtin_prefetch(p)
+#define ucs_prefetch(p)              __builtin_prefetch(p)
+#define ucs_prefetch_ext(p, rw, loc) __builtin_prefetch(p, rw, loc)
+#define ucs_prefetch_write(p)        __builtin_prefetch(p, 1, 0)
+#define ucs_prefetch_read(p)         __builtin_prefetch(p, 0, 0)
 
 /* Branch prediction */
-#define ucs_likely(x)              __builtin_expect(x, 1)
-#define ucs_unlikely(x)            __builtin_expect(x, 0)
+#define ucs_likely(x)                __builtin_expect(x, 1)
+#define ucs_unlikely(x)              __builtin_expect(x, 0)
 
 /* Check if an expression is a compile-time constant */
-#define ucs_is_constant(expr)      __builtin_constant_p(expr)
+#define ucs_is_constant(expr)        __builtin_constant_p(expr)
 
 /*
  * Define code which runs at global constructor phase

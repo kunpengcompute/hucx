@@ -37,6 +37,7 @@ struct uct_mm_bcast_ep {
 
 typedef struct uct_mm_incast_ep {
     uct_mm_coll_ep_t super;
+    uct_incast_cb_t  cb;
 } uct_mm_incast_ep_t;
 
 UCS_CLASS_DECLARE_NEW_FUNC(uct_mm_incast_ep_t, uct_mm_coll_ep_t, const uct_ep_params_t*);
@@ -46,8 +47,16 @@ UCS_CLASS_DECLARE_DELETE_FUNC(uct_mm_incast_ep_t, uct_ep_t);
 UCS_CLASS_DECLARE_DELETE_FUNC(uct_mm_bcast_ep_t,  uct_ep_t);
 
 
-ucs_status_t uct_mm_bcast_ep_am_short(uct_ep_h ep, uint8_t id, uint64_t header,
-                                      const void *payload, unsigned length);
+ucs_status_t uct_mm_bcast_ep_am_short_batched(uct_ep_h ep,
+                                              uint8_t id,
+                                              uint64_t header,
+                                              const void *payload,
+                                              unsigned length);
+ucs_status_t uct_mm_bcast_ep_am_short_centralized(uct_ep_h ep,
+                                                  uint8_t id,
+                                                  uint64_t header,
+                                                  const void *payload,
+                                                  unsigned length);
 ucs_status_t uct_mm_incast_ep_am_short_batched(uct_ep_h ep,
                                                uint8_t id,
                                                uint64_t header,
@@ -58,16 +67,27 @@ ucs_status_t uct_mm_incast_ep_am_short_centralized(uct_ep_h ep,
                                                    uint64_t header,
                                                    const void *payload,
                                                    unsigned length);
+ucs_status_t uct_mm_incast_ep_am_short_centralized_ep_cb(uct_ep_h ep,
+                                                         uint8_t id,
+                                                         uint64_t header,
+                                                         const void *payload,
+                                                         unsigned length);
 
-ssize_t uct_mm_bcast_ep_am_bcopy(uct_ep_h ep, uint8_t id,
-                                 uct_pack_callback_t pack_cb,
-                                 void *arg, unsigned flags);
+ssize_t uct_mm_bcast_ep_am_bcopy_batched(uct_ep_h ep, uint8_t id,
+                                         uct_pack_callback_t pack_cb,
+                                         void *arg, unsigned flags);
+ssize_t uct_mm_bcast_ep_am_bcopy_centralized(uct_ep_h ep, uint8_t id,
+                                             uct_pack_callback_t pack_cb,
+                                             void *arg, unsigned flags);
 ssize_t uct_mm_incast_ep_am_bcopy_batched(uct_ep_h ep, uint8_t id,
                                           uct_pack_callback_t pack_cb,
                                           void *arg, unsigned flags);
 ssize_t uct_mm_incast_ep_am_bcopy_centralized(uct_ep_h ep, uint8_t id,
                                               uct_pack_callback_t pack_cb,
                                               void *arg, unsigned flags);
+ssize_t uct_mm_incast_ep_am_bcopy_centralized_ep_cb(uct_ep_h ep, uint8_t id,
+                                                    uct_pack_callback_t pack_cb,
+                                                    void *arg, unsigned flags);
 
 ucs_status_t uct_mm_bcast_ep_am_zcopy(uct_ep_h ep, uint8_t id, const void *header,
                                       unsigned header_length, const uct_iov_t *iov,
@@ -82,5 +102,6 @@ ucs_status_t uct_mm_bcast_ep_create(const uct_ep_params_t *params, uct_ep_h *ep_
 ucs_status_t uct_mm_incast_ep_create(const uct_ep_params_t *params, uct_ep_h *ep_p);
 void uct_mm_coll_ep_release_desc(uct_mm_coll_ep_t *ep, void *desc);
 void uct_mm_coll_ep_destroy(uct_ep_h ep);
+void uct_mm_bcast_ep_destroy(uct_ep_h ep);
 
 #endif

@@ -7,9 +7,9 @@
 #include "mm_coll_ep.h"
 
 ucs_config_field_t uct_mm_bcast_iface_config_table[] = {
-    {"SM_", "", NULL,
+    {"COLL_", "", NULL,
      ucs_offsetof(uct_mm_bcast_iface_config_t, super),
-     UCS_CONFIG_TYPE_TABLE(uct_mm_iface_config_table)},
+     UCS_CONFIG_TYPE_TABLE(uct_mm_coll_iface_config_table)},
 
     {NULL}
 };
@@ -69,15 +69,17 @@ static int uct_mm_bcast_iface_release_shared_desc_func(uct_iface_h iface,
 static UCS_CLASS_DECLARE_DELETE_FUNC(uct_mm_bcast_iface_t, uct_iface_t);
 
 static uct_iface_ops_t uct_mm_bcast_iface_ops = {
-    .ep_am_short               = uct_mm_bcast_ep_am_short,
-    .ep_am_bcopy               = uct_mm_bcast_ep_am_bcopy,
+/*
+ *  .ep_am_short               = uct_mm_bcast_ep_am_short_batched/centralized,
+ *  .ep_am_bcopy               = uct_mm_bcast_ep_am_bcopy_batched/centralized,
+ */
     .ep_am_zcopy               = uct_mm_bcast_ep_am_zcopy,
     .ep_pending_add            = uct_mm_ep_pending_add,
     .ep_pending_purge          = uct_mm_ep_pending_purge,
     .ep_flush                  = uct_mm_ep_flush,
     .ep_fence                  = uct_sm_ep_fence,
     .ep_create                 = uct_mm_bcast_ep_create,
-    .ep_destroy                = uct_mm_coll_ep_destroy,
+    .ep_destroy                = uct_mm_bcast_ep_destroy,
     .iface_flush               = uct_mm_iface_flush,
     .iface_fence               = uct_sm_iface_fence,
     .iface_progress            = uct_mm_bcast_iface_progress,
@@ -101,28 +103,42 @@ UCS_CLASS_INIT_FUNC(uct_mm_bcast_iface_t, uct_md_h md, uct_worker_h worker,
                       (params->host_info.proc_cnt > 2)) ?
                      params->host_info.proc_cnt : 2;
 
-    uct_mm_iface_config_t *mm_config = ucs_derived_of(tl_config,
-                                                      uct_mm_iface_config_t);
-    mm_config->fifo_elem_size       += procs * UCS_SYS_CACHE_LINE_SIZE;
+    uct_mm_bcast_iface_config_t *cfg = ucs_derived_of(tl_config,
+                                                      uct_mm_bcast_iface_config_t);
+    int is_centralized               = procs > cfg->super.batched_thresh;
+    cfg->super.super.fifo_elem_size += procs * UCS_SYS_CACHE_LINE_SIZE;
+
+    if (is_centralized) {
+        uct_mm_bcast_iface_ops.ep_am_short = uct_mm_bcast_ep_am_short_centralized;
+        uct_mm_bcast_iface_ops.ep_am_bcopy = uct_mm_bcast_ep_am_bcopy_centralized;
+    } else {
+        uct_mm_bcast_iface_ops.ep_am_short = uct_mm_bcast_ep_am_short_batched;
+        uct_mm_bcast_iface_ops.ep_am_bcopy = uct_mm_bcast_ep_am_bcopy_batched;
+    }
 
     UCS_CLASS_CALL_SUPER_INIT(uct_mm_coll_iface_t, &uct_mm_bcast_iface_ops, md,
                               worker, params, tl_config);
 
     UCT_MM_COLL_BCAST_EP_DUMMY(dummy, self);
 
+    uct_mm_coll_fifo_element_t *elem = self->super.super.recv_fifo_elems;
+    ucs_assert_always(((uintptr_t)elem % UCS_SYS_CACHE_LINE_SIZE) == 0);
+    ucs_assert_always((sizeof(*elem)   % UCS_SYS_CACHE_LINE_SIZE) == 0);
+
     int i;
-    uct_mm_coll_fifo_element_t *elem;
-    for (i = 0, elem = self->super.super.recv_fifo_elems;
-         i < self->super.super.config.fifo_size;
-         i++, elem = UCS_PTR_BYTE_OFFSET(elem,
-                 self->super.super.config.fifo_elem_size)) {
+    for (i = 0; i < self->super.super.config.fifo_size; i++) {
         uct_mm_coll_ep_centralized_reset_bcast_elem(elem, &dummy, 0);
         uct_mm_coll_ep_centralized_reset_bcast_elem(elem, &dummy, 1);
 
         elem->pending = 0;
+
+        elem = UCS_PTR_BYTE_OFFSET(elem, self->super.super.config.fifo_elem_size);
     }
 
-    mm_config->fifo_elem_size -= procs * UCS_SYS_CACHE_LINE_SIZE;
+    self->last_nonzero_ep = NULL;
+    self->poll_ep_idx     = 0;
+
+    cfg->super.super.fifo_elem_size -= procs * UCS_SYS_CACHE_LINE_SIZE;
 
     return UCS_OK;
 }

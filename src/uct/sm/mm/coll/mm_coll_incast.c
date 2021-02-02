@@ -7,13 +7,9 @@
 #include "mm_coll_ep.h"
 
 ucs_config_field_t uct_mm_incast_iface_config_table[] = {
-    {"SM_", "", NULL,
+    {"COLL_", "", NULL,
      ucs_offsetof(uct_mm_incast_iface_config_t, super),
-     UCS_CONFIG_TYPE_TABLE(uct_mm_iface_config_table)},
-
-    {"BATCHED_THRESH", "5",
-     "Threshold for switching from batched to centralized mode",
-     ucs_offsetof(uct_mm_incast_iface_config_t, batched_thresh), UCS_CONFIG_TYPE_UINT},
+     UCS_CONFIG_TYPE_TABLE(uct_mm_coll_iface_config_table)},
 
     {NULL}
 };
@@ -45,53 +41,6 @@ static ucs_status_t uct_mm_incast_iface_query(uct_iface_h tl_iface,
     iface_attr->overhead_bcopy      = 12e-9; /* 11 ns */
 
     return UCS_OK;
-}
-
-static UCS_F_ALWAYS_INLINE unsigned
-uct_mm_incast_iface_poll_fifo(uct_mm_incast_iface_t *iface)
-{
-    uct_mm_base_iface_t *mm_iface = &iface->super.super;
-    uint64_t read_index           = mm_iface->recv_check.read_index;
-    unsigned poll_count           = mm_iface->fifo_poll_count;
-    unsigned poll_total           = mm_iface->fifo_poll_count;
-
-    ucs_assert(poll_count >= UCT_MM_IFACE_FIFO_MIN_POLL);
-
-    uct_mm_coll_fifo_element_t *elem = ucs_derived_of(mm_iface->recv_check.read_elem,
-                                                      uct_mm_coll_fifo_element_t);
-
-    while ((uct_mm_iface_fifo_has_new_data(&mm_iface->recv_check)) &&
-           (uct_mm_ep_process_recv_loopback(&iface->super, elem))) {
-        elem->pending = 0;
-
-        UCT_MM_COLL_IFACE_NEXT_RECV_FIFO_ELEM(mm_iface, elem, read_index);
-
-        uct_mm_progress_fifo_tail(&mm_iface->recv_check);
-
-        if (ucs_likely(--poll_count == 0)) {
-            break;
-        }
-    }
-
-    mm_iface->recv_check.read_index = read_index;
-    mm_iface->recv_check.read_elem  = &elem->super;
-
-    return poll_total - poll_count;
-}
-
-unsigned uct_mm_incast_iface_progress(uct_iface_h tl_iface)
-{
-    uct_mm_incast_iface_t *iface  = ucs_derived_of(tl_iface, uct_mm_incast_iface_t);
-    uct_mm_base_iface_t *mm_iface = ucs_derived_of(tl_iface, uct_mm_base_iface_t);
-
-    unsigned ret = uct_mm_incast_iface_poll_fifo(iface);
-
-    uct_mm_iface_fifo_window_adjust(mm_iface, ret);
-
-    /* progress the pending sends (if there are any) */
-    ucs_arbiter_dispatch(&mm_iface->arbiter, 1, uct_mm_ep_process_pending, &ret);
-
-    return ret;
 }
 
 /**
@@ -154,7 +103,7 @@ static uct_iface_ops_t uct_mm_incast_iface_ops = {
     .ep_destroy                = uct_mm_coll_ep_destroy,
     .iface_flush               = uct_mm_iface_flush,
     .iface_fence               = uct_sm_iface_fence,
-    .iface_progress            = uct_mm_incast_iface_progress,
+/*  .iface_progress            = uct_mm_incast_iface_progress, */
     .iface_progress_enable     = uct_base_iface_progress_enable,
     .iface_progress_disable    = uct_base_iface_progress_disable,
     .iface_event_fd_get        = uct_mm_iface_event_fd_get,
@@ -167,6 +116,61 @@ static uct_iface_ops_t uct_mm_incast_iface_ops = {
     .iface_release_shared_desc = uct_mm_incast_iface_release_shared_desc
 };
 
+#define UCT_MM_INCAST_IFACE_CB_SUBCASE(_operator, _operand) \
+    *cb = UCT_MM_INCAST_IFACE_CB_NAME(helper, _operator, _operand); \
+    uct_mm_incast_iface_ops.ep_am_short = \
+        UCT_MM_INCAST_IFACE_CB_NAME(short, _operator, _operand); \
+    uct_mm_incast_iface_ops.ep_am_bcopy = \
+        UCT_MM_INCAST_IFACE_CB_NAME(bcopy, _operator, _operand);
+
+#define UCT_MM_INCAST_IFACE_CB_CASE(_operand, _operator) \
+    switch (_operand) { \
+    case UCT_INCAST_OPERAND_FLOAT: \
+        UCT_MM_INCAST_IFACE_CB_SUBCASE(_operator, float) \
+        break; \
+    case UCT_INCAST_OPERAND_DOUBLE: \
+        UCT_MM_INCAST_IFACE_CB_SUBCASE(_operator, double) \
+        break; \
+    default: \
+        return UCS_ERR_UNSUPPORTED; \
+    }
+
+static ucs_status_t
+uct_mm_incast_iface_choose_am_send(uct_incast_cb_t *cb,
+                                   uct_ep_am_short_func_t *ep_am_short_p,
+                                   uct_ep_am_bcopy_func_t *ep_am_bcopy_p)
+{
+    uct_incast_operand_t operand = (uintptr_t)*cb >> UCT_INCAST_SHIFT;
+    uct_incast_operator_t operator = (uintptr_t)*cb & UCT_INCAST_OPERATOR_MASK;
+
+    switch (operator) {
+    case UCT_INCAST_OPERATOR_SUM:
+        UCT_MM_INCAST_IFACE_CB_CASE(operand, sum)
+        break;
+
+    case UCT_INCAST_OPERATOR_MIN:
+        UCT_MM_INCAST_IFACE_CB_CASE(operand, min)
+        break;
+
+    case UCT_INCAST_OPERATOR_MAX:
+        UCT_MM_INCAST_IFACE_CB_CASE(operand, max)
+        break;
+
+    case UCT_INCAST_OPERATOR_CB:
+        uct_mm_incast_iface_ops.ep_am_short =
+                uct_mm_incast_ep_am_short_centralized_ep_cb;
+        uct_mm_incast_iface_ops.ep_am_bcopy =
+                uct_mm_incast_ep_am_bcopy_centralized_ep_cb;
+        *cb = (uct_incast_cb_t)((uintptr_t)*cb & ~UCT_INCAST_OPERATOR_MASK);
+        break;
+
+    default:
+        return UCS_ERR_UNSUPPORTED;
+    };
+
+    return UCS_OK;
+}
+
 UCS_CLASS_INIT_FUNC(uct_mm_incast_iface_t, uct_md_h md, uct_worker_h worker,
                     const uct_iface_params_t *params,
                     const uct_iface_config_t *tl_config)
@@ -177,40 +181,56 @@ UCS_CLASS_INIT_FUNC(uct_mm_incast_iface_t, uct_md_h md, uct_worker_h worker,
 
     uct_mm_incast_iface_config_t *cfg = ucs_derived_of(tl_config,
                                                        uct_mm_incast_iface_config_t);
-    unsigned orig_fifo_elem_size      = cfg->super.fifo_elem_size;
+    int is_centralized                = procs > cfg->super.batched_thresh;
+    unsigned orig_fifo_elem_size      = cfg->super.super.fifo_elem_size;
     size_t short_stride               = ucs_align_up(orig_fifo_elem_size -
                                                      sizeof(uct_mm_coll_fifo_element_t),
                                                      UCS_SYS_CACHE_LINE_SIZE);
-    cfg->super.fifo_elem_size         = sizeof(uct_mm_coll_fifo_element_t) +
+    cfg->super.super.fifo_elem_size   = sizeof(uct_mm_coll_fifo_element_t) +
                                         (procs * short_stride);
 
-    if (procs > cfg->batched_thresh) {
-        uct_mm_incast_iface_ops.ep_am_short = uct_mm_incast_ep_am_short_centralized;
-        uct_mm_incast_iface_ops.ep_am_bcopy = uct_mm_incast_ep_am_bcopy_centralized;
+    if (is_centralized) {
+        if (params->field_mask & UCT_IFACE_PARAM_FIELD_INCAST_CB) {
+            self->cb = params->incast_cb;
+            ucs_status_t status = uct_mm_incast_iface_choose_am_send(&self->cb,
+                    &uct_mm_incast_iface_ops.ep_am_short,
+                    &uct_mm_incast_iface_ops.ep_am_bcopy);
+            if (status != UCS_OK) {
+                return status;
+            }
+        } else {
+            uct_mm_incast_iface_ops.ep_am_short = uct_mm_incast_ep_am_short_centralized;
+            uct_mm_incast_iface_ops.ep_am_bcopy = uct_mm_incast_ep_am_bcopy_centralized;
+            self->cb = NULL;
+        }
+        uct_mm_incast_iface_ops.iface_progress = uct_mm_incast_iface_progress_cb;
     } else {
-        uct_mm_incast_iface_ops.ep_am_short = uct_mm_incast_ep_am_short_batched;
-        uct_mm_incast_iface_ops.ep_am_bcopy = uct_mm_incast_ep_am_bcopy_batched;
+        uct_mm_incast_iface_ops.ep_am_short    = uct_mm_incast_ep_am_short_batched;
+        uct_mm_incast_iface_ops.ep_am_bcopy    = uct_mm_incast_ep_am_bcopy_batched;
+        uct_mm_incast_iface_ops.iface_progress = uct_mm_incast_iface_progress;
     }
 
     UCS_CLASS_CALL_SUPER_INIT(uct_mm_coll_iface_t, &uct_mm_incast_iface_ops,
                               md, worker, params, tl_config);
 
+    uct_mm_coll_fifo_element_t *elem = self->super.super.recv_fifo_elems;
+    ucs_assert_always(((uintptr_t)elem % UCS_SYS_CACHE_LINE_SIZE) == 0);
+    ucs_assert_always((sizeof(*elem)   % UCS_SYS_CACHE_LINE_SIZE) == 0);
+
     int i;
     ucs_status_t status;
-    uct_mm_coll_fifo_element_t *elem;
     for (i = 0; i < self->super.super.config.fifo_size; i++) {
-        elem = UCT_MM_COLL_IFACE_GET_FIFO_ELEM(self, i);
-        ucs_assert(elem->super.flags & UCT_MM_FIFO_ELEM_FLAG_OWNER);
-
         elem->pending = 0;
 
         status = ucs_spinlock_init(&elem->lock, UCS_SPINLOCK_FLAG_SHARED);
         if (status != UCS_OK) {
             goto destory_elements;
         }
+
+        elem = UCS_PTR_BYTE_OFFSET(elem, self->super.super.config.fifo_elem_size);
     }
 
-    cfg->super.fifo_elem_size = orig_fifo_elem_size;
+    cfg->super.super.fifo_elem_size = orig_fifo_elem_size;
 
     return UCS_OK;
 

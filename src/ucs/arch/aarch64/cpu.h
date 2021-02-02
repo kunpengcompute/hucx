@@ -235,6 +235,11 @@ static inline void ucs_arch_clear_cache(void *start, void *end)
 }
 #endif
 
+static inline void ucs_arch_share_cache(void *addr)
+{
+    asm volatile ("dc cvac, %0" : : "r" (addr) : "memory");
+}
+
 static inline void ucs_arch_clear_cache(void *start, void *end)
 {
     uintptr_t ptr;
@@ -243,7 +248,7 @@ static inline void ucs_arch_clear_cache(void *start, void *end)
     dcache = sizeof(int) << ((ctr_el0 >> 16) & 0xf);
 
     for (ptr = ucs_align_down((uintptr_t)start, dcache); ptr < (uintptr_t)end; ptr += dcache) {
-        asm volatile ("dc cvac, %0" :: "r" (ptr) : "memory");
+        ucs_arch_share_cache(ptr);
     }
     asm volatile ("dsb ish" ::: "memory");
 }

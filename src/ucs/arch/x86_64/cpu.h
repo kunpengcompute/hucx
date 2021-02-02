@@ -19,7 +19,7 @@
 #ifdef __SSE4_1__
 #  include <smmintrin.h>
 #endif
-#ifdef __AVX__
+#if defined(__AVX__) || defined(__CLDEMOTE__)
 #  include <immintrin.h>
 #endif
 #ifdef __CLWB__
@@ -94,12 +94,10 @@ static inline void ucs_arch_clear_cache(void *start, void *end)
 }
 #endif
 
-static inline void ucs_arch_writeback_cache(void *start, void *end)
+static inline void ucs_arch_share_cache(void *addr)
 {
-#if __CLWB__
-    for(; start < end; start = (uint8_t*)start + UCS_ARCH_CACHE_LINE_SIZE) {
-        _mm_clwb(start);
-    }
+#if __CLDEMOTE__
+    _mm_cldemote(addr);
 #endif
 }
 

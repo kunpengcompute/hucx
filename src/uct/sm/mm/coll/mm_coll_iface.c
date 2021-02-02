@@ -12,6 +12,17 @@
 #include "mm_coll_iface.h"
 #include "mm_coll_ep.h"
 
+ucs_config_field_t uct_mm_coll_iface_config_table[] = {
+    {"SM_", "", NULL,
+     ucs_offsetof(uct_mm_coll_iface_config_t, super),
+     UCS_CONFIG_TYPE_TABLE(uct_mm_iface_config_table)},
+
+    {"BATCHED_THRESH", "5",
+     "Threshold for switching from batched to centralized mode",
+     ucs_offsetof(uct_mm_coll_iface_config_t, batched_thresh), UCS_CONFIG_TYPE_UINT},
+
+    {NULL}
+};
 
 ucs_status_t uct_mm_coll_iface_query(uct_iface_h tl_iface,
                                      uct_iface_attr_t *iface_attr)
