@@ -935,14 +935,17 @@ uct_mm_coll_ep_process_recv(uct_mm_coll_ep_t *ep, uct_mm_coll_iface_t *iface,
             recv_check = &iface->super.recv_check;
         } else {
             /* set information for @ref uct_mm_bcast_iface_release_shared_desc_func */
-            base_address = uct_mm_coll_iface_centralized_get_slot(elem, ep, 0,
-                                                                  is_short, 0, 0,
-                                                                  ep->my_offset);
-            base_address += UCS_SYS_CACHE_LINE_SIZE - 1;
+            uint8_t* slot_ptr = uct_mm_coll_iface_centralized_get_slot(elem, ep, 0,
+                                                                       is_short, 0, 0,
+                                                                       ep->my_offset);
+            /* each receviver has its own slot, No conflict. */
+            slot_ptr[0] = iface->my_coll_id;
 
-            ucs_assert(*base_address == 0);
-
-            uct_recv_desc(desc) = (void*)base_address;
+            ucs_assert(slot_ptr[UCS_SYS_CACHE_LINE_SIZE-1] == 0);
+            /* all bcast receivers have the same slot start offset, overwirte is ok */
+            size_t slot_offset = uct_mm_coll_iface_centralized_get_slot_offset(ep, 0, 
+                                                                               is_short, 0, 0);
+            uct_recv_desc(desc) = (void*)slot_offset;
             return 1;
         }
     } else if (is_incast) {
@@ -953,6 +956,7 @@ uct_mm_coll_ep_process_recv(uct_mm_coll_ep_t *ep, uct_mm_coll_iface_t *iface,
         if (is_pending_batched) {
             /* I finished reading the broadcast - let the sender know */
             uct_mm_coll_ep_centralized_mark_bcast_rx_done(elem, ep, is_short);
+            return 1;
         }
     }
 
@@ -996,6 +1000,9 @@ static inline uct_ep_h uct_mm_coll_ep_check_existing(const uct_ep_params_t *para
     ucs_assert(params->field_mask & UCT_EP_PARAM_FIELD_IFACE_ADDR);
 
     if (coll_id == iface->my_coll_id) {
+        if (iface->loopback_ep != NULL) {
+            iface->loopback_ep->ref_count++;
+        }
         return (uct_ep_h)iface->loopback_ep;
     }
 

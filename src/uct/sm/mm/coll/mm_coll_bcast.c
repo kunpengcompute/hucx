@@ -46,7 +46,23 @@ static int uct_mm_bcast_iface_release_shared_desc_func(uct_iface_h iface,
                                                        uct_recv_desc_t *self,
                                                        void *desc)
 {
-    *(uint8_t*)self = 1;
+    uct_mm_bcast_iface_t* biface = ucs_derived_of(iface, uct_mm_bcast_iface_t);
+    uint8_t my_coll_id = biface->super.my_coll_id;
+    uint8_t slot_idx;
+    uint8_t slot_cnt = biface->super.sm_proc_cnt;
+    size_t slot_offset = (size_t)self;
+    uint8_t* slot_ptr = (uint8_t*)desc + biface->super.super.rx_headroom + slot_offset;
+    for (slot_idx = 0; slot_idx < slot_cnt; slot_idx++) {
+        if (slot_ptr[0] == my_coll_id) {
+            /* mark done */
+            slot_ptr[UCS_SYS_CACHE_LINE_SIZE - 1] = 1;
+            return 1;
+        }
+        slot_ptr += UCS_SYS_CACHE_LINE_SIZE;
+    }
+    
+    /* Should never happen */
+    ucs_assert(0); 
     return 1;
 }
 
