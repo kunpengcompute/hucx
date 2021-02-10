@@ -11,10 +11,10 @@
 #define repeat_bcast_test1(type, mpi_type)                      \
     {                                                           \
         DECL_MALLOC_INOUT_SOL(type);                            \
-        SET_INDEX_SUM(sol, 987654321);                          \
         while (repeats--) {                                     \
-            if (rank == root) { SET_INDEX_SUM(io, 987654321); } \
+            if (rank == root) { SET_INDEX_SUM(io, repeats); }   \
             else { SET_INDEX_CONST(io, -1); }                   \
+            SET_INDEX_SUM(sol, repeats);                        \
             BCAST_NOT_FREE(mpi_type, root, io, sol);            \
         }                                                       \
         free(io); free(sol);                                    \
@@ -24,16 +24,16 @@
 #define repeat_bcast_test2(type, mpi_type)                      \
     {                                                           \
         DECL_MALLOC_INOUT_SOL(type);                            \
-        SET_INDEX_STRUCT_SUM(sol, 9876543210, a);               \
-        SET_INDEX_STRUCT_SUM(sol, 123456789, b);                \
         while (repeats--) {                                     \
             if (rank == root) {                                 \
-                SET_INDEX_STRUCT_SUM(io, 9876543210, a);        \
-                SET_INDEX_STRUCT_SUM(io, 123456789, b);         \
+                SET_INDEX_STRUCT_SUM(io, repeats, a);           \
+                SET_INDEX_STRUCT_SUM(io, -repeats, b);          \
             } else {                                            \
-                SET_INDEX_STRUCT_SUM(io, -1, a);                \
-                SET_INDEX_STRUCT_SUM(io, -1, b);                \
+                SET_INDEX_STRUCT_CONST(io, -1, a);              \
+                SET_INDEX_STRUCT_CONST(io, -1, b);              \
             }                                                   \
+            SET_INDEX_STRUCT_SUM(sol, repeats, a);              \
+            SET_INDEX_STRUCT_SUM(sol, -repeats, b);             \
             STRUCT_BCAST_NOT_FREE(mpi_type, root, io, sol);     \
         }                                                       \
         free(io); free(sol);                                    \
@@ -57,11 +57,11 @@ int main(int argc, char *argv[])
     root = 0;
 
     /* loop repeats times on contiguous datatype */
-    repeats = 1000000;
+    repeats = 100000;
     repeat_bcast_test1(int, MPI_INT);
 
     /* loop repeats times on non-contiguous datatype */
-    repeats = 1000000;
+    repeats = 10000;
     repeat_bcast_test2(struct long_int, MPI_LONG_INT);
 
     WAIT_ALL_SUCCESS();

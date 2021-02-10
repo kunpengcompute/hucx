@@ -81,7 +81,7 @@ function run_with_source()
     local source_file_path=$(cd "$(dirname "$source_file")" || exit 1; pwd)
     local file_name=$(echo "$source_file" | awk -F/ '{print $NF}')
     exc_file="${source_file_path}/${arch}/${file_name%.*}"
-    cc_cmd="mpicc -o ${exc_file} ${line}"
+    cc_cmd="mpicc -Wall -lm -o ${exc_file} ${line}"
     echo "$cc_cmd" >> "$origin_output"
     eval "$cc_cmd >> $origin_output 2>&1"
     if [ $? -ne 0 ]; then

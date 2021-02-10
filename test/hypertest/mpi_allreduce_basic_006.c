@@ -16,8 +16,10 @@ struct int_int {
 };
 
 struct long_int {
-    long c0;
+    int c0;
+    int dummy0;
     int c1;
+    int dummy1;
 };
 
 struct matrix1 {

@@ -1,7 +1,7 @@
 .PHONY: all clean
 
 CC = mpicc
-CFLAGS = -g -Wall
+CFLAGS = -g -Wall -lm
 
 SRCS := $(wildcard *.c)
 TARGET := $(patsubst %.c, %, $(SRCS))

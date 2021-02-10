@@ -10,8 +10,10 @@
 #include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <unistd.h>
 #include <math.h>
+#include <complex.h>
 #include <string.h>
 
 
@@ -34,6 +36,15 @@
         int i;                                  \
         for (i = 0; i < count; i++)             \
             arr[i] = val;                       \
+    }
+
+#define SET_INDEX_TWO_VAL(arr, val1, val2)      \
+    {                                           \
+        int i;                                  \
+        for (i = 0; i < count; i += 2)          \
+            arr[i] = val1;                      \
+        for (i = 1; i < count; i += 2)          \
+            arr[i] = val2;                      \
     }
 
 #define SET_INDEX_SUM(arr, val)                 \
@@ -148,6 +159,58 @@
             }                                                           \
         }                                                               \
         free(in); free(out); free(sol); free(org);                      \
+    }
+
+#define ALLREDUCE_AND_FREE_FLOAT(mpi_type, mpi_op, in, out, sol, org)   \
+    {                                                                   \
+        int i, rc;                                                      \
+        rc = MPI_Allreduce(in, out, count, mpi_type, mpi_op, MPI_COMM_WORLD); \
+        if (rc) {                                                       \
+            free(in); free(out); free(sol); free(org);                  \
+            MPI_Abort(MPI_COMM_WORLD, rc);                              \
+        } else {                                                        \
+            for (i = 0; i < count; i++) {                               \
+                if (fabs(out[i] - sol[i]) > 1e-6 || fabs(in[i] - org[i]) > 1e-6) { \
+                    free(in); free(out); free(sol); free(org);          \
+                    MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);            \
+                }                                                       \
+            }                                                           \
+        }                                                               \
+        free(in); free(out); free(sol); free(org);                      \
+    }
+
+#define ALLREDUCE_NOT_FREE(mpi_type, mpi_op, in, out, sol, org)         \
+    {                                                                   \
+        int i, rc;                                                      \
+        rc = MPI_Allreduce(in, out, count, mpi_type, mpi_op, MPI_COMM_WORLD); \
+        if (rc) {                                                       \
+            free(in); free(out); free(sol); free(org);                  \
+            MPI_Abort(MPI_COMM_WORLD, rc);                              \
+        } else {                                                        \
+            for (i = 0; i < count; i++) {                               \
+                if (out[i] != sol[i] || in[i] != org[i]) {              \
+                    free(in); free(out); free(sol); free(org);          \
+                    MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);            \
+                }                                                       \
+            }                                                           \
+        }                                                               \
+    }
+
+#define ALLREDUCE_NOT_FREE_FLOAT(mpi_type, mpi_op, in, out, sol, org)   \
+    {                                                                   \
+        int i, rc;                                                      \
+        rc = MPI_Allreduce(in, out, count, mpi_type, mpi_op, MPI_COMM_WORLD); \
+        if (rc) {                                                       \
+            free(in); free(out); free(sol); free(org);                  \
+            MPI_Abort(MPI_COMM_WORLD, rc);                              \
+        } else {                                                        \
+            for (i = 0; i < count; i++) {                               \
+                if (fabs(out[i] - sol[i]) > 1e-6 || fabs(in[i] - org[i]) > 1e-6) { \
+                    free(in); free(out); free(sol); free(org);          \
+                    MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);            \
+                }                                                       \
+            }                                                           \
+        }                                                               \
     }
 
 #define BCAST_NOT_FREE(mpi_type, root, io, sol)                         \
@@ -313,6 +376,58 @@
             }                                                           \
         }                                                               \
         free(io); free(sol);                                            \
+    }
+
+#define ALLREDUCE_AND_FREE_INPLACE_FLOAT(mpi_type, mpi_op, io, sol)     \
+    {                                                                   \
+        int i, rc;                                                      \
+        rc = MPI_Allreduce(MPI_IN_PLACE, io, count, mpi_type, mpi_op, MPI_COMM_WORLD); \
+        if (rc) {                                                       \
+            free(io); free(sol);                                        \
+            MPI_Abort(MPI_COMM_WORLD, rc);                              \
+        } else {                                                        \
+            for (i = 0; i < count; i++) {                               \
+                if (fabs(io[i] - sol[i]) > 1e-6) {                      \
+                    free(io); free(sol);                                \
+                    MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);            \
+                }                                                       \
+            }                                                           \
+        }                                                               \
+        free(io); free(sol);                                            \
+    }
+
+#define ALLREDUCE_NOT_FREE_INPLACE(mpi_type, mpi_op, io, sol)           \
+    {                                                                   \
+        int i, rc;                                                      \
+        rc = MPI_Allreduce(MPI_IN_PLACE, io, count, mpi_type, mpi_op, MPI_COMM_WORLD); \
+        if (rc) {                                                       \
+            free(io); free(sol);                                        \
+            MPI_Abort(MPI_COMM_WORLD, rc);                              \
+        } else {                                                        \
+            for (i = 0; i < count; i++) {                               \
+                if (io[i] != sol[i]) {                                  \
+                    free(io); free(sol);                                \
+                    MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);            \
+                }                                                       \
+            }                                                           \
+        }                                                               \
+    }
+
+#define ALLREDUCE_NOT_FREE_INPLACE_FLOAT(mpi_type, mpi_op, io, sol)     \
+    {                                                                   \
+        int i, rc;                                                      \
+        rc = MPI_Allreduce(MPI_IN_PLACE, io, count, mpi_type, mpi_op, MPI_COMM_WORLD); \
+        if (rc) {                                                       \
+            free(io); free(sol);                                        \
+            MPI_Abort(MPI_COMM_WORLD, rc);                              \
+        } else {                                                        \
+            for (i = 0; i < count; i++) {                               \
+                if (fabs(io[i] - sol[i]) > 1e-6) {                      \
+                    free(io); free(sol);                                \
+                    MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);            \
+                }                                                       \
+            }                                                           \
+        }                                                               \
     }
 
 #define STRUCT_ALLREDUCE_NOT_FREE_INPLACE(mpi_type, mpi_op, io, sol)    \
