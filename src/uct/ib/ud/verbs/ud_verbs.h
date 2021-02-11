@@ -40,6 +40,19 @@ typedef struct {
     } config;
 } uct_ud_verbs_iface_t;
 
+typedef struct uct_ud_verbs_iface_wrapper {
+    uct_ud_verbs_iface_t super;
+} uct_ud_verbs_iface_wrapper_t;
+
+UCS_CLASS_DECLARE(uct_ud_verbs_iface_t, uct_ud_iface_ops_t *, uct_md_h, uct_worker_h,
+                    const uct_iface_params_t *,
+                    const uct_iface_config_t *);
+
+UCS_CLASS_DECLARE(uct_ud_verbs_iface_wrapper_t, uct_md_h, uct_worker_h,
+                    const uct_iface_params_t *,
+                    const uct_iface_config_t *);
+
+UCS_CLASS_DECLARE_NEW_FUNC(uct_ud_verbs_ep_t, uct_ep_t, const uct_ep_params_t*);
 
 UCS_CLASS_DECLARE(uct_ud_verbs_ep_t, const uct_ep_params_t *)
 

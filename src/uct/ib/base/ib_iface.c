@@ -1013,9 +1013,9 @@ ucs_status_t uct_ib_verbs_create_cq(uct_ib_iface_t *iface, uct_ib_dir_t dir,
 #if HAVE_DECL_IBV_CREATE_CQ_ATTR_IGNORE_OVERRUN
     struct ibv_cq_init_attr_ex cq_attr = {};
 
-    if (uct_ib_device_is_hns(context->device)) {
-        *inl = 0;
-        cq = ibv_create_cq(context, cqe, NULL, channel, comp_vector);
+    if (uct_ib_device_is_hns(dev->ibv_context->device)) {
+//        *inl = 0;
+//        cq = ibv_create_cq(dev->ibv_context, cqe, NULL, channel, comp_vector);
     } else {
         cq_attr.cqe         = cq_size;
         cq_attr.channel     = iface->comp_channel;
