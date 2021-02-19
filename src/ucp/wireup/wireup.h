@@ -86,6 +86,7 @@ typedef struct {
     unsigned        addr_index;
     unsigned        path_index;
     ucp_rsc_index_t rsc_index;
+    unsigned        iface_tl_base;
     uint8_t         priority;
 } ucp_wireup_select_info_t;
 
@@ -126,12 +127,13 @@ int ucp_wireup_is_reachable(ucp_ep_h ep, unsigned ep_init_flags,
 
 ucs_status_t ucp_wireup_init_lanes(ucp_ep_h ep, unsigned ep_init_flags,
                                    const ucp_tl_bitmap_t *local_tl_bitmap,
+                                   unsigned iface_tl_base,
                                    const ucp_unpacked_address_t *remote_address,
                                    unsigned *addr_indices);
 
 ucs_status_t
 ucp_wireup_select_lanes(ucp_ep_h ep, unsigned ep_init_flags,
-                        ucp_tl_bitmap_t tl_bitmap,
+                        ucp_tl_bitmap_t tl_bitmap, unsigned iface_tl_base,
                         const ucp_unpacked_address_t *remote_address,
                         unsigned *addr_indices, ucp_ep_config_key_t *key);
 

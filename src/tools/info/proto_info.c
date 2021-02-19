@@ -336,10 +336,11 @@ print_ucp_info(int print_opts, ucs_config_print_flags_t print_flags,
                ucg_group_member_index_t my_index,
                const char *collective_type_name,
                size_t dtype_count,
-               ucg_group_member_index_t peer_count[UCG_GROUP_MEMBER_DISTANCE_LAST]
+               ucg_group_member_index_t peer_count[UCG_GROUP_MEMBER_DISTANCE_UNKNOWN]
 #endif
                )
 {
+    ucp_worker_h peer_worker = NULL;
     ucp_config_t *ucp_config;
     ucg_config_t *ucg_config;
     ucs_status_t status;
@@ -389,7 +390,7 @@ print_ucp_info(int print_opts, ucs_config_print_flags_t print_flags,
     ucg_params.address.release_f = dummy_release_address;
 
     /* Not a real callbacks, but good enough for these tests */
-    ucg_params.datatype.convert             = datatype_test_converter;
+    ucg_params.datatype.convert_f           = datatype_test_converter;
     ucg_params.datatype.is_integer_f        = datatype_test_dt_is_int;
     ucg_params.datatype.is_floating_point_f = datatype_test_dt_is_fp;
     ucg_params.reduce_op.is_sum_f           = datatype_test_op_is_sum;
@@ -441,7 +442,7 @@ print_ucp_info(int print_opts, ucs_config_print_flags_t print_flags,
 #if ENABLE_UCG
     if (print_opts & PRINT_UCG) {
         /* create a group with the generated parameters */
-        enum ucg_group_member_distance distance = UCG_GROUP_MEMBER_DISTANCE_SELF;
+        enum ucg_group_member_distance distance = UCG_GROUP_MEMBER_DISTANCE_NONE;
         ucg_group_params_t group_params = {
                 .field_mask        = UCG_GROUP_PARAM_FIELD_MEMBER_COUNT |
                                      UCG_GROUP_PARAM_FIELD_MEMBER_INDEX |
@@ -456,7 +457,7 @@ print_ucp_info(int print_opts, ucs_config_print_flags_t print_flags,
         status = ucg_group_create(worker, &group_params, &group);
         if (status != UCS_OK) {
             printf("<Failed to create UCG group>\n");
-            goto out_destroy_worker;
+            goto out_worker_destroy;
         }
 
         print_resource_usage(&usage, "UCG group");

@@ -502,11 +502,8 @@ last_writer:
          * The owner bit flips after every FIFO wrap-around */
         elem_flags = (head & fifo_size) && UCT_MM_FIFO_ELEM_FLAG_OWNER;
         if (is_short) {
-            elem_flags |= UCT_MM_FIFO_ELEM_FLAG_INLINE;
-        }
-
-        if (is_short) {
-            elem->header = header;
+            elem_flags    |= UCT_MM_FIFO_ELEM_FLAG_INLINE;
+            elem->header   = header;
         }
         elem->op_mode      = op_mode;
         elem->super.am_id  = am_id;
@@ -804,7 +801,7 @@ UCS_CLASS_INIT_FUNC(uct_mm_coll_ep_t, const uct_ep_params_t *params)
 
     ucs_assert(params->field_mask & UCT_EP_PARAM_FIELD_IFACE);
     ucs_assert(params->field_mask & UCT_EP_PARAM_FIELD_IFACE_ADDR);
-    ucs_assert(addr->coll_id < iface->sm_proc_cnt);
+    // TODO: restore ucs_assert(addr->coll_id < iface->sm_proc_cnt);
 
     uct_ep_params_t super_params;
     memcpy(&super_params, params, sizeof(*params)); // TODO: fix ABI compatibility
@@ -812,6 +809,12 @@ UCS_CLASS_INIT_FUNC(uct_mm_coll_ep_t, const uct_ep_params_t *params)
             (void*)&((uct_mm_coll_iface_addr_t*)params->iface_addr)->super;
 
     UCS_CLASS_CALL_SUPER_INIT(uct_mm_ep_t, &super_params);
+
+    if (addr->coll_id == (uint32_t)-1) {
+        return UCS_OK;
+    }
+
+    ucs_assert(addr->coll_id == 0); // TODO: remove (debug only)
 
     self->remote_id  = addr->coll_id;
     self->my_offset  = iface->my_coll_id -
@@ -915,6 +918,18 @@ uct_mm_coll_ep_get_next_rx_elem(uct_mm_coll_fifo_element_t* elem,
     }
 
     return (uct_mm_coll_fifo_element_t*)ep->super.fifo_elems;
+}
+
+ucs_status_t uct_mm_coll_ep_flush(uct_ep_h tl_ep, unsigned flags,
+                                  uct_completion_t *comp)
+{
+    uct_mm_coll_ep_t *ep = ucs_derived_of(tl_ep, uct_mm_coll_ep_t);
+
+    if (ucs_unlikely(ep->super.fifo_ctl == NULL)) {
+        return UCS_OK;
+    }
+
+    return uct_mm_ep_flush(tl_ep, flags, comp);
 }
 
 void uct_mm_coll_ep_release_desc(uct_mm_coll_ep_t *ep, void *desc)
@@ -1327,8 +1342,6 @@ unsigned uct_mm_bcast_iface_progress(uct_iface_h tl_iface)
     uct_mm_base_iface_t *mm_iface = ucs_derived_of(tl_iface, uct_mm_base_iface_t);
     uct_mm_bcast_ep_t *ep         = iface->last_nonzero_ep;
     unsigned count, count_limit   = mm_iface->fifo_poll_count;
-
-    ucs_assert(count_limit >= UCT_MM_IFACE_FIFO_MIN_POLL);
 
     if (ucs_likely(ep != NULL)) {
         count = uct_mm_bcast_iface_progress_ep(iface, ep, count_limit);

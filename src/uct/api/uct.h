@@ -460,8 +460,8 @@ typedef enum uct_coll_dtype_mode {
 #define UCT_IFACE_FLAG_TAG_RNDV_ZCOPY  UCS_BIT(53) /**< Hardware tag matching rendezvous zcopy support */
 
         /* Collective (multi-peer) operations */
-#define UCT_IFACE_FLAG_BCAST           UCS_BIT(55) /**< one-to-many send operations */
-#define UCT_IFACE_FLAG_INCAST          UCS_BIT(56) /**< many-to-one send operations */
+#define UCT_IFACE_FLAG_INCAST          UCS_BIT(55) /**< many-to-one send operations */
+#define UCT_IFACE_FLAG_BCAST           UCS_BIT(56) /**< one-to-many send operations */
 
 /**
  * @}
@@ -922,13 +922,14 @@ enum uct_ep_connect_params_field {
  * @brief  List of possible incast (reduction) operators.
  */
 typedef enum {
-    UCT_INCAST_OPERATOR_SUM  = 0,
-    UCT_INCAST_OPERATOR_MIN  = 1,
-    UCT_INCAST_OPERATOR_MAX  = 2,
+    UCT_INCAST_OPERATOR_NONE = 0,
+    UCT_INCAST_OPERATOR_SUM  = 1,
+    UCT_INCAST_OPERATOR_MIN  = 2,
+    UCT_INCAST_OPERATOR_MAX  = 3,
 
     UCT_INCAST_OPERATOR_CB   = 7,
-#define UCT_INCAST_SHIFT (3)
-    UCT_INCAST_OPERATOR_MASK = UCS_MASK(UCT_INCAST_SHIFT)
+#define UCT_INCAST_OPERATOR_BITS (3)
+    UCT_INCAST_OPERATOR_MASK = UCS_MASK(UCT_INCAST_OPERATOR_BITS)
 } uct_incast_operator_t;
 
 
@@ -938,8 +939,27 @@ typedef enum {
  */
 typedef enum {
     UCT_INCAST_OPERAND_FLOAT,
-    UCT_INCAST_OPERAND_DOUBLE
+    UCT_INCAST_OPERAND_DOUBLE,
+
+    UCT_INCAST_OPERAND_INT8_T,
+    UCT_INCAST_OPERAND_INT16_T,
+    UCT_INCAST_OPERAND_INT32_T,
+    UCT_INCAST_OPERAND_INT64_T,
+
+    UCT_INCAST_OPERAND_UINT8_T,
+    UCT_INCAST_OPERAND_UINT16_T,
+    UCT_INCAST_OPERAND_UINT32_T,
+    UCT_INCAST_OPERAND_UINT64_T
 } uct_incast_operand_t;
+
+#define UCT_INCAST_CALLBACK_PACK(_operator, _operand) \
+    ((_operator) | ((_operand) << UCT_INCAST_OPERATOR_BITS))
+
+#define UCT_INCAST_CALLBACK_UNPACK_OPERAND(_packed) \
+    ((uintptr_t)(_packed) >> UCT_INCAST_OPERATOR_BITS)
+
+#define UCT_INCAST_CALLBACK_UNPACK_OPERATOR(_packed) \
+    ((uintptr_t)(_packed) & UCS_MASK(UCT_INCAST_OPERATOR_BITS))
 
 
 /*

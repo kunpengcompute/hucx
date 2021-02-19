@@ -196,7 +196,7 @@ ucg_group_params_t *ucg_resource_factory::create_group_params(
 
     for (size_t i = 0; i < rank_infos.size(); i++) {
         if (rank_infos[i].rank == my_rank_info.rank) {
-            args->distance[rank_infos[i].rank] = UCG_GROUP_MEMBER_DISTANCE_SELF;
+            args->distance[rank_infos[i].rank] = UCG_GROUP_MEMBER_DISTANCE_NONE;
         } else if (rank_infos[i].nodex_idx == my_rank_info.nodex_idx) {
             if (rank_infos[i].socket_idx == my_rank_info.socket_idx) {
                 args->distance[rank_infos[i].rank] = UCG_GROUP_MEMBER_DISTANCE_SOCKET;
@@ -213,7 +213,7 @@ ucg_group_params_t *ucg_resource_factory::create_group_params(
     return args;
 }
 
-ucg_group_h ucg_resource_factory::create_group(const ucg_group_params_t *params, ucg_worker_h ucg_worker)
+ucg_group_h ucg_resource_factory::create_group(const ucg_group_params_t *params, ucp_worker_h ucg_worker)
 {
     ucg_group_h group;
     ucg_group_create(ucg_worker, params, &group);
@@ -222,22 +222,19 @@ ucg_group_h ucg_resource_factory::create_group(const ucg_group_params_t *params,
 
 ucg_collective_params_t *ucg_resource_factory::create_collective_params(
     ucg_collective_modifiers modifiers, ucg_group_member_index_t root,
-    void *send_buffer, int count, void *recv_buffer, size_t dt_len, void *dt_ext, void *op_ext)
+    void *send_buffer, int count, void *recv_buffer, void *dtype, void *op_ext)
 {
     ucg_collective_params_t *params = new ucg_collective_params_t();
-    params->type.modifiers = modifiers;
-    params->type.root = root;
-    params->send.buf = send_buffer;
-    params->send.count = count;
-    params->send.dt_len = dt_len;
-    params->send.dt_ext = dt_ext;
-    params->send.op_ext = op_ext;
+    params->send.type.modifiers = modifiers;
+    params->send.type.root  = root;
+    params->send.buffer = send_buffer;
+    params->send.count  = count;
+    params->send.dtype  = dtype;
 
-    params->recv.buf = recv_buffer;
-    params->recv.count = count;
-    params->recv.dt_len = dt_len;
-    params->recv.dt_ext = dt_ext;
-    params->recv.op_ext = op_ext;
+    params->recv.buffer = recv_buffer;
+    params->recv.count  = count;
+    params->recv.dtype  = dtype;
+    params->recv.op     = op_ext;
 
     return params;
 }

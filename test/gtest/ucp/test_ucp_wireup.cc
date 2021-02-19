@@ -403,7 +403,7 @@ UCS_TEST_P(test_ucp_wireup_1sided, address) {
     std::set<ucs_sys_device_t> packed_sys_devices, unpacked_sys_devices;
     ucp_rsc_index_t tl;
 
-    status = ucp_address_pack(sender().worker(), NULL, &ucp_tl_bitmap_max,
+    status = ucp_address_pack(sender().worker(), NULL, &ucp_tl_bitmap_max, 0,
                               UCP_ADDRESS_PACK_FLAGS_ALL, m_lanes2remote, &size,
                               &buffer);
     ASSERT_UCS_OK(status);
@@ -460,7 +460,7 @@ UCS_TEST_P(test_ucp_wireup_1sided, ep_address, "IB_NUM_PATHS?=2") {
     sender().connect(&receiver(), get_ep_params());
 
     status = ucp_address_pack(sender().worker(), sender().ep(),
-                              &ucp_tl_bitmap_max, UCP_ADDRESS_PACK_FLAGS_ALL,
+                              &ucp_tl_bitmap_max, 0, UCP_ADDRESS_PACK_FLAGS_ALL,
                               m_lanes2remote, &size, &buffer);
     ASSERT_UCS_OK(status);
     ASSERT_TRUE(buffer != NULL);
@@ -484,7 +484,7 @@ UCS_TEST_P(test_ucp_wireup_1sided, empty_address) {
     size_t size;
     void *buffer;
 
-    status = ucp_address_pack(sender().worker(), NULL, &ucp_tl_bitmap_min,
+    status = ucp_address_pack(sender().worker(), NULL, &ucp_tl_bitmap_min, 0,
                               UCP_ADDRESS_PACK_FLAGS_ALL, m_lanes2remote, &size,
                               &buffer);
     ASSERT_UCS_OK(status);

@@ -20,6 +20,7 @@
 #include <ucs/datastruct/strided_alloc.h>
 #include <ucs/datastruct/conn_match.h>
 #include <ucs/datastruct/ptr_map.h>
+#include <ucs/datastruct/bitmap.h>
 #include <ucs/arch/bitops.h>
 
 
@@ -186,6 +187,9 @@ enum {
         _rdesc; \
     })
 
+#define UCP_WORKER_RSC_INDEX_OFFSET(_rsc_index, _tl_bitmap, _iface_tl_base) \
+        ((_iface_tl_base) + UCS_BITMAP_POPCOUNT_UPTO_INDEX((_tl_bitmap), \
+                                                           (_rsc_index)))
 
 /* Hash map to find rkey config index by rkey config key, for fast rkey unpack */
 KHASH_TYPE(ucp_worker_rkey_config, ucp_rkey_config_key_t, ucp_worker_cfg_index_t);
@@ -315,13 +319,20 @@ typedef struct ucp_worker {
 
 ucs_status_t
 ucp_worker_get_ep_config(ucp_worker_h worker, const ucp_ep_config_key_t *key,
-                         int print_cfg, ucp_worker_cfg_index_t *cfg_index_p);
+                         const ucp_tl_bitmap_t *local_tl_bitmap,
+                         unsigned iface_tl_base, int print_cfg,
+                         ucp_worker_cfg_index_t *cfg_index_p);
 
 ucs_status_t
 ucp_worker_add_rkey_config(ucp_worker_h worker,
                            const ucp_rkey_config_key_t *key,
                            const ucs_sys_dev_distance_t *lanes_distance,
                            ucp_worker_cfg_index_t *cfg_index_p);
+
+ucs_status_t ucp_worker_add_resource_ifaces(ucp_worker_h worker,
+                                            uct_iface_params_t *coll_params,
+                                            unsigned *iface_index_base_p,
+                                            ucp_tl_bitmap_t *coll_tl_bitmap_p);
 
 ucs_status_t ucp_worker_iface_open(ucp_worker_h worker, ucp_rsc_index_t tl_id,
                                    uct_iface_params_t *iface_params,

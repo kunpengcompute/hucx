@@ -110,6 +110,12 @@ UCS_CLASS_INIT_FUNC(uct_mm_ep_t, const uct_ep_params_t *params)
     kh_init_inplace(uct_mm_remote_seg, &self->remote_segs);
     ucs_arbiter_group_init(&self->arb_group);
 
+    self->keepalive = NULL;
+
+    if (addr->fifo_seg_id == 0) {
+        return UCS_OK;
+    }
+
     /* save remote md address */
     if (md->iface_addr_len > 0) {
         self->remote_iface_addr = ucs_malloc(md->iface_addr_len, "mm_md_addr");
@@ -135,7 +141,6 @@ UCS_CLASS_INIT_FUNC(uct_mm_ep_t, const uct_ep_params_t *params)
     /* Initialize remote FIFO control structure */
     uct_mm_iface_set_fifo_ptrs(fifo_ptr, &self->fifo_ctl, &self->fifo_elems);
     self->cached_tail = self->fifo_ctl->tail;
-    self->keepalive   = NULL;
     ucs_arbiter_elem_init(&self->arb_elem);
 
     ucs_debug("created mm ep %p, connected to remote FIFO id 0x%"PRIx64,
@@ -155,7 +160,9 @@ static UCS_CLASS_CLEANUP_FUNC(uct_mm_ep_t)
     uct_mm_base_iface_t *iface = ucs_derived_of(self->super.super.iface,
                                                 uct_mm_base_iface_t);
 
-    ucs_free(self->keepalive);
+    if (self->keepalive) {
+        ucs_free(self->keepalive);
+    }
     uct_mm_ep_pending_purge(&self->super.super, NULL, NULL);
 
     kh_foreach_value(&self->remote_segs, remote_seg, {
@@ -255,8 +262,8 @@ retry:
         elem_flags   = UCT_MM_FIFO_ELEM_FLAG_INLINE;
         elem->length = length + sizeof(header);
 
-        uct_mm_iface_trace_am(iface, UCT_AM_TRACE_TYPE_SEND, elem_flags, am_id,
-                              elem + 1, elem->length,
+        uct_mm_iface_trace_am(&iface->super, UCT_AM_TRACE_TYPE_SEND, elem_flags,
+                              am_id, elem + 1, elem->length,
                               head & ~UCT_MM_IFACE_FIFO_HEAD_EVENT_ARMED);
         UCT_TL_EP_STAT_OP(&ep->super, AM, SHORT, sizeof(header) + length);
         break;
@@ -274,8 +281,8 @@ retry:
         elem_flags   = 0;
         elem->length = length;
 
-        uct_mm_iface_trace_am(iface, UCT_AM_TRACE_TYPE_SEND, elem_flags, am_id,
-                              desc_data, elem->length,
+        uct_mm_iface_trace_am(&iface->super, UCT_AM_TRACE_TYPE_SEND, elem_flags,
+                              am_id, desc_data, elem->length,
                               head & ~UCT_MM_IFACE_FIFO_HEAD_EVENT_ARMED);
         UCT_TL_EP_STAT_OP(&ep->super, AM, BCOPY, length);
         break;
@@ -285,8 +292,8 @@ retry:
         elem->length = uct_iov_to_buffer(iov, iovcnt, &iov_iter, elem + 1,
                                          SIZE_MAX);
 
-        uct_mm_iface_trace_am(iface, UCT_AM_TRACE_TYPE_SEND, elem_flags, am_id,
-                              elem + 1, elem->length,
+        uct_mm_iface_trace_am(&iface->super, UCT_AM_TRACE_TYPE_SEND, elem_flags,
+                              am_id, elem + 1, elem->length,
                               head & ~UCT_MM_IFACE_FIFO_HEAD_EVENT_ARMED);
         UCT_TL_EP_STAT_OP(&ep->super, AM, SHORT, elem->length);
         break;

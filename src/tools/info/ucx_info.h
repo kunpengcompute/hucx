@@ -66,7 +66,7 @@ print_ucp_info(int print_opts, ucs_config_print_flags_t print_flags,
                ucg_group_member_index_t my_index,
                const char *collective_type_name,
                size_t dtype_count,
-               ucg_group_member_index_t peer_count[UCG_GROUP_MEMBER_DISTANCE_LAST]
+               ucg_group_member_index_t peer_count[UCG_GROUP_MEMBER_DISTANCE_UNKNOWN]
 #endif
                );
 
@@ -88,6 +88,5 @@ void print_ucg_topology(const char *req_planner_name, ucp_worker_h worker,
         enum ucg_group_member_distance *distance_array,
         ucg_group_member_index_t member_count, int is_verbose);
 #endif
->>>>>>> UCG: Collective operations support for MPI
 
 #endif

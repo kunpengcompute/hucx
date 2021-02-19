@@ -79,20 +79,34 @@ ucp_worker_keepalive_is_enabled(ucp_worker_h worker)
 }
 
 /**
+ * @return worker-iface struct by resource index - with an base-ID offset
+ */
+static UCS_F_ALWAYS_INLINE ucp_worker_iface_t*
+ucp_worker_iface_with_offset(ucp_worker_h worker, ucp_rsc_index_t rsc_index,
+                             const ucp_tl_bitmap_t *tl_bitmap,
+                             unsigned iface_tl_offset)
+{
+    ucs_assert(rsc_index != UCP_NULL_RESOURCE);
+
+    return worker->ifaces[UCP_WORKER_RSC_INDEX_OFFSET(rsc_index, *tl_bitmap,
+                                                      iface_tl_offset)];
+}
+
+/**
  * @return worker-iface struct by resource index
  */
 static UCS_F_ALWAYS_INLINE ucp_worker_iface_t*
 ucp_worker_iface(ucp_worker_h worker, ucp_rsc_index_t rsc_index)
 {
-    ucp_tl_bitmap_t tl_bitmap;
+    ucp_tl_bitmap_t *tl_bitmap = &worker->context->tl_bitmap;
 
     if (rsc_index == UCP_NULL_RESOURCE) {
         return NULL;
     }
 
-    tl_bitmap = worker->context->tl_bitmap;
-    ucs_assert(UCS_BITMAP_GET(tl_bitmap, rsc_index));
-    return worker->ifaces[UCS_BITMAP_POPCOUNT_UPTO_INDEX(tl_bitmap, rsc_index)];
+    ucs_assert(UCS_BITMAP_GET(*tl_bitmap, rsc_index));
+
+    return ucp_worker_iface_with_offset(worker, rsc_index, tl_bitmap, 0);
 }
 
 /**
@@ -101,7 +115,12 @@ ucp_worker_iface(ucp_worker_h worker, ucp_rsc_index_t rsc_index)
 static UCS_F_ALWAYS_INLINE uct_iface_attr_t*
 ucp_worker_iface_get_attr(ucp_worker_h worker, ucp_rsc_index_t rsc_index)
 {
-    return &ucp_worker_iface(worker, rsc_index)->attr;
+    if (rsc_index == UCP_NULL_RESOURCE) {
+        return NULL;
+    }
+
+    return &ucp_worker_iface_with_offset(worker, rsc_index,
+                                         &ucp_tl_bitmap_max, 0)->attr;
 }
 
 /**
@@ -159,6 +178,35 @@ ucp_worker_is_tl_p2p(ucp_worker_h worker, ucp_rsc_index_t rsc_index)
 {
     return ucp_worker_iface_is_tl_p2p(ucp_worker_iface_get_attr(worker,
                                                                 rsc_index));
+}
+
+/**
+ * Check if interface with @a iface_attr supports collective communication.
+ *
+ * @param [in]  iface_attr   iface attributes.
+ *
+ * @return 1 if iface supports collective communication, otherwise 0.
+ */
+static UCS_F_ALWAYS_INLINE int
+ucp_worker_iface_is_tl_coll(const uct_iface_attr_t *iface_attr)
+{
+    return !!(iface_attr->cap.flags & (UCT_IFACE_FLAG_INCAST |
+                                       UCT_IFACE_FLAG_BCAST));
+}
+
+/**
+ * Check if TL supports collective communication.
+ *
+ * @param [in]  worker       UCP worker.
+ * @param [in]  rsc_index    resource index.
+ *
+ * @return 1 if TL supports collective communication, otherwise 0.
+ */
+static UCS_F_ALWAYS_INLINE int
+ucp_worker_is_tl_coll(ucp_worker_h worker, ucp_rsc_index_t rsc_index)
+{
+    return ucp_worker_iface_is_tl_coll(ucp_worker_iface_get_attr(worker,
+                                                                 rsc_index));
 }
 
 /**

@@ -29,7 +29,7 @@ const char *ucg_predefined_collective_names[] = {
     [UCG_PRIMITIVE_NEIGHBOR_ALLTOALLW] = "alltoallw"
 };
 
-#define EMPTY UCG_GROUP_MEMBER_DISTANCE_LAST
+#define EMPTY UCG_GROUP_MEMBER_DISTANCE_UNKNOWN
 
 ucp_address_t *worker_address = 0;
 int dummy_resolve_address(void *cb_group_obj,
@@ -48,9 +48,9 @@ ucs_status_t gen_ucg_topology(ucg_group_member_index_t me,
         enum ucg_group_member_distance **distance_array_p,
         ucg_group_member_index_t *distance_array_length_p)
 {
-    printf("UCG Processes per socket:  %lu\n", peer_count[1]);
-    printf("UCG Sockets per host:      %lu\n", peer_count[2]);
-    printf("UCG Hosts in the network:  %lu\n", peer_count[3]);
+    printf("UCG Processes per socket:  %u\n", peer_count[1]);
+    printf("UCG Sockets per host:      %u\n", peer_count[2]);
+    printf("UCG Hosts in the network:  %u\n", peer_count[3]);
 
     /* generate the array of distances in order to create a group */
     ucg_group_member_index_t member_count = 1;
@@ -64,12 +64,12 @@ ucs_status_t gen_ucg_topology(ucg_group_member_index_t me,
     }
 
     if (me >= member_count) {
-        printf("<Error: index is %lu, out of %lu total>\n", me, member_count);
+        printf("<Error: index is %u, out of %u total>\n", me, member_count);
         return UCS_ERR_INVALID_PARAM;
     }
 
     /* create the distance array for group creation */
-    printf("UCG Total member count:    %lu\n", member_count);
+    printf("UCG Total member count:    %u\n", member_count);
     enum ucg_group_member_distance *distance_array =
             ucs_malloc(member_count * sizeof(*distance_array), "distance array");
     if (!distance_array) {
@@ -78,7 +78,7 @@ ucs_status_t gen_ucg_topology(ucg_group_member_index_t me,
     }
 
     memset(distance_array, EMPTY, member_count * sizeof(*distance_array));
-    enum ucg_group_member_distance distance = UCG_GROUP_MEMBER_DISTANCE_SELF;
+    enum ucg_group_member_distance distance = UCG_GROUP_MEMBER_DISTANCE_NONE;
     for (distance_idx = 0; distance_idx < 4; distance_idx++) {
         if (peer_count[distance_idx]) {
             unsigned array_idx, array_offset = me - (me % peer_count[distance_idx]);
@@ -90,7 +90,7 @@ ucs_status_t gen_ucg_topology(ucg_group_member_index_t me,
         }
 
         switch (distance) {
-        case UCG_GROUP_MEMBER_DISTANCE_SELF:
+        case UCG_GROUP_MEMBER_DISTANCE_NONE:
             distance = UCG_GROUP_MEMBER_DISTANCE_SOCKET;
             break;
 
@@ -99,11 +99,11 @@ ucs_status_t gen_ucg_topology(ucg_group_member_index_t me,
             break;
 
         case UCG_GROUP_MEMBER_DISTANCE_HOST:
-            distance = UCG_GROUP_MEMBER_DISTANCE_NET;
+            distance = UCG_GROUP_MEMBER_DISTANCE_CU;
             break;
 
-        case UCG_GROUP_MEMBER_DISTANCE_NET:
-            distance = UCG_GROUP_MEMBER_DISTANCE_LAST;
+        case UCG_GROUP_MEMBER_DISTANCE_CU:
+            distance = UCG_GROUP_MEMBER_DISTANCE_UNKNOWN;
             break;
 
         default:
@@ -126,21 +126,40 @@ void print_ucg_topology(const char *req_planner_name, ucp_worker_h worker,
 
     /* print the resulting distance array*/
     unsigned array_idx;
-    printf("UCG Distance array for rank #%3lu [", me);
+    printf("UCG Distance array for rank #%3u [", me);
     for (array_idx = 0; array_idx < member_count; array_idx++) {
         switch (distance_array[array_idx]) {
-        case UCG_GROUP_MEMBER_DISTANCE_SELF:
+        case UCG_GROUP_MEMBER_DISTANCE_NONE:
             printf("M");
             break;
+
+        case UCG_GROUP_MEMBER_DISTANCE_HWTHREAD:
+        case UCG_GROUP_MEMBER_DISTANCE_CORE:
+            printf(root == array_idx ? "C" : "c");
+            break;
+
+        case UCG_GROUP_MEMBER_DISTANCE_L1CACHE:
+        case UCG_GROUP_MEMBER_DISTANCE_L2CACHE:
+        case UCG_GROUP_MEMBER_DISTANCE_L3CACHE:
         case UCG_GROUP_MEMBER_DISTANCE_SOCKET:
             printf(root == array_idx ? "S" : "s");
             break;
+
+        case UCG_GROUP_MEMBER_DISTANCE_NUMA:
+        case UCG_GROUP_MEMBER_DISTANCE_BOARD:
         case UCG_GROUP_MEMBER_DISTANCE_HOST:
             printf(root == array_idx ? "H" : "h");
             break;
-        case UCG_GROUP_MEMBER_DISTANCE_NET:
+
+        case UCG_GROUP_MEMBER_DISTANCE_CU:
+        case UCG_GROUP_MEMBER_DISTANCE_CLUSTER:
             printf(root == array_idx ? "N" : "n");
             break;
+
+        case UCG_GROUP_MEMBER_DISTANCE_UNKNOWN:
+            printf(root == array_idx ? "?" : "?");
+            break;
+
         default:
             printf("<Failed to generate UCG distance array>\n");
             status = UCS_ERR_INVALID_PARAM;
@@ -178,7 +197,7 @@ void print_ucg_topology(const char *req_planner_name, ucp_worker_h worker,
     /* plan a collective operation */
     ucg_plan_t *plan;
     ucg_plan_desc_t *planner;
-    ucg_collective_params_t coll_params = {0};
+    ucg_collective_params_t coll_params;
     coll_params.send.buffer = "send-buffer";
     coll_params.recv.buffer = "recv-buffer";
     coll_params.send.dtype  =
@@ -210,7 +229,7 @@ void print_ucg_topology(const char *req_planner_name, ucp_worker_h worker,
         goto group_cleanup;
     }
 
-    status = planner->component->plan(gctx, &UCG_PARAM_TYPE(&coll_params), &plan);
+    status = planner->component->plan(gctx, &coll_params, &plan);
     if (status != UCS_OK) {
         goto group_cleanup;
     }

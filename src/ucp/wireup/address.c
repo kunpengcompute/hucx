@@ -626,6 +626,7 @@ ucp_address_unpack_iface_length(ucp_worker_h worker, const void *flags_ptr,
 
 static ucs_status_t
 ucp_address_do_pack(ucp_worker_h worker, ucp_ep_h ep, void *buffer, size_t size,
+                    const ucp_tl_bitmap_t *tl_bitmap, unsigned iface_id_base,
                     unsigned pack_flags, const ucp_lane_index_t *lanes2remote,
                     const ucp_address_packed_device_t *devices,
                     ucp_rsc_index_t num_devices)
@@ -681,7 +682,7 @@ ucp_address_do_pack(ucp_worker_h worker, ucp_ep_h ep, void *buffer, size_t size,
     }
 
     for (dev = devices; dev < (devices + num_devices); ++dev) {
-        dev_tl_bitmap = context->tl_bitmap;
+        dev_tl_bitmap = (iface_id_base == 0) ? context->tl_bitmap : *tl_bitmap;
         UCS_BITMAP_AND_INPLACE(&dev_tl_bitmap, dev->tl_bitmap);
 
         /* MD index */
@@ -734,7 +735,10 @@ ucp_address_do_pack(ucp_worker_h worker, ucp_ep_h ep, void *buffer, size_t size,
 
         /* Device address */
         if (pack_flags & UCP_ADDRESS_PACK_FLAG_DEVICE_ADDR) {
-            wiface = ucp_worker_iface(worker, dev->rsc_index);
+            wiface = (iface_id_base == 0) ?
+                     ucp_worker_iface(worker, dev->rsc_index) :
+                     ucp_worker_iface_with_offset(worker, dev->rsc_index,
+                                                  tl_bitmap, iface_id_base);
             status = uct_iface_get_device_address(wiface->iface,
                                                   (uct_device_addr_t*)ptr);
             if (status != UCS_OK) {
@@ -747,7 +751,10 @@ ucp_address_do_pack(ucp_worker_h worker, ucp_ep_h ep, void *buffer, size_t size,
 
         flags_ptr = NULL;
         UCS_BITMAP_FOR_EACH_BIT(dev_tl_bitmap, rsc_index) {
-            wiface     = ucp_worker_iface(worker, rsc_index);
+            wiface     = (iface_id_base == 0) ?
+                         ucp_worker_iface(worker, rsc_index) :
+                         ucp_worker_iface_with_offset(worker, rsc_index,
+                                                      tl_bitmap, iface_id_base);
             iface_attr = &wiface->attr;
 
             if (!ucp_worker_iface_can_connect(iface_attr)) {
@@ -901,7 +908,7 @@ out:
 
 ucs_status_t ucp_address_pack(ucp_worker_h worker, ucp_ep_h ep,
                               const ucp_tl_bitmap_t *tl_bitmap,
-                              unsigned pack_flags,
+                              unsigned iface_id_base, unsigned pack_flags,
                               const ucp_lane_index_t *lanes2remote,
                               size_t *size_p, void **buffer_p)
 {
@@ -935,8 +942,8 @@ ucs_status_t ucp_address_pack(ucp_worker_h worker, ucp_ep_h ep,
     memset(buffer, 0, size);
 
     /* Pack the address */
-    status = ucp_address_do_pack(worker, ep, buffer, size, pack_flags,
-                                 lanes2remote, devices, num_devices);
+    status = ucp_address_do_pack(worker, ep, buffer, size, tl_bitmap, iface_id_base,
+                                 pack_flags, lanes2remote, devices, num_devices);
     if (status != UCS_OK) {
         ucs_free(buffer);
         goto out_free_devices;

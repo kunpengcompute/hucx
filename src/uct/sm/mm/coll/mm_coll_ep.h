@@ -100,6 +100,7 @@ ucs_status_t uct_mm_incast_ep_am_zcopy(uct_ep_h ep, uint8_t id, const void *head
 
 ucs_status_t uct_mm_bcast_ep_create(const uct_ep_params_t *params, uct_ep_h *ep_p);
 ucs_status_t uct_mm_incast_ep_create(const uct_ep_params_t *params, uct_ep_h *ep_p);
+ucs_status_t uct_mm_coll_ep_flush(uct_ep_h tl_ep, unsigned flags, uct_completion_t *comp);
 void uct_mm_coll_ep_release_desc(uct_mm_coll_ep_t *ep, void *desc);
 void uct_mm_coll_ep_destroy(uct_ep_h ep);
 void uct_mm_bcast_ep_destroy(uct_ep_h ep);

@@ -39,6 +39,8 @@
 
 #define UCP_WORKER_MAX_DEBUG_STRING_SIZE 200
 
+#define UCP_IFACE_COLL_CAPS (UCT_IFACE_FLAG_INCAST | UCT_IFACE_FLAG_BCAST)
+
 #define UCP_WORKER_HEADROOM_SIZE \
     (sizeof(ucp_recv_desc_t) + UCP_WORKER_HEADROOM_PRIV_SIZE)
 
@@ -836,8 +838,8 @@ static int ucp_worker_iface_find_better(ucp_worker_h worker,
         if (/* 1. Supports all capabilities of the target iface (at least),
              *    except ...CONNECT_TO... caps. */
             ucs_test_all_flags(if_iter->attr.cap.flags, test_flags) &&
-            ((if_iter->attr.cap.flags & UCT_IFACE_FLAG_INCAST) == 0) &&
-            ((if_iter->attr.cap.flags & UCT_IFACE_FLAG_BCAST) == 0) &&
+            ((if_iter->attr.cap.flags & UCP_IFACE_COLL_CAPS) ==
+             (wiface->attr.cap.flags & UCP_IFACE_COLL_CAPS)) &&
             /* 2. Has the same or better performance characteristics */
             (if_iter->attr.overhead_short <= wiface->attr.overhead_short) &&
             (ucp_tl_iface_bandwidth(ctx, &if_iter->attr.bandwidth) >= bw_cur) &&
@@ -939,14 +941,17 @@ ucp_worker_select_best_ifaces(ucp_worker_h worker, ucp_tl_bitmap_t *tl_bitmap_p)
  *
  * @return Error code as defined by @ref ucs_status_t
  */
-static ucs_status_t ucp_worker_add_resource_ifaces(ucp_worker_h worker)
+ucs_status_t ucp_worker_add_resource_ifaces(ucp_worker_h worker,
+                                            uct_iface_params_t *coll_params,
+                                            unsigned *iface_index_base_p,
+                                            ucp_tl_bitmap_t *coll_tl_bitmap_p)
 {
     ucp_context_h context = worker->context;
     ucp_tl_resource_desc_t *resource;
     uct_iface_params_t iface_params;
     ucp_rsc_index_t tl_id, iface_id;
     ucp_worker_iface_t *wiface;
-    ucp_tl_bitmap_t ctx_tl_bitmap, tl_bitmap;
+    ucp_tl_bitmap_t ctx_tl_bitmap, tl_bitmap, coll_tl_bitmap;
     unsigned num_ifaces;
     ucs_status_t status;
 
@@ -961,30 +966,43 @@ static ucs_status_t ucp_worker_add_resource_ifaces(ucp_worker_h worker)
         UCS_BITMAP_MASK(&tl_bitmap, context->num_tls);
     }
 
-    worker->ifaces = ucs_calloc(num_ifaces, sizeof(*worker->ifaces),
-                                "ucp ifaces array");
+    if (coll_params) {
+        UCS_BITMAP_CLEAR(&coll_tl_bitmap);
+
+        iface_id            =
+        *iface_index_base_p = worker->num_ifaces;
+        worker->num_ifaces += num_ifaces;
+        num_ifaces          = iface_id;
+    } else {
+        worker->num_ifaces  = num_ifaces;
+        worker->ifaces      = NULL;
+        iface_id            = 0;
+    }
+
+    worker->ifaces = ucs_realloc(worker->ifaces, worker->num_ifaces *
+                                 sizeof(*worker->ifaces), "ucp ifaces array");
     if (worker->ifaces == NULL) {
         ucs_error("failed to allocate worker ifaces");
         status = UCS_ERR_NO_MEMORY;
         goto err;
     }
 
-    worker->num_ifaces = num_ifaces;
-    iface_id           = 0;
+    memset(&worker->ifaces[iface_id], 0, num_ifaces * sizeof(*worker->ifaces));
 
     UCS_BITMAP_FOR_EACH_BIT(tl_bitmap, tl_id) {
-        iface_params.field_mask = UCT_IFACE_PARAM_FIELD_OPEN_MODE;
-        resource = &context->tl_rscs[tl_id];
+        if (coll_params) {
+            if (!ucp_worker_is_tl_coll(worker, tl_id)) {
+                continue;
+            }
 
-        if ((context->config.features & UCP_FEATURE_GROUPS) &&
-            (context->config.num_local_peers != 0)) {
-            iface_params.field_mask          |= UCT_IFACE_PARAM_FIELD_COLL_INFO;
-            iface_params.host_info.proc_cnt   = context->config.num_local_peers;
-            iface_params.host_info.proc_idx   = context->config.my_local_peer_idx;
-            iface_params.global_info.proc_cnt = context->config.num_global_peers;
-            iface_params.global_info.proc_idx = context->config.my_global_peer_idx;
+            UCS_BITMAP_SET(coll_tl_bitmap, tl_id);
+            memcpy(&iface_params, coll_params, sizeof(iface_params));
+            iface_params.field_mask |= UCT_IFACE_PARAM_FIELD_OPEN_MODE;
+        } else {
+            iface_params.field_mask = UCT_IFACE_PARAM_FIELD_OPEN_MODE;
         }
 
+        resource = &context->tl_rscs[tl_id];
         if (resource->flags & UCP_TL_RSC_FLAG_SOCKADDR) {
             iface_params.open_mode            = UCT_IFACE_OPEN_MODE_SOCKADDR_CLIENT;
         } else {
@@ -1000,6 +1018,8 @@ static ucs_status_t ucp_worker_add_resource_ifaces(ucp_worker_h worker)
             goto err_close_ifaces;
         }
     }
+
+    worker->num_ifaces = iface_id;
 
     if (UCS_BITMAP_IS_ZERO_INPLACE(&ctx_tl_bitmap)) {
         /* Context bitmap is not set, need to select the best tl resources */
@@ -1030,7 +1050,20 @@ static ucs_status_t ucp_worker_add_resource_ifaces(ucp_worker_h worker)
               UCT_TL_BITMAP_ARG(&worker->scalable_tl_bitmap),
               UCS_BITMAP_POPCOUNT(worker->scalable_tl_bitmap));
 
-    iface_id = 0;
+    if (coll_params) {
+        *coll_tl_bitmap_p = tl_bitmap = coll_tl_bitmap;
+
+        worker->ifaces = ucs_realloc(worker->ifaces, iface_id *
+                                     sizeof(*worker->ifaces),
+                                     "ucp ifaces array");
+
+        ucs_assert(worker->ifaces != NULL); /* shrinking should always work */
+
+        iface_id = num_ifaces;
+    } else {
+        iface_id = 0;
+    }
+
     UCS_BITMAP_FOR_EACH_BIT(tl_bitmap, tl_id) {
         status = ucp_worker_iface_init(worker, tl_id,
                                        worker->ifaces[iface_id++]);
@@ -1767,7 +1800,9 @@ static void ucp_worker_destroy_mpools(ucp_worker_h worker)
  */
 ucs_status_t
 ucp_worker_get_ep_config(ucp_worker_h worker, const ucp_ep_config_key_t *key,
-                         int print_cfg, ucp_worker_cfg_index_t *cfg_index_p)
+                         const ucp_tl_bitmap_t *local_tl_bitmap,
+                         unsigned iface_tl_base, int print_cfg,
+                         ucp_worker_cfg_index_t *cfg_index_p)
 {
     ucp_context_h context = worker->context;
     ucp_worker_cfg_index_t ep_cfg_index;
@@ -1797,7 +1832,8 @@ ucp_worker_get_ep_config(ucp_worker_h worker, const ucp_ep_config_key_t *key,
     /* Create new configuration */
     ep_cfg_index = worker->ep_config_count;
     ep_config    = &worker->ep_config[ep_cfg_index];
-    status       = ucp_ep_config_init(worker, ep_config, key);
+    status       = ucp_ep_config_init(worker, ep_config, local_tl_bitmap,
+                                      iface_tl_base, key);
     if (status != UCS_OK) {
         return status;
     }
@@ -2142,7 +2178,7 @@ ucs_status_t ucp_worker_create(ucp_context_h context,
                         &ucp_ep_match_ops);
 
     /* Open all resources as interfaces on this worker */
-    status = ucp_worker_add_resource_ifaces(worker);
+    status = ucp_worker_add_resource_ifaces(worker, NULL, NULL, NULL);
     if (status != UCS_OK) {
         goto err_conn_match_cleanup;
     }
@@ -2478,7 +2514,7 @@ ucs_status_t ucp_worker_query(ucp_worker_h worker,
             }
         }
 
-        status = ucp_address_pack(worker, NULL, &tl_bitmap,
+        status = ucp_address_pack(worker, NULL, &tl_bitmap, 0,
                                   ucp_worker_default_address_pack_flags(worker),
                                   NULL, &attr->address_length,
                                   (void**)&attr->address);
@@ -2712,7 +2748,7 @@ ucs_status_t ucp_worker_get_address(ucp_worker_h worker, ucp_address_t **address
 
     UCP_WORKER_THREAD_CS_ENTER_CONDITIONAL(worker);
 
-    status = ucp_address_pack(worker, NULL, &ucp_tl_bitmap_max,
+    status = ucp_address_pack(worker, NULL, &ucp_tl_bitmap_max, 0,
                               ucp_worker_default_address_pack_flags(worker),
                               NULL, address_length_p, (void**)address_p);
 

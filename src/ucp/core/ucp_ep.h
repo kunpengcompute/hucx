@@ -555,6 +555,7 @@ ucs_status_t ucp_ep_init_create_wireup(ucp_ep_h ep, unsigned ep_init_flags,
 ucs_status_t
 ucp_ep_create_to_worker_addr(ucp_worker_h worker,
                              const ucp_tl_bitmap_t *local_tl_bitmap,
+                             unsigned iface_tl_base,
                              const ucp_unpacked_address_t *remote_address,
                              unsigned ep_init_flags, const char *message,
                              ucp_ep_h *ep_p);
@@ -594,6 +595,8 @@ void ucp_ep_set_failed_schedule(ucp_ep_h ucp_ep, ucp_lane_index_t lane,
 void ucp_ep_cleanup_lanes(ucp_ep_h ep);
 
 ucs_status_t ucp_ep_config_init(ucp_worker_h worker, ucp_ep_config_t *config,
+                                const ucp_tl_bitmap_t *local_tl_bitmap,
+                                unsigned iface_tl_base,
                                 const ucp_ep_config_key_t *key);
 
 void ucp_ep_config_cleanup(ucp_worker_h worker, ucp_ep_config_t *config);

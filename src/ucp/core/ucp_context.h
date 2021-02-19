@@ -249,13 +249,6 @@ typedef struct ucp_context {
         ucp_rsc_index_t           cm_cmpt_idxs[UCP_MAX_RESOURCES];
         ucp_rsc_index_t           num_cm_cmpts;
 
-        /* Number of local (same-node) and global (network-wide) peers and my
-         * unique index within each of these groups */
-        uint32_t                  num_local_peers;
-        uint32_t                  my_local_peer_idx;
-        uint32_t                  num_global_peers;
-        uint32_t                  my_global_peer_idx;
-
         /* Configuration supplied by the user */
         ucp_context_config_t      ext;
 

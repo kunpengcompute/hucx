@@ -33,7 +33,7 @@ public:
     virtual ~ucg_test();
 
     ucg_context_h m_ucg_context;
-    ucg_worker_h m_ucg_worker;
+    ucp_worker_h m_ucg_worker;
 
 protected:
     void SetUp() override {
@@ -73,7 +73,7 @@ class ucg_resource_factory {
 public:
     ucg_builtin_config_t *create_config(unsigned bcast_alg, unsigned allreduce_alg, unsigned barrier_alg);
 
-    ucg_group_h create_group(const ucg_group_params_t *params, ucg_worker_h ucg_worker);
+    ucg_group_h create_group(const ucg_group_params_t *params, ucp_worker_h ucg_worker);
 
     ucg_group_params_t *create_group_params(ucg_rank_info my_rank_info, const std::vector<ucg_rank_info> &rank_infos);
 

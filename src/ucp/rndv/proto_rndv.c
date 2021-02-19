@@ -163,7 +163,7 @@ ucp_proto_rndv_ctrl_init(const ucp_proto_rndv_ctrl_init_params_t *params)
     /* Set send_overheads to the time to send and receive RTS message */
     iface_attr     = ucp_proto_common_get_iface_attr(&params->super.super,
                                                      rpriv->lane);
-    rts_latency    = (iface_attr->overhead * 2) +
+    rts_latency    = (iface_attr->overhead_short * 2) +
                      ucp_tl_iface_latency(context, &iface_attr->latency);
     send_overheads = ucs_linear_func_make(rts_latency, 0.0);
 
@@ -287,7 +287,7 @@ ucp_proto_rndv_ack_time(const ucp_proto_init_params_t *init_params)
     double ack_time;
 
     iface_attr = ucp_proto_common_get_iface_attr(init_params, apriv->lane);
-    ack_time   = (iface_attr->overhead * 2) +
+    ack_time   = (iface_attr->overhead_short * 2) +
                  ucp_tl_iface_latency(context, &iface_attr->latency);
 
     return ucs_linear_func_make(ack_time, 0);

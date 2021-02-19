@@ -118,7 +118,7 @@ static const char *size_limit_to_str(size_t min_size, size_t max_size)
 static void print_iface_info(uct_worker_h worker, uct_md_h md,
                              uct_tl_resource_desc_t *resource)
 {
-    char buf[256]                   = {0};
+    char buf[256];
     uct_iface_params_t iface_params = {
         .field_mask           = UCT_IFACE_PARAM_FIELD_OPEN_MODE   |
                                 UCT_IFACE_PARAM_FIELD_DEVICE      |

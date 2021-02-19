@@ -118,8 +118,8 @@ ucs_status_t uct_mm_iface_flush(uct_iface_h tl_iface, unsigned flags,
 
 ucs_status_t uct_mm_iface_query(uct_iface_h tl_iface, uct_iface_attr_t *iface_attr)
 {
-    uct_mm_iface_t *iface = ucs_derived_of(tl_iface, uct_mm_iface_t);
-    uct_mm_md_t    *md    = ucs_derived_of(iface->super.super.md, uct_mm_md_t);
+    uct_mm_base_iface_t *iface = ucs_derived_of(tl_iface, uct_mm_base_iface_t);
+    uct_mm_md_t *md            = ucs_derived_of(iface->super.super.md, uct_mm_md_t);
     int attach_shm_file;
     ucs_status_t status;
 
@@ -228,7 +228,6 @@ static UCS_F_ALWAYS_INLINE void
 uct_mm_iface_process_recv(uct_mm_base_iface_t *iface,
                           uct_mm_fifo_element_t* elem)
 {
-    uct_mm_fifo_element_t *elem = iface->read_index_elem;
     ucs_status_t status;
     void *data;
 
@@ -236,7 +235,7 @@ uct_mm_iface_process_recv(uct_mm_base_iface_t *iface,
         /* read short (inline) messages from the FIFO elements */
         uct_mm_iface_trace_am(iface, UCT_AM_TRACE_TYPE_RECV, elem->flags,
                               elem->am_id, elem + 1, elem->length,
-                              iface->read_index);
+                              iface->recv_check.read_index);
         uct_mm_iface_invoke_am(iface, elem->am_id, elem + 1, elem->length, 0);
         return;
     }
@@ -251,7 +250,8 @@ uct_mm_iface_process_recv(uct_mm_base_iface_t *iface,
     data = elem->desc_data;
     VALGRIND_MAKE_MEM_DEFINED(data, elem->length);
     uct_mm_iface_trace_am(iface, UCT_AM_TRACE_TYPE_RECV, elem->flags,
-                          elem->am_id, data, elem->length, iface->read_index);
+                          elem->am_id, data, elem->length,
+                          iface->recv_check.read_index);
 
     status = uct_mm_iface_invoke_am(iface, elem->am_id, data, elem->length,
                                     UCT_CB_PARAM_FLAG_DESC);
@@ -350,7 +350,7 @@ ucs_status_t uct_mm_iface_event_fd_arm(uct_iface_h tl_iface, unsigned events)
         /* head element was not read yet */
         ucs_trace("iface %p: cannot arm, head %" PRIu64 " read_index %" PRIu64,
                   iface, head & ~UCT_MM_IFACE_FIFO_HEAD_EVENT_ARMED,
-                  iface->read_index);
+                  iface->recv_check.read_index);
         return UCS_ERR_BUSY;
     }
 
@@ -358,7 +358,7 @@ ucs_status_t uct_mm_iface_event_fd_arm(uct_iface_h tl_iface, unsigned events)
         /* Try to mark the head index as armed in an atomic way; fail if any
            sender managed to update the head at the same time */
         prev_head = ucs_atomic_cswap64(
-                ucs_unaligned_ptr(&iface->recv_fifo_ctl->head), head,
+                ucs_unaligned_ptr(&iface->recv_check.fifo_ctl->head), head,
                 head | UCT_MM_IFACE_FIFO_HEAD_EVENT_ARMED);
         if (prev_head != head) {
             /* race with sender; need to retry */
@@ -379,7 +379,7 @@ ucs_status_t uct_mm_iface_event_fd_arm(uct_iface_h tl_iface, unsigned events)
         if (errno == EAGAIN) {
             ucs_trace("iface %p: armed head %" PRIu64 " read_index %" PRIu64,
                       iface, head & ~UCT_MM_IFACE_FIFO_HEAD_EVENT_ARMED,
-                      iface->read_index);
+                      iface->recv_check.read_index);
             return UCS_OK;
         } else if (errno == EINTR) {
             return UCS_ERR_BUSY;
@@ -571,7 +571,8 @@ UCS_CLASS_INIT_FUNC(uct_mm_base_iface_t, uct_iface_ops_t *ops, uct_md_h md,
     UCS_CLASS_CALL_SUPER_INIT(uct_sm_iface_t, ops, &uct_base_iface_internal_ops,
                               md, worker, params, tl_config);
 
-    if (ucs_derived_of(worker, uct_priv_worker_t)->thread_mode == UCS_THREAD_MODE_MULTI) {
+    if ((worker != NULL) &&
+        (ucs_derived_of(worker, uct_priv_worker_t)->thread_mode == UCS_THREAD_MODE_MULTI)) {
         ucs_error("Shared memory transport does not support multi-threaded worker");
         return UCS_ERR_INVALID_PARAM;
     }
@@ -620,6 +621,13 @@ UCS_CLASS_INIT_FUNC(uct_mm_base_iface_t, uct_iface_ops_t *ops, uct_md_h md,
                                       UCT_IFACE_PARAM_FIELD_RX_HEADROOM) ?
                                      params->rx_headroom : 0;
     self->release_desc.cb          = uct_mm_iface_release_desc;
+
+    ucs_arbiter_init(&self->arbiter);
+
+    /* For dummy collective transports - stop now */
+    if (!worker) {
+        return UCS_OK;
+    }
 
     /* Allocate the receive FIFO */
     status = uct_iface_mem_alloc(&self->super.super.super,
@@ -694,7 +702,6 @@ UCS_CLASS_INIT_FUNC(uct_mm_base_iface_t, uct_iface_ops_t *ops, uct_md_h md,
         }
     }
 
-    ucs_arbiter_init(&self->arbiter);
     uct_mm_iface_log_created(self);
 
     return UCS_OK;
@@ -717,6 +724,12 @@ static UCS_CLASS_CLEANUP_FUNC(uct_mm_base_iface_t)
     uct_base_iface_progress_disable(&self->super.super.super,
                                     UCT_PROGRESS_SEND | UCT_PROGRESS_RECV);
 
+    ucs_arbiter_cleanup(&self->arbiter);
+
+    if (!self->super.super.worker) {
+        return;
+    }
+
     /* return all the descriptors that are now 'assigned' to the FIFO,
      * to their mpool */
     uct_mm_iface_free_rx_descs(self, self->config.fifo_size);
@@ -725,7 +738,6 @@ static UCS_CLASS_CLEANUP_FUNC(uct_mm_base_iface_t)
     ucs_mpool_cleanup(&self->recv_desc_mp, 1);
     close(self->signal_fd);
     uct_iface_mem_free(&self->recv_fifo_mem);
-    ucs_arbiter_cleanup(&self->arbiter);
 }
 
 UCS_CLASS_INIT_FUNC(uct_mm_iface_t, uct_md_h md, uct_worker_h worker,

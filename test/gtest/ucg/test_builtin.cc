@@ -129,7 +129,7 @@ TEST(ucg_plan_test, algorithm_selection) {
 TEST(ucg_plan_test, topo_level) {
     ucs_status_t ret;
     ucg_algo.topo_level = UCG_GROUP_HIERARCHY_LEVEL_NODE;
-    enum ucg_group_member_distance domain_distance = UCG_GROUP_MEMBER_DISTANCE_SELF;
+    enum ucg_group_member_distance domain_distance = UCG_GROUP_MEMBER_DISTANCE_NONE;
     ret = choose_distance_from_topo_aware_level(&domain_distance);
     ASSERT_EQ(UCS_OK, ret);
     ucg_algo.topo_level = UCG_GROUP_HIERARCHY_LEVEL_SOCKET;
@@ -143,20 +143,20 @@ TEST(ucg_plan_test, topo_level) {
 TEST(ucg_plan_test, check_continus_number) {
     ucg_group_params_t group_params;
     group_params.member_count = 4;
-    group_params.topo_map = (char **)malloc(sizeof(char *) * group_params.member_count);
-    group_params.topo_map[0] = new char[4] {UCG_GROUP_MEMBER_DISTANCE_SELF, UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_NET, UCG_GROUP_MEMBER_DISTANCE_NET};
-    group_params.topo_map[1] = new char[4] {UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_SELF, UCG_GROUP_MEMBER_DISTANCE_NET, UCG_GROUP_MEMBER_DISTANCE_NET};
-    group_params.topo_map[2] = new char[4] {UCG_GROUP_MEMBER_DISTANCE_NET, UCG_GROUP_MEMBER_DISTANCE_NET, UCG_GROUP_MEMBER_DISTANCE_SELF, UCG_GROUP_MEMBER_DISTANCE_HOST};
-    group_params.topo_map[3] = new char[4] {UCG_GROUP_MEMBER_DISTANCE_NET, UCG_GROUP_MEMBER_DISTANCE_NET, UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_SELF};
+    group_params.distance_table = (char **)malloc(sizeof(char *) * group_params.member_count);
+    group_params.distance_table[0] = new char[4] {UCG_GROUP_MEMBER_DISTANCE_NONE, UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_NET, UCG_GROUP_MEMBER_DISTANCE_NET};
+    group_params.distance_table[1] = new char[4] {UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_NONE, UCG_GROUP_MEMBER_DISTANCE_NET, UCG_GROUP_MEMBER_DISTANCE_NET};
+    group_params.distance_table[2] = new char[4] {UCG_GROUP_MEMBER_DISTANCE_NET, UCG_GROUP_MEMBER_DISTANCE_NET, UCG_GROUP_MEMBER_DISTANCE_NONE, UCG_GROUP_MEMBER_DISTANCE_HOST};
+    group_params.distance_table[3] = new char[4] {UCG_GROUP_MEMBER_DISTANCE_NET, UCG_GROUP_MEMBER_DISTANCE_NET, UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_NONE};
     unsigned discount = 0;
     ucs_status_t status = ucg_builtin_check_continuous_number(&group_params, UCG_GROUP_MEMBER_DISTANCE_HOST, &discount);
     ASSERT_EQ(UCS_OK, status);
     ASSERT_EQ(0u, discount);
 
-    group_params.topo_map[0] = new char[4] {UCG_GROUP_MEMBER_DISTANCE_SELF, UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_SOCKET};
-    group_params.topo_map[1] = new char[4] {UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_SELF, UCG_GROUP_MEMBER_DISTANCE_SOCKET, UCG_GROUP_MEMBER_DISTANCE_HOST};
-    group_params.topo_map[2] = new char[4] {UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_SOCKET, UCG_GROUP_MEMBER_DISTANCE_SELF, UCG_GROUP_MEMBER_DISTANCE_HOST};
-    group_params.topo_map[3] = new char[4] {UCG_GROUP_MEMBER_DISTANCE_SOCKET, UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_SELF};
+    group_params.distance_table[0] = new char[4] {UCG_GROUP_MEMBER_DISTANCE_NONE, UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_SOCKET};
+    group_params.distance_table[1] = new char[4] {UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_NONE, UCG_GROUP_MEMBER_DISTANCE_SOCKET, UCG_GROUP_MEMBER_DISTANCE_HOST};
+    group_params.distance_table[2] = new char[4] {UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_SOCKET, UCG_GROUP_MEMBER_DISTANCE_NONE, UCG_GROUP_MEMBER_DISTANCE_HOST};
+    group_params.distance_table[3] = new char[4] {UCG_GROUP_MEMBER_DISTANCE_SOCKET, UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_NONE};
     discount = 0;
     status = ucg_builtin_check_continuous_number(&group_params, UCG_GROUP_MEMBER_DISTANCE_SOCKET, &discount);
     ASSERT_EQ(UCS_OK, status);

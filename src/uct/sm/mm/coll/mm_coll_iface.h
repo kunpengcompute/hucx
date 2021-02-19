@@ -144,4 +144,10 @@ unsigned uct_mm_incast_iface_progress(uct_iface_h tl_iface);
 
 unsigned uct_mm_incast_iface_progress_cb(uct_iface_h tl_iface);
 
+unsigned uct_mm_iface_progress_dummy(uct_iface_h tl_iface);
+
+void uct_mm_iface_progress_enable_dummy(uct_iface_h tl_iface, unsigned flags);
+
+void uct_mm_iface_progress_disable_dummy(uct_iface_h tl_iface, unsigned flags);
+
 #endif

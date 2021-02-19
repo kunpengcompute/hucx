@@ -850,7 +850,7 @@ static int parse_args(int argc, char **argv, options_t *opts)
 
 int main(int argc, char **argv)
 {
-    profile_data_t data = {0};
+    profile_data_t data;
     options_t opts;
     int ret;
 
