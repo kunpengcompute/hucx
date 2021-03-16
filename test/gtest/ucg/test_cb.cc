@@ -135,8 +135,8 @@ TEST_F(ucg_cb_test, test_op_cb_init) {
     ((ucg_builtin_op_t *)op)->send_dt = dt_gen;
     ((ucg_builtin_op_t *)op)->recv_dt = dt_gen;
     ucg_builtin_op_step_t *step = &((ucg_builtin_op_t *)op)->steps[0];
-    step->non_contig.pack_state.dt.generic.state = (void *)step->recv_buffer;
-    step->non_contig.unpack_state.dt.generic.state = (void *)step->recv_buffer;
+    step->non_contig.pack_state = (void *)step->recv_buffer;
+    step->non_contig.unpack_state = (void *)step->recv_buffer;
     int *send_buf = (int *)params->send.buf;
     int *recv_buf = (int *)params->recv.buf;
     ucg_builtin_request_t *req = new ucg_builtin_request_t();
@@ -227,8 +227,8 @@ TEST_F(ucg_cb_test, test_op_cb_final) {
         recv_buf[i] = i;
     }
     step->recv_buffer = (int8_t *)recv_buf;
-    step->non_contig.pack_state.dt.generic.state = (void *)step->recv_buffer;
-    step->non_contig.unpack_state.dt.generic.state = (void *)step->recv_buffer;
+    step->non_contig.pack_state = (void *)step->recv_buffer;
+    step->non_contig.unpack_state = (void *)step->recv_buffer;
 
     ucg_builtin_request_t *req = new ucg_builtin_request_t;
     req->op = (ucg_builtin_op_t *)op;
@@ -331,7 +331,7 @@ TEST_F(ucg_cb_test, test_recv_cb_recv_one) {
     ucg_builtin_comp_slot_t *slot = NULL;
     create_slot(slot);
     ucg_builtin_request_t *req = create_request(step, slot);
-    req->step->non_contig.unpack_state.dt.generic.state = (void *)step->recv_buffer;
+    req->step->non_contig.unpack_state = (void *)step->recv_buffer;
     req->op->recv_dt = dt_gen;
     req->op->recv_dt->ops.unpack = coll_ucx_generic_datatype_unpack;
 
@@ -397,7 +397,7 @@ TEST_F(ucg_cb_test, test_recv_cb_recv_many) {
     ucg_builtin_comp_slot_t *slot = NULL;
     create_slot(slot);
     ucg_builtin_request_t *req = create_request(step, slot);
-    req->step->non_contig.unpack_state.dt.generic.state = (void *)step->recv_buffer;
+    req->step->non_contig.unpack_state = (void *)step->recv_buffer;
     req->op->recv_dt = dt_gen;
     req->op->recv_dt->ops.unpack = coll_ucx_generic_datatype_unpack;
 
