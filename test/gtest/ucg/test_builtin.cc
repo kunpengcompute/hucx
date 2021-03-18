@@ -142,21 +142,16 @@ TEST(ucg_plan_test, topo_level) {
 
 TEST(ucg_plan_test, check_continus_number) {
     ucg_group_params_t group_params;
+
     group_params.member_count = 4;
-    group_params.topo_map = (char **)malloc(sizeof(char *) * group_params.member_count);
-    group_params.topo_map[0] = new char[4] {UCG_GROUP_MEMBER_DISTANCE_SELF, UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_NET, UCG_GROUP_MEMBER_DISTANCE_NET};
-    group_params.topo_map[1] = new char[4] {UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_SELF, UCG_GROUP_MEMBER_DISTANCE_NET, UCG_GROUP_MEMBER_DISTANCE_NET};
-    group_params.topo_map[2] = new char[4] {UCG_GROUP_MEMBER_DISTANCE_NET, UCG_GROUP_MEMBER_DISTANCE_NET, UCG_GROUP_MEMBER_DISTANCE_SELF, UCG_GROUP_MEMBER_DISTANCE_HOST};
-    group_params.topo_map[3] = new char[4] {UCG_GROUP_MEMBER_DISTANCE_NET, UCG_GROUP_MEMBER_DISTANCE_NET, UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_SELF};
+    group_params.topo_args.rank_continuous_in_node = 1;
+    group_params.topo_args.rank_continuous_in_sock = 0;
+
     unsigned discount = 0;
     ucs_status_t status = ucg_builtin_check_continuous_number(&group_params, UCG_GROUP_MEMBER_DISTANCE_HOST, &discount);
     ASSERT_EQ(UCS_OK, status);
     ASSERT_EQ(0u, discount);
 
-    group_params.topo_map[0] = new char[4] {UCG_GROUP_MEMBER_DISTANCE_SELF, UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_SOCKET};
-    group_params.topo_map[1] = new char[4] {UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_SELF, UCG_GROUP_MEMBER_DISTANCE_SOCKET, UCG_GROUP_MEMBER_DISTANCE_HOST};
-    group_params.topo_map[2] = new char[4] {UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_SOCKET, UCG_GROUP_MEMBER_DISTANCE_SELF, UCG_GROUP_MEMBER_DISTANCE_HOST};
-    group_params.topo_map[3] = new char[4] {UCG_GROUP_MEMBER_DISTANCE_SOCKET, UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_SELF};
     discount = 0;
     status = ucg_builtin_check_continuous_number(&group_params, UCG_GROUP_MEMBER_DISTANCE_SOCKET, &discount);
     ASSERT_EQ(UCS_OK, status);
