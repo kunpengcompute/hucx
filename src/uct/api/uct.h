@@ -453,6 +453,9 @@ typedef enum uct_coll_dtype_mode {
                                                        channel with remote peer is broken, even if there
                                                        are no outstanding send operations */
 
+/* Thread-safety */
+#define UCT_IFACE_FLAG_THREAD_SAFETY  UCS_BIT(47) /**< Transport supports thread-safety on the UCT level */
+
         /* Tag matching operations */
 #define UCT_IFACE_FLAG_TAG_EAGER_SHORT UCS_BIT(50) /**< Hardware tag matching short eager support */
 #define UCT_IFACE_FLAG_TAG_EAGER_BCOPY UCS_BIT(51) /**< Hardware tag matching bcopy eager support */
@@ -628,7 +631,10 @@ enum uct_iface_open_mode {
 
    /** Interface is opened on a specific address on the client side This mode
        will be deprecated in the near future for a better API. */
-   UCT_IFACE_OPEN_MODE_SOCKADDR_CLIENT = UCS_BIT(2)
+   UCT_IFACE_OPEN_MODE_SOCKADDR_CLIENT = UCS_BIT(2),
+
+   /** Interface is opened in a thread-safe manner */
+   UCT_IFACE_OPEN_MODE_THREAD_SAFE     = UCS_BIT(3)
 };
 
 

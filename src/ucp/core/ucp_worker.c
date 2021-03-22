@@ -954,6 +954,7 @@ ucs_status_t ucp_worker_add_resource_ifaces(ucp_worker_h worker,
     ucp_tl_bitmap_t ctx_tl_bitmap, tl_bitmap, coll_tl_bitmap;
     unsigned num_ifaces;
     ucs_status_t status;
+    int is_uct_thread_safe = 1;
 
     /* If tl_bitmap is already set, just use it. Otherwise open ifaces on all
      * available resources and then select the best ones. */
@@ -1012,6 +1013,10 @@ ucs_status_t ucp_worker_add_resource_ifaces(ucp_worker_h worker,
             iface_params.mode.device.dev_name = resource->tl_rsc.dev_name;
         }
 
+        if (worker->flags & UCP_WORKER_FLAG_MT) {
+            iface_params.field_mask |= UCT_IFACE_OPEN_MODE_THREAD_SAFE;
+        }
+
         status = ucp_worker_iface_open(worker, tl_id, &iface_params,
                                        &worker->ifaces[iface_id++]);
         if (status != UCS_OK) {
@@ -1043,6 +1048,22 @@ ucs_status_t ucp_worker_add_resource_ifaces(ucp_worker_h worker,
         wiface = ucp_worker_iface(worker, tl_id);
         if (ucp_is_scalable_transport(context, wiface->attr.max_num_eps)) {
             UCS_BITMAP_SET(worker->scalable_tl_bitmap, tl_id);
+        }
+
+        /* TODO: disable non-thread-safe transports upon such configuration */
+        if ((worker->flags & UCP_WORKER_FLAG_MT) &&
+            ((wiface->attr.cap.flags & UCT_IFACE_FLAG_THREAD_SAFETY) == 0)) {
+            is_uct_thread_safe = 0;
+        }
+    }
+
+    if ((worker->flags & UCP_WORKER_FLAG_MT) && (is_uct_thread_safe)) {
+        /* defer all thread-safety to the transports */
+        ucs_async_context_cleanup(&worker->async);
+
+        status = ucs_async_context_init(&worker->async, UCS_ASYNC_MODE_POLL);
+        if (status != UCS_OK) {
+            goto err_close_ifaces;
         }
     }
 

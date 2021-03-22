@@ -550,10 +550,14 @@ uct_ud_iface_add_ctl_desc(uct_ud_iface_t *iface, uct_ud_ctl_desc_t *cdesc)
 
 
 static UCS_F_ALWAYS_INLINE unsigned
-uct_ud_iface_dispatch_pending_rx(uct_ud_iface_t *iface)
+uct_ud_iface_dispatch_pending_rx(uct_ud_iface_t *iface, unsigned count)
 {
     if (ucs_likely(ucs_queue_is_empty(&iface->rx.pending_q))) {
         return 0;
+    }
+
+    if (!count) {
+        UCT_BASE_IFACE_LOCK(iface);
     }
 
     return uct_ud_iface_dispatch_pending_rx_do(iface);
@@ -561,10 +565,14 @@ uct_ud_iface_dispatch_pending_rx(uct_ud_iface_t *iface)
 
 
 static UCS_F_ALWAYS_INLINE unsigned
-uct_ud_iface_dispatch_async_comps(uct_ud_iface_t *iface, uct_ud_ep_t *ep)
+uct_ud_iface_dispatch_async_comps(uct_ud_iface_t *iface, uct_ud_ep_t *ep, int needs_lock)
 {
     if (ucs_likely(ucs_queue_is_empty(&iface->tx.async_comp_q))) {
         return 0;
+    }
+
+    if (needs_lock) {
+        UCT_BASE_IFACE_LOCK(iface);
     }
 
     return uct_ud_iface_dispatch_async_comps_do(iface, ep);

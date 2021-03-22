@@ -164,6 +164,7 @@ ucs_status_t uct_mm_iface_query(uct_iface_h tl_iface, uct_iface_attr_t *iface_at
                                           UCT_IFACE_FLAG_PENDING             |
                                           UCT_IFACE_FLAG_CB_SYNC             |
                                           UCT_IFACE_FLAG_CONNECT_TO_IFACE    |
+                                          UCT_IFACE_FLAG_THREAD_SAFETY       |
                                           iface->config.extra_cap_flags;
 
     status = uct_mm_md_mapper_ops(md)->query(&attach_shm_file);
@@ -303,6 +304,8 @@ unsigned uct_mm_iface_progress(uct_iface_h tl_iface)
 
     ucs_assert(iface->fifo_poll_count >= UCT_MM_IFACE_FIFO_MIN_POLL);
 
+    UCT_BASE_IFACE_LOCK(iface);
+
     /* progress receive */
     do {
         count = uct_mm_iface_poll_fifo(iface);
@@ -316,6 +319,8 @@ unsigned uct_mm_iface_progress(uct_iface_h tl_iface)
     /* progress the pending sends (if there are any) */
     ucs_arbiter_dispatch(&iface->arbiter, 1, uct_mm_ep_process_pending,
                          &total_count);
+
+    UCT_BASE_IFACE_UNLOCK(iface);
 
     return total_count;
 }

@@ -239,8 +239,10 @@ retry:
                                            iface->super.config.fifo_size)) {
                 ucs_arbiter_group_push_head_elem_always(&ep->arb_group,
                                                         &ep->arb_elem);
+                UCT_BASE_EP_LOCK_IFACE(ep, iface);
                 ucs_arbiter_group_schedule_nonempty(&iface->super.arbiter,
                                                     &ep->arb_group);
+                UCT_BASE_EP_UNLOCK_IFACE(ep, iface);
                 UCS_STATS_UPDATE_COUNTER(ep->super.stats, UCT_EP_STAT_NO_RES, 1);
                 return UCS_ERR_NO_RESOURCE;
             }

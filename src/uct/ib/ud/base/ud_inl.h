@@ -53,7 +53,9 @@ uct_ud_send_skb_t *uct_ud_iface_get_tx_skb(uct_ud_iface_t *iface,
 
     skb = iface->tx.skb;
     if (ucs_unlikely(skb == NULL)) {
+        UCT_BASE_EP_UNLOCK_IFACE(ep, iface);
         skb = ucs_mpool_get(&iface->tx.mp);
+        UCT_BASE_EP_UNLOCK_IFACE(ep, iface);
         if (skb == NULL) {
             ucs_trace_data("iface=%p out of tx skbs", iface);
             UCT_TL_IFACE_STAT_TX_NO_DESC(&iface->super.super);

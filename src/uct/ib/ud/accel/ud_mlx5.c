@@ -551,8 +551,8 @@ static unsigned uct_ud_mlx5_iface_progress(uct_iface_h tl_iface)
 
     uct_ud_enter(&iface->super);
 
-    count  = uct_ud_iface_dispatch_async_comps(&iface->super, NULL);
-    count += uct_ud_iface_dispatch_pending_rx(&iface->super);
+    count  = uct_ud_iface_dispatch_async_comps(&iface->super, NULL, 0);
+    count += uct_ud_iface_dispatch_pending_rx(&iface->super, 1);
 
     if (ucs_likely(count == 0)) {
         do {

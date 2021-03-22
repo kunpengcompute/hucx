@@ -443,6 +443,533 @@ UCS_CLASS_CLEANUP_FUNC(uct_iface_t)
 
 UCS_CLASS_DEFINE(uct_iface_t, void);
 
+#if ENABLE_MT
+
+#define UCT_THREAD_SAFE_EP_VOID_FUNC(func_name, ep, ...) \
+    uct_base_ep_t *base_ep       = ucs_derived_of(ep, uct_base_ep_t); \
+    uct_base_iface_t *base_iface = ucs_derived_of(ep->iface, uct_base_iface_t); \
+    \
+    ucs_recursive_spin_lock(&base_ep->lock); \
+    \
+    base_iface->locked_ops.ep_##func_name (ep, ##__VA_ARGS__); \
+    \
+    ucs_recursive_spin_unlock(&base_ep->lock);
+
+#define UCT_THREAD_SAFE_EP_TYPE_FUNC(func_name, ret_type, ep, ...) \
+    uct_base_ep_t *base_ep       = ucs_derived_of(ep, uct_base_ep_t); \
+    uct_base_iface_t *base_iface = ucs_derived_of(ep->iface, uct_base_iface_t); \
+    \
+    ucs_recursive_spin_lock(&base_ep->lock); \
+    \
+    ret_type ret = base_iface->locked_ops.ep_##func_name (ep, ##__VA_ARGS__); \
+    \
+    ucs_recursive_spin_unlock(&base_ep->lock); \
+    \
+    return ret;
+
+#define UCT_THREAD_SAFE_EP_FUNC(func_name, ep, ...) \
+        UCT_THREAD_SAFE_EP_TYPE_FUNC(func_name, ucs_status_t, ep, ##__VA_ARGS__)
+
+static ucs_status_t uct_thread_safe_put_short(uct_ep_h ep,
+                                              const void *buffer,
+                                              unsigned length,
+                                              uint64_t remote_addr,
+                                              uct_rkey_t rkey)
+{
+    UCT_THREAD_SAFE_EP_FUNC(put_short, ep, buffer, length, remote_addr, rkey)
+}
+
+static ssize_t      uct_thread_safe_ep_put_bcopy(uct_ep_h ep,
+                                                 uct_pack_callback_t pack_cb,
+                                                 void *arg,
+                                                 uint64_t remote_addr,
+                                                 uct_rkey_t rkey)
+{
+    UCT_THREAD_SAFE_EP_TYPE_FUNC(put_bcopy, ssize_t, ep, pack_cb, arg, remote_addr, rkey)
+}
+
+static ucs_status_t uct_thread_safe_ep_put_zcopy(uct_ep_h ep,
+                                                 const uct_iov_t *iov,
+                                                 size_t iovcnt,
+                                                 uint64_t remote_addr,
+                                                 uct_rkey_t rkey,
+                                                 uct_completion_t *comp)
+{
+    UCT_THREAD_SAFE_EP_FUNC(put_zcopy, ep, iov, iovcnt, remote_addr, rkey, comp)
+}
+
+static ucs_status_t uct_thread_safe_ep_get_short(uct_ep_h ep,
+                                                 void *buffer,
+                                                 unsigned length,
+                                                 uint64_t remote_addr,
+                                                 uct_rkey_t rkey)
+{
+    UCT_THREAD_SAFE_EP_FUNC(get_short, ep, buffer, length, remote_addr, rkey)
+}
+
+static ucs_status_t uct_thread_safe_ep_get_bcopy(uct_ep_h ep,
+                                                 uct_unpack_callback_t unpack_cb,
+                                                 void *arg,
+                                                 size_t length,
+                                                 uint64_t remote_addr,
+                                                 uct_rkey_t rkey,
+                                                 uct_completion_t *comp)
+{
+    UCT_THREAD_SAFE_EP_FUNC(get_bcopy, ep, unpack_cb, arg, length, remote_addr, rkey, comp)
+}
+
+static ucs_status_t uct_thread_safe_ep_get_zcopy(uct_ep_h ep,
+                                                 const uct_iov_t *iov,
+                                                 size_t iovcnt,
+                                                 uint64_t remote_addr,
+                                                 uct_rkey_t rkey,
+                                                 uct_completion_t *comp)
+{
+    UCT_THREAD_SAFE_EP_FUNC(get_zcopy, ep, iov, iovcnt, remote_addr, rkey, comp)
+}
+
+static ucs_status_t uct_thread_safe_ep_am_short(uct_ep_h ep,
+                                                uint8_t id,
+                                                uint64_t header,
+                                                const void *payload,
+                                                unsigned length)
+{
+    UCT_THREAD_SAFE_EP_FUNC(am_short, ep, id, header, payload, length)
+}
+
+static ucs_status_t uct_thread_safe_ep_am_short_iov(uct_ep_h ep, uint8_t id,
+                                                    const uct_iov_t *iov,
+                                                    size_t iovcnt)
+{
+    UCT_THREAD_SAFE_EP_FUNC(am_short_iov, ep, id, iov, iovcnt)
+}
+
+static ssize_t      uct_thread_safe_ep_am_bcopy(uct_ep_h ep,
+                                                uint8_t id,
+                                                uct_pack_callback_t pack_cb,
+                                                void *arg,
+                                                unsigned flags)
+{
+    UCT_THREAD_SAFE_EP_TYPE_FUNC(am_bcopy, ssize_t, ep, id, pack_cb, arg, flags)
+}
+
+static ucs_status_t uct_thread_safe_ep_am_zcopy(uct_ep_h ep,
+                                                uint8_t id,
+                                                const void *header,
+                                                unsigned header_length,
+                                                const uct_iov_t *iov,
+                                                size_t iovcnt,
+                                                unsigned flags,
+                                                uct_completion_t *comp)
+{
+    UCT_THREAD_SAFE_EP_FUNC(am_zcopy, ep, id, header, header_length, iov, iovcnt, flags, comp)
+}
+
+static ucs_status_t uct_thread_safe_ep_atomic_cswap64(uct_ep_h ep,
+                                                      uint64_t compare,
+                                                      uint64_t swap,
+                                                      uint64_t remote_addr,
+                                                      uct_rkey_t rkey,
+                                                      uint64_t *result,
+                                                      uct_completion_t *comp)
+{
+    UCT_THREAD_SAFE_EP_FUNC(atomic_cswap64, ep, compare, swap, remote_addr, rkey, result, comp)
+}
+
+static ucs_status_t uct_thread_safe_ep_atomic_cswap32(uct_ep_h ep,
+                                                      uint32_t compare,
+                                                      uint32_t swap,
+                                                      uint64_t remote_addr,
+                                                      uct_rkey_t rkey,
+                                                      uint32_t *result,
+                                                      uct_completion_t *comp)
+{
+    UCT_THREAD_SAFE_EP_FUNC(atomic_cswap32, ep, compare, swap, remote_addr, rkey, result, comp)
+}
+
+static ucs_status_t uct_thread_safe_ep_atomic32_post(uct_ep_h ep,
+                                                     unsigned opcode,
+                                                     uint32_t value,
+                                                     uint64_t remote_addr,
+                                                     uct_rkey_t rkey)
+{
+    UCT_THREAD_SAFE_EP_FUNC(atomic32_post, ep, opcode, value, remote_addr, rkey)
+}
+
+static ucs_status_t uct_thread_safe_ep_atomic64_post(uct_ep_h ep,
+                                                     unsigned opcode,
+                                                     uint64_t value,
+                                                     uint64_t remote_addr,
+                                                     uct_rkey_t rkey)
+{
+    UCT_THREAD_SAFE_EP_FUNC(atomic64_post, ep, opcode, value, remote_addr, rkey)
+}
+
+static ucs_status_t uct_thread_safe_ep_atomic32_fetch(uct_ep_h ep,
+                                                      unsigned opcode,
+                                                      uint32_t value,
+                                                      uint32_t *result,
+                                                      uint64_t remote_addr,
+                                                      uct_rkey_t rkey,
+                                                      uct_completion_t *comp)
+{
+    UCT_THREAD_SAFE_EP_FUNC(atomic32_fetch, ep, opcode, value, result, remote_addr, rkey, comp)
+}
+
+static ucs_status_t uct_thread_safe_ep_atomic64_fetch(uct_ep_h ep,
+                                                      unsigned opcode,
+                                                      uint64_t value,
+                                                      uint64_t *result,
+                                                      uint64_t remote_addr,
+                                                      uct_rkey_t rkey,
+                                                      uct_completion_t *comp)
+{
+    UCT_THREAD_SAFE_EP_FUNC(atomic64_fetch, ep, opcode, value, result, remote_addr, rkey, comp)
+}
+
+static ucs_status_t uct_thread_safe_ep_tag_eager_short(uct_ep_h ep,
+                                                       uct_tag_t tag,
+                                                       const void *data,
+                                                       size_t length)
+{
+    UCT_THREAD_SAFE_EP_FUNC(tag_eager_short, ep, tag, data, length)
+}
+
+static ssize_t      uct_thread_safe_ep_tag_eager_bcopy(uct_ep_h ep,
+                                                       uct_tag_t tag,
+                                                       uint64_t imm,
+                                                       uct_pack_callback_t pack_cb,
+                                                       void *arg,
+                                                       unsigned flags)
+{
+    UCT_THREAD_SAFE_EP_TYPE_FUNC(tag_eager_bcopy, ssize_t, ep, tag, imm, pack_cb, arg, flags)
+}
+
+static ucs_status_t uct_thread_safe_ep_tag_eager_zcopy(uct_ep_h ep,
+                                                       uct_tag_t tag,
+                                                       uint64_t imm,
+                                                       const uct_iov_t *iov,
+                                                       size_t iovcnt,
+                                                       unsigned flags,
+                                                       uct_completion_t *comp)
+{
+    UCT_THREAD_SAFE_EP_FUNC(tag_eager_zcopy, ep, tag, imm, iov, iovcnt, flags, comp)
+}
+
+static ucs_status_ptr_t uct_thread_safe_ep_tag_rndv_zcopy(uct_ep_h ep,
+                                                          uct_tag_t tag,
+                                                          const void *header,
+                                                          unsigned header_length,
+                                                          const uct_iov_t *iov,
+                                                          size_t iovcnt,
+                                                          unsigned flags,
+                                                          uct_completion_t *comp)
+{
+    UCT_THREAD_SAFE_EP_TYPE_FUNC(tag_rndv_zcopy, ucs_status_ptr_t, ep, tag, header, header_length, iov, iovcnt, flags, comp)
+}
+
+static ucs_status_t uct_thread_safe_ep_tag_rndv_cancel(uct_ep_h ep, void *op)
+{
+    UCT_THREAD_SAFE_EP_FUNC(tag_rndv_cancel, ep, op)
+}
+
+static ucs_status_t uct_thread_safe_ep_tag_rndv_request(uct_ep_h ep,
+                                                        uct_tag_t tag,
+                                                        const void* header,
+                                                        unsigned header_length,
+                                                        unsigned flags)
+{
+    UCT_THREAD_SAFE_EP_FUNC(tag_rndv_request, ep, tag, header, header_length, flags)
+}
+
+#define UCT_THREAD_SAFE_IFACE_VOID_FUNC(func_name, iface, ...) \
+    uct_base_iface_t *base_iface = ucs_derived_of(iface, uct_base_iface_t); \
+    \
+    ucs_recursive_spin_lock(&base_iface->lock); \
+    \
+    base_iface->locked_ops.iface_##func_name (iface, ##__VA_ARGS__); \
+    \
+    ucs_recursive_spin_unlock(&base_iface->lock);
+
+#define UCT_THREAD_SAFE_IFACE_TYPE_FUNC(func_name, ret_type, iface, ...) \
+    uct_base_iface_t *base_iface = ucs_derived_of(iface, uct_base_iface_t); \
+    \
+    ucs_recursive_spin_lock(&base_iface->lock); \
+    \
+    ret_type ret = base_iface->locked_ops.iface_##func_name (iface, ##__VA_ARGS__); \
+    \
+    ucs_recursive_spin_unlock(&base_iface->lock); \
+    \
+    return ret;
+
+#define UCT_THREAD_SAFE_IFACE_FUNC(func_name, iface, ...) \
+        UCT_THREAD_SAFE_IFACE_TYPE_FUNC(func_name, ucs_status_t, iface, ##__VA_ARGS__)
+
+static ucs_status_t uct_thread_safe_iface_tag_recv_zcopy(uct_iface_h iface,
+                                                         uct_tag_t tag,
+                                                         uct_tag_t tag_mask,
+                                                         const uct_iov_t *iov,
+                                                         size_t iovcnt,
+                                                         uct_tag_context_t *ctx)
+{
+    UCT_THREAD_SAFE_IFACE_FUNC(tag_recv_zcopy, iface, tag, tag_mask, iov, iovcnt, ctx)
+}
+
+static ucs_status_t uct_thread_safe_iface_tag_recv_cancel(uct_iface_h iface,
+                                                          uct_tag_context_t *ctx,
+                                                          int force)
+{
+    UCT_THREAD_SAFE_IFACE_FUNC(tag_recv_cancel, iface, ctx, force)
+}
+
+static ucs_status_t uct_thread_safe_ep_pending_add(uct_ep_h ep,
+                                                   uct_pending_req_t *n,
+                                                   unsigned flags)
+{
+    UCT_THREAD_SAFE_EP_FUNC(pending_add, ep, n, flags)
+}
+
+static void         uct_thread_safe_ep_pending_purge(uct_ep_h ep,
+                                                     uct_pending_purge_callback_t cb,
+                                                     void *arg)
+{
+    UCT_THREAD_SAFE_EP_VOID_FUNC(pending_purge, ep, cb, arg)
+}
+
+static ucs_status_t uct_thread_safe_ep_flush(uct_ep_h ep,
+                                             unsigned flags,
+                                             uct_completion_t *comp)
+{
+    UCT_THREAD_SAFE_EP_FUNC(flush, ep, flags, comp)
+}
+
+static ucs_status_t uct_thread_safe_ep_fence(uct_ep_h ep, unsigned flags)
+{
+    UCT_THREAD_SAFE_EP_FUNC(fence, ep, flags)
+}
+
+static ucs_status_t uct_thread_safe_ep_check(uct_ep_h ep,
+                                             unsigned flags,
+                                             uct_completion_t *comp)
+{
+    UCT_THREAD_SAFE_EP_FUNC(check, ep, flags, comp)
+}
+
+static ucs_status_t uct_thread_safe_ep_create(const uct_ep_params_t *params,
+                                              uct_ep_h *ep_p)
+{
+    uct_base_ep_t *base_ep;
+    uct_base_iface_t *base_iface;
+
+    ucs_assert_always(params->field_mask & UCT_EP_PARAM_FIELD_IFACE);
+
+    base_iface = ucs_derived_of(params->iface, uct_base_iface_t);
+
+    ucs_recursive_spin_lock(&base_iface->lock);
+
+    ucs_status_t ret = base_iface->locked_ops.ep_create(params,
+                                                        (uct_ep_h*)&base_ep);
+
+    if (ret == UCS_OK) {
+        ret = ucs_recursive_spinlock_init(&base_ep->lock, 0);
+        if (ret != UCS_OK) {
+            base_iface->locked_ops.ep_destroy(&base_ep->super);
+        } else {
+            *ep_p = &base_ep->super;
+        }
+    }
+
+    ucs_recursive_spin_unlock(&base_iface->lock);
+
+    return ret;
+}
+
+static ucs_status_t uct_thread_safe_ep_disconnect(uct_ep_h ep, unsigned flags)
+{
+    UCT_THREAD_SAFE_EP_FUNC(disconnect, ep, flags)
+}
+
+static ucs_status_t uct_thread_safe_cm_ep_conn_notify(uct_ep_h ep)
+{
+    uct_base_ep_t *base_ep       = ucs_derived_of(ep, uct_base_ep_t);
+    uct_base_iface_t *base_iface = ucs_derived_of(ep->iface, uct_base_iface_t);
+
+    ucs_recursive_spin_unlock(&base_ep->lock);
+
+    ucs_status_t ret = base_iface->locked_ops.cm_ep_conn_notify(ep);
+
+    ucs_recursive_spin_unlock(&base_ep->lock);
+
+    return ret;
+}
+
+static void         uct_thread_safe_ep_destroy(uct_ep_h ep)
+{
+    uct_base_iface_t *base_iface = ucs_derived_of(ep->iface, uct_base_iface_t);
+
+    base_iface->locked_ops.ep_destroy(ep);
+}
+
+static ucs_status_t uct_thread_safe_ep_get_address(uct_ep_h ep,
+                                                   uct_ep_addr_t *addr)
+{
+    UCT_THREAD_SAFE_EP_FUNC(get_address, ep, addr)
+}
+
+static ucs_status_t uct_thread_safe_ep_connect_to_ep(uct_ep_h ep,
+                                                     const uct_device_addr_t *dev_addr,
+                                                     const uct_ep_addr_t *ep_addr)
+{
+    UCT_THREAD_SAFE_EP_FUNC(connect_to_ep, ep, dev_addr, ep_addr)
+}
+
+static ucs_status_t uct_thread_safe_iface_accept(uct_iface_h iface,
+                                                 uct_conn_request_h conn_request)
+{
+    UCT_THREAD_SAFE_IFACE_FUNC(accept, iface, conn_request)
+}
+
+static ucs_status_t uct_thread_safe_iface_reject(uct_iface_h iface,
+                                                 uct_conn_request_h conn_request)
+{
+    UCT_THREAD_SAFE_IFACE_FUNC(reject, iface, conn_request)
+}
+
+static ucs_status_t uct_thread_safe_iface_flush(uct_iface_h iface,
+                                                unsigned flags,
+                                                uct_completion_t *comp)
+{
+    UCT_THREAD_SAFE_IFACE_FUNC(flush, iface, flags, comp)
+}
+
+static ucs_status_t uct_thread_safe_iface_fence(uct_iface_h iface, unsigned flags)
+{
+    UCT_THREAD_SAFE_IFACE_FUNC(fence, iface, flags)
+}
+
+static void         uct_thread_safe_iface_progress_enable(uct_iface_h iface,
+                                                          unsigned flags)
+{
+    UCT_THREAD_SAFE_IFACE_VOID_FUNC(progress_enable, iface, flags)
+}
+
+static void         uct_thread_safe_iface_progress_disable(uct_iface_h iface,
+                                                           unsigned flags)
+{
+    UCT_THREAD_SAFE_IFACE_VOID_FUNC(progress_disable, iface, flags)
+}
+
+static unsigned     uct_thread_safe_iface_progress(uct_iface_h iface)
+{
+    uct_base_iface_t *base_iface = ucs_derived_of(iface, uct_base_iface_t);
+
+    /* Special case: locking happens inside the progress function */
+    return base_iface->locked_ops.iface_progress(iface);
+}
+
+static ucs_status_t uct_thread_safe_iface_event_fd_get(uct_iface_h iface,
+                                                       int *fd_p)
+{
+    UCT_THREAD_SAFE_IFACE_FUNC(event_fd_get, iface, fd_p)
+}
+
+static ucs_status_t uct_thread_safe_iface_event_arm(uct_iface_h iface,
+                                                    unsigned events)
+{
+    UCT_THREAD_SAFE_IFACE_FUNC(event_arm, iface, events)
+}
+
+static void         uct_thread_safe_iface_close(uct_iface_h iface)
+{
+    UCT_THREAD_SAFE_IFACE_VOID_FUNC(close, iface)
+}
+
+static ucs_status_t uct_thread_safe_iface_query(uct_iface_h iface,
+                                                uct_iface_attr_t *iface_attr)
+{
+    UCT_THREAD_SAFE_IFACE_FUNC(query, iface, iface_attr)
+}
+
+static ucs_status_t uct_thread_safe_iface_get_device_address(uct_iface_h iface,
+                                                             uct_device_addr_t *addr)
+{
+    UCT_THREAD_SAFE_IFACE_FUNC(get_device_address, iface, addr)
+}
+
+static ucs_status_t uct_thread_safe_iface_get_address(uct_iface_h iface,
+                                                      uct_iface_addr_t *addr)
+{
+    UCT_THREAD_SAFE_IFACE_FUNC(get_address, iface, addr)
+}
+
+static int          uct_thread_safe_iface_is_reachable(const uct_iface_h iface,
+                                                       const uct_device_addr_t *dev_addr,
+                                                       const uct_iface_addr_t *iface_addr)
+{
+    UCT_THREAD_SAFE_IFACE_FUNC(is_reachable, iface, dev_addr, iface_addr)
+}
+
+static int          uct_thread_safe_iface_release_shared_desc(uct_iface_h iface,
+                                                              uct_recv_desc_t *self,
+                                                              void *desc)
+{
+    UCT_THREAD_SAFE_IFACE_FUNC(release_shared_desc, iface, self, desc)
+}
+
+static uct_iface_ops_t thread_safe_ops = {
+    .ep_put_short              = uct_thread_safe_put_short,
+    .ep_put_bcopy              = uct_thread_safe_ep_put_bcopy,
+    .ep_put_zcopy              = uct_thread_safe_ep_put_zcopy,
+    .ep_get_short              = uct_thread_safe_ep_get_short,
+    .ep_get_bcopy              = uct_thread_safe_ep_get_bcopy,
+    .ep_get_zcopy              = uct_thread_safe_ep_get_zcopy,
+    .ep_am_short               = uct_thread_safe_ep_am_short,
+    .ep_am_short_iov           = uct_thread_safe_ep_am_short_iov,
+    .ep_am_bcopy               = uct_thread_safe_ep_am_bcopy,
+    .ep_am_zcopy               = uct_thread_safe_ep_am_zcopy,
+    .ep_atomic_cswap64         = uct_thread_safe_ep_atomic_cswap64,
+    .ep_atomic_cswap32         = uct_thread_safe_ep_atomic_cswap32,
+    .ep_atomic32_post          = uct_thread_safe_ep_atomic32_post,
+    .ep_atomic64_post          = uct_thread_safe_ep_atomic64_post,
+    .ep_atomic32_fetch         = uct_thread_safe_ep_atomic32_fetch,
+    .ep_atomic64_fetch         = uct_thread_safe_ep_atomic64_fetch,
+    .ep_tag_eager_short        = uct_thread_safe_ep_tag_eager_short,
+    .ep_tag_eager_bcopy        = uct_thread_safe_ep_tag_eager_bcopy,
+    .ep_tag_eager_zcopy        = uct_thread_safe_ep_tag_eager_zcopy,
+    .ep_tag_rndv_zcopy         = uct_thread_safe_ep_tag_rndv_zcopy,
+    .ep_tag_rndv_cancel        = uct_thread_safe_ep_tag_rndv_cancel,
+    .ep_tag_rndv_request       = uct_thread_safe_ep_tag_rndv_request,
+    .iface_tag_recv_zcopy      = uct_thread_safe_iface_tag_recv_zcopy,
+    .iface_tag_recv_cancel     = uct_thread_safe_iface_tag_recv_cancel,
+    .ep_pending_add            = uct_thread_safe_ep_pending_add,
+    .ep_pending_purge          = uct_thread_safe_ep_pending_purge,
+    .ep_flush                  = uct_thread_safe_ep_flush,
+    .ep_fence                  = uct_thread_safe_ep_fence,
+    .ep_check                  = uct_thread_safe_ep_check,
+    .ep_create                 = uct_thread_safe_ep_create,
+    .ep_disconnect             = uct_thread_safe_ep_disconnect,
+    .cm_ep_conn_notify         = uct_thread_safe_cm_ep_conn_notify,
+    .ep_destroy                = uct_thread_safe_ep_destroy,
+    .ep_get_address            = uct_thread_safe_ep_get_address,
+    .ep_connect_to_ep          = uct_thread_safe_ep_connect_to_ep,
+    .iface_accept              = uct_thread_safe_iface_accept,
+    .iface_reject              = uct_thread_safe_iface_reject,
+    .iface_flush               = uct_thread_safe_iface_flush,
+    .iface_fence               = uct_thread_safe_iface_fence,
+    .iface_progress_enable     = uct_thread_safe_iface_progress_enable,
+    .iface_progress_disable    = uct_thread_safe_iface_progress_disable,
+    .iface_progress            = uct_thread_safe_iface_progress,
+    .iface_event_fd_get        = uct_thread_safe_iface_event_fd_get,
+    .iface_event_arm           = uct_thread_safe_iface_event_arm,
+    .iface_close               = uct_thread_safe_iface_close,
+    .iface_query               = uct_thread_safe_iface_query,
+    .iface_get_device_address  = uct_thread_safe_iface_get_device_address,
+    .iface_get_address         = uct_thread_safe_iface_get_address,
+    .iface_is_reachable        = uct_thread_safe_iface_is_reachable,
+    .iface_release_shared_desc = uct_thread_safe_iface_release_shared_desc
+};
+
+#endif /* ENABLE_MT */
 
 UCS_CLASS_INIT_FUNC(uct_base_iface_t, uct_iface_ops_t *ops,
                     uct_iface_internal_ops_t *internal_ops, uct_md_h md,
@@ -453,10 +980,32 @@ UCS_CLASS_INIT_FUNC(uct_base_iface_t, uct_iface_ops_t *ops,
 {
     uint64_t alloc_methods_bitmap;
     uct_alloc_method_t method;
+
     unsigned i;
     uint8_t id;
 
-    UCS_CLASS_CALL_SUPER_INIT(uct_iface_t, ops);
+    if ((params->field_mask & UCT_IFACE_PARAM_FIELD_OPEN_MODE) &&
+        (params->open_mode  & UCT_IFACE_OPEN_MODE_THREAD_SAFE)) {
+#if ENABLE_MT
+        UCS_CLASS_CALL_SUPER_INIT(uct_iface_t, &thread_safe_ops);
+
+        self->locked_ops = *ops;
+        self->is_locking = 1;
+
+        ucs_status_t status = ucs_recursive_spinlock_init(&self->lock, 0);
+        if (status != UCS_OK) {
+            return status;
+        }
+#else
+        ucs_error("UCT Thread safety requested, but is disabled in this build");
+#endif /* ENABLE_MT */
+    } else {
+        UCS_CLASS_CALL_SUPER_INIT(uct_iface_t, ops);
+
+#if ENABLE_MT
+        self->is_locking = 0;
+#endif
+    }
 
     UCT_CB_FLAGS_CHECK((params->field_mask &
                         UCT_IFACE_PARAM_FIELD_ERR_HANDLER_FLAGS) ?

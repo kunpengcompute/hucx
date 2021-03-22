@@ -90,6 +90,8 @@ uct_rc_verbs_iface_poll_rx_common(uct_rc_verbs_iface_t *iface)
         goto out;
     }
 
+    UCT_BASE_IFACE_LOCK(iface);
+
     for (i = 0; i < num_wcs; i++) {
         desc = (uct_ib_iface_recv_desc_t *)(uintptr_t)wc[i].wr_id;
         hdr  = (uct_rc_hdr_t *)uct_ib_iface_recv_desc_hdr(&iface->super.super, desc);
@@ -112,6 +114,8 @@ uct_rc_verbs_iface_poll_rx_common(uct_rc_verbs_iface_t *iface)
     }
     iface->super.rx.srq.available += num_wcs;
     UCS_STATS_UPDATE_COUNTER(iface->super.stats, UCT_RC_IFACE_STAT_RX_COMPLETION, num_wcs);
+
+    UCT_BASE_IFACE_UNLOCK(iface);
 
 out:
     uct_rc_verbs_iface_post_recv_common(iface, 0);

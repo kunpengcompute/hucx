@@ -1070,7 +1070,7 @@ ucs_status_t uct_ud_ep_flush(uct_ep_h ep_h, unsigned flags,
 
     if (ucs_unlikely(flags & UCT_FLUSH_FLAG_CANCEL)) {
         uct_ep_pending_purge(ep_h, NULL, 0);
-        uct_ud_iface_dispatch_async_comps(iface, ep);
+        uct_ud_iface_dispatch_async_comps(iface, ep, 0);
         uct_ud_ep_purge(ep, UCS_ERR_CANCELED);
         /* FIXME make flush(CANCEL) operation truly non-blocking and wait until
          * all of the outstanding sends are completed. Without this, zero-copy

@@ -80,7 +80,8 @@ static ucs_status_t uct_self_iface_query(uct_iface_h tl_iface, uct_iface_attr_t 
                                    UCT_IFACE_FLAG_ATOMIC_CPU       |
                                    UCT_IFACE_FLAG_PENDING          |
                                    UCT_IFACE_FLAG_CB_SYNC          |
-                                   UCT_IFACE_FLAG_EP_CHECK;
+                                   UCT_IFACE_FLAG_EP_CHECK         |
+                                   UCT_IFACE_FLAG_THREAD_SAFETY;
 
     attr->cap.atomic32.op_flags   =
     attr->cap.atomic64.op_flags   = UCS_BIT(UCT_ATOMIC_OP_ADD)     |

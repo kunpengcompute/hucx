@@ -12,6 +12,17 @@
 #include <ucs/type/class.h>
 
 
+#if ENABLE_MT
+#define UCT_RC_VERBS_IFACE_FOREACH_TXWQE(_iface, _i, _wc, _num_wcs) \
+      status = uct_ib_poll_cq((_iface)->super.cq[UCT_IB_DIR_TX], &_num_wcs, _wc); \
+      if (status != UCS_OK) { \
+          return 0; \
+      } \
+      UCT_BASE_IFACE_LOCK(iface); \
+      UCS_STATS_UPDATE_COUNTER((_iface)->stats, \
+                               UCT_RC_IFACE_STAT_TX_COMPLETION, _num_wcs); \
+      for (_i = 0; _i < _num_wcs; ++_i)
+#else
 #define UCT_RC_VERBS_IFACE_FOREACH_TXWQE(_iface, _i, _wc, _num_wcs) \
       status = uct_ib_poll_cq((_iface)->super.cq[UCT_IB_DIR_TX], &_num_wcs, _wc); \
       if (status != UCS_OK) { \
@@ -20,6 +31,7 @@
       UCS_STATS_UPDATE_COUNTER((_iface)->stats, \
                                UCT_RC_IFACE_STAT_TX_COMPLETION, _num_wcs); \
       for (_i = 0; _i < _num_wcs; ++_i)
+#endif
 
 
 enum {

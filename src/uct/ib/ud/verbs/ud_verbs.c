@@ -378,10 +378,16 @@ uct_ud_verbs_iface_poll_tx(uct_ud_verbs_iface_t *iface, int is_async)
     ucs_assertv(num_completed <= UCT_UD_TX_MODERATION, "num_compeleted=%u",
                 num_completed);
 
+
+    UCT_BASE_IFACE_LOCK(iface);
+
     iface->super.tx.available += num_completed;
     iface->tx.comp_sn         += num_completed;
 
     uct_ud_iface_send_completion(&iface->super, iface->tx.comp_sn, is_async);
+
+    UCT_BASE_IFACE_UNLOCK(iface);
+
     return 1;
 }
 
@@ -400,6 +406,8 @@ uct_ud_verbs_iface_poll_rx(uct_ud_verbs_iface_t *iface, int is_async)
         goto out;
     }
 
+    UCT_BASE_IFACE_LOCK(iface);
+
     UCT_IB_IFACE_VERBS_FOREACH_RXWQE(&iface->super.super, i, packet, wc, num_wcs) {
         if (!uct_ud_iface_check_grh(&iface->super, packet,
                                     wc[i].wc_flags & IBV_WC_GRH, wc[i].sl)) {
@@ -416,6 +424,9 @@ uct_ud_verbs_iface_poll_rx(uct_ud_verbs_iface_t *iface, int is_async)
 
     }
     iface->super.rx.available += num_wcs;
+
+    UCT_BASE_IFACE_UNLOCK(iface);
+
 out:
     uct_ud_verbs_iface_post_recv(iface);
     return num_wcs;
@@ -443,10 +454,14 @@ static unsigned uct_ud_verbs_iface_progress(uct_iface_h tl_iface)
     uct_ud_verbs_iface_t *iface = ucs_derived_of(tl_iface, uct_ud_verbs_iface_t);
     unsigned count;
 
+#if ENABLE_MT
+    /* Lock happens inside the following functions */
+#else
     uct_ud_enter(&iface->super);
+#endif
 
-    count  = uct_ud_iface_dispatch_async_comps(&iface->super, NULL);
-    count += uct_ud_iface_dispatch_pending_rx(&iface->super);
+    count  = uct_ud_iface_dispatch_async_comps(&iface->super, NULL, 1);
+    count += uct_ud_iface_dispatch_pending_rx(&iface->super, count);
 
     if (ucs_likely(count == 0)) {
         count = uct_ud_verbs_iface_poll_rx(iface, 0);
@@ -455,8 +470,17 @@ static unsigned uct_ud_verbs_iface_progress(uct_iface_h tl_iface)
         }
     }
 
+    if (count == 0) {
+        UCT_BASE_IFACE_LOCK(iface);
+    }
+
     uct_ud_iface_progress_pending(&iface->super, 0);
+
+#if ENABLE_MT
+    UCT_BASE_IFACE_UNLOCK(iface);
+#else
     uct_ud_leave(&iface->super);
+#endif
 
     return count;
 }
@@ -479,6 +503,7 @@ uct_ud_verbs_iface_query(uct_iface_h tl_iface, uct_iface_attr_t *iface_attr)
         return status;
     }
 
+    iface_attr->cap.flags     |= UCT_IFACE_FLAG_THREAD_SAFETY;
     iface_attr->overhead_short = 105e-9; /* Software overhead (short sends) */
     iface_attr->overhead_bcopy = 106e-9; /* Software overhead (bcopy sends) */
 

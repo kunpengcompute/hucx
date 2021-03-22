@@ -72,6 +72,12 @@ void ucs_spinlock_destroy(ucs_spinlock_t *lock);
 void ucs_recursive_spinlock_destroy(ucs_recursive_spinlock_t *lock);
 
 static inline int
+ucs_recursive_spin_is_locked(const ucs_recursive_spinlock_t *lock)
+{
+    return (lock->count != 0);
+}
+
+static inline int
 ucs_recursive_spin_is_owner(const ucs_recursive_spinlock_t *lock,
                             pthread_t self)
 {

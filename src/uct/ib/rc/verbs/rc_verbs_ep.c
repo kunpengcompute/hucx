@@ -57,7 +57,9 @@ uct_rc_verbs_ep_post_send(uct_rc_verbs_iface_t* iface, uct_rc_verbs_ep_t* ep,
         ucs_fatal("ibv_post_send() returned %d (%m)", ret);
     }
 
+    UCT_BASE_EP_LOCK_IFACE(ep, iface);
     uct_rc_verbs_txqp_posted(&ep->super.txqp, &ep->txcnt, &iface->super, send_flags & IBV_SEND_SIGNALED);
+    UCT_BASE_EP_UNLOCK_IFACE(ep, iface);
 }
 
 /*
@@ -135,9 +137,11 @@ uct_rc_verbs_ep_atomic(uct_rc_verbs_ep_t *ep, int opcode, void *result,
     uct_rc_iface_send_desc_t *desc;
 
     UCT_RC_CHECK_RES(&iface->super, &ep->super);
+    UCT_BASE_EP_LOCK_IFACE(ep, iface);
     UCT_RC_IFACE_GET_TX_ATOMIC_FETCH_DESC(&iface->super, &iface->short_desc_mp,
                                           desc, iface->super.config.atomic64_handler,
                                           result, comp);
+    UCT_BASE_EP_UNLOCK_IFACE(ep, iface);
     uct_rc_verbs_ep_atomic_post(ep, opcode, compare_add, swap, remote_addr,
                                 rkey, desc, IBV_SEND_SIGNALED |
                                 uct_rc_ep_fm(&iface->super, &ep->fi, IBV_SEND_FENCE));
@@ -173,8 +177,10 @@ ssize_t uct_rc_verbs_ep_put_bcopy(uct_ep_h tl_ep, uct_pack_callback_t pack_cb,
     size_t length;
 
     UCT_RC_CHECK_RES(&iface->super, &ep->super);
+    UCT_BASE_EP_LOCK_IFACE(tl_ep, iface);
     UCT_RC_IFACE_GET_TX_PUT_BCOPY_DESC(&iface->super, &iface->super.tx.mp, desc,
                                        pack_cb, arg, length);
+    UCT_BASE_EP_UNLOCK_IFACE(tl_ep, iface);
     uct_rc_verbs_ep_fence_put(iface, ep, &rkey, &remote_addr);
     UCT_RC_VERBS_FILL_RDMA_WR(wr, wr.opcode, IBV_WR_RDMA_WRITE, sge,
                               length, remote_addr, rkey);
@@ -218,9 +224,10 @@ ucs_status_t uct_rc_verbs_ep_get_bcopy(uct_ep_h tl_ep,
 
     UCT_CHECK_LENGTH(length, 0, iface->super.super.config.seg_size, "get_bcopy");
     UCT_RC_CHECK_RES(&iface->super, &ep->super);
+    UCT_BASE_EP_LOCK_IFACE(tl_ep, iface);
     UCT_RC_IFACE_GET_TX_GET_BCOPY_DESC(&iface->super, &iface->super.tx.mp, desc,
                                        unpack_cb, comp, arg, length);
-
+    UCT_BASE_EP_UNLOCK_IFACE(tl_ep, iface);
     UCT_RC_VERBS_FILL_RDMA_WR(wr, wr.opcode, IBV_WR_RDMA_READ, sge, length, remote_addr,
                               uct_ib_md_direct_rkey(rkey));
 
@@ -308,9 +315,11 @@ ssize_t uct_rc_verbs_ep_am_bcopy(uct_ep_h tl_ep, uint8_t id,
     UCT_CHECK_AM_ID(id);
 
     UCT_RC_CHECK_RES_AND_FC(&iface->super, &ep->super, id);
+    UCT_BASE_EP_LOCK_IFACE(tl_ep, iface);
     UCT_RC_IFACE_GET_TX_AM_BCOPY_DESC(&iface->super, &iface->super.tx.mp, desc,
                                       id, uct_rc_am_hdr_fill, uct_rc_hdr_t,
                                       pack_cb, arg, &length);
+    UCT_BASE_EP_UNLOCK_IFACE(tl_ep, iface);
     UCT_RC_VERBS_FILL_AM_BCOPY_WR(wr, sge, length + sizeof(uct_rc_hdr_t),
                                   wr.opcode);
     UCT_TL_EP_STAT_OP(&ep->super.super, AM, BCOPY, length);
@@ -341,9 +350,11 @@ ucs_status_t uct_rc_verbs_ep_am_zcopy(uct_ep_h tl_ep, uint8_t id, const void *he
                           iface->super.super.config.seg_size);
     UCT_RC_CHECK_RES_AND_FC(&iface->super, &ep->super, id);
 
+    UCT_BASE_EP_LOCK_IFACE(tl_ep, iface);
     UCT_RC_IFACE_GET_TX_AM_ZCOPY_DESC(&iface->super, &iface->short_desc_mp,
                                       desc, id, header, header_length, comp,
                                       &send_flags);
+    UCT_BASE_EP_UNLOCK_IFACE(tl_ep, iface);
     sge[0].length = sizeof(uct_rc_hdr_t) + header_length;
     sge_cnt = uct_ib_verbs_sge_fill_iov(sge + 1, iov, iovcnt);
     UCT_RC_VERBS_FILL_AM_ZCOPY_WR_IOV(wr, sge, (sge_cnt + 1), wr.opcode);
@@ -370,7 +381,9 @@ ucs_status_t uct_rc_verbs_ep_atomic64_post(uct_ep_h tl_ep, unsigned opcode, uint
 
     /* TODO don't allocate descriptor - have dummy buffer */
     UCT_RC_CHECK_RES(&iface->super, &ep->super);
+    UCT_BASE_EP_LOCK_IFACE(tl_ep, iface);
     UCT_RC_IFACE_GET_TX_ATOMIC_DESC(&iface->super, &iface->short_desc_mp, desc);
+    UCT_BASE_EP_UNLOCK_IFACE(tl_ep, iface);
 
     uct_rc_verbs_ep_atomic_post(ep,
                                 IBV_WR_ATOMIC_FETCH_AND_ADD, value, 0,

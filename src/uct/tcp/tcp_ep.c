@@ -1444,7 +1444,12 @@ uct_tcp_ep_am_prepare(uct_tcp_iface_t *iface, uct_tcp_ep_t *ep,
 
     ucs_assertv(ep->tx.buf == NULL, "ep=%p", ep);
 
+    UCT_BASE_EP_LOCK_IFACE(ep, iface);
+
     ep->tx.buf = ucs_mpool_get_inline(&iface->tx_mpool);
+
+    UCT_BASE_EP_UNLOCK_IFACE(ep, iface);
+
     if (ucs_unlikely(ep->tx.buf == NULL)) {
         goto err_no_res;
     }

@@ -268,6 +268,12 @@ typedef struct uct_base_iface {
         size_t               max_num_eps;
     } config;
 
+#if ENABLE_MT
+    int                      is_locking;
+    ucs_recursive_spinlock_t lock;
+    uct_iface_ops_t          locked_ops;
+#endif
+
     UCS_STATS_NODE_DECLARE(stats)            /* Statistics */
 } uct_base_iface_t;
 
@@ -276,6 +282,27 @@ UCS_CLASS_DECLARE(uct_base_iface_t, uct_iface_ops_t*, uct_iface_internal_ops_t*,
                   const uct_iface_config_t *UCS_STATS_ARG(ucs_stats_node_t*)
                   UCS_STATS_ARG(const char*));
 
+#if ENABLE_MT
+#define UCT_BASE_IFACE_LOCK(_iface) \
+{ \
+    uct_base_iface_t *base_iface = ucs_derived_of(_iface, uct_base_iface_t); \
+    if (ucs_unlikely(base_iface->is_locking)) { \
+        ucs_recursive_spin_lock(&base_iface->lock); \
+    } \
+}
+
+#define UCT_BASE_IFACE_UNLOCK(_iface) \
+{ \
+    uct_base_iface_t *base_iface = ucs_derived_of(_iface, uct_base_iface_t); \
+    if (ucs_unlikely(base_iface->is_locking)) { \
+        ucs_recursive_spin_unlock(&base_iface->lock); \
+    } \
+}
+
+#else
+#define UCT_BASE_IFACE_LOCK(_iface)
+#define UCT_BASE_IFACE_UNLOCK(_iface)
+#endif
 
 /**
  * Stub interface used for failed endpoints
@@ -299,10 +326,37 @@ typedef struct uct_keepalive_info {
  * Base structure of all endpoints.
  */
 typedef struct uct_base_ep {
-    uct_ep_t          super;
+    uct_ep_t                 super;
+#if ENABLE_MT
+    ucs_recursive_spinlock_t lock;
+#endif
     UCS_STATS_NODE_DECLARE(stats)
 } uct_base_ep_t;
 UCS_CLASS_DECLARE(uct_base_ep_t, uct_base_iface_t*);
+
+#if ENABLE_MT
+#define UCT_BASE_EP_LOCK_IFACE(_ep, _iface) \
+{ \
+    uct_base_ep_t *base_ep       = ucs_derived_of(_ep, uct_base_ep_t); \
+    uct_base_iface_t *base_iface = ucs_derived_of(_iface, uct_base_iface_t); \
+    if (ucs_likely(ucs_recursive_spin_is_locked(&base_ep->lock))) { \
+        ucs_recursive_spin_lock(&base_iface->lock); \
+    } \
+}
+
+#define UCT_BASE_EP_UNLOCK_IFACE(_ep, _iface) \
+{ \
+    uct_base_ep_t *base_ep       = ucs_derived_of(_ep, uct_base_ep_t); \
+    uct_base_iface_t *base_iface = ucs_derived_of(_iface, uct_base_iface_t); \
+    if (ucs_likely(ucs_recursive_spin_is_locked(&base_ep->lock))) { \
+        ucs_recursive_spin_unlock(&base_iface->lock); \
+    } \
+}
+
+#else
+#define UCT_BASE_EP_LOCK_IFACE(_ep, _iface)
+#define UCT_BASE_EP_UNLOCK_IFACE(_ep, _iface)
+#endif
 
 
 /**

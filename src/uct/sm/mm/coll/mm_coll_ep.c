@@ -1101,6 +1101,8 @@ uct_mm_incast_iface_poll_fifo(uct_mm_incast_iface_t *iface, int use_cb,
 
     ucs_assert(poll_count >= UCT_MM_IFACE_FIFO_MIN_POLL);
 
+    UCT_BASE_IFACE_LOCK(iface);
+
     uct_mm_coll_fifo_element_t *elem = ucs_derived_of(recv_check->read_elem,
                                                       uct_mm_coll_fifo_element_t);
 
@@ -1128,6 +1130,10 @@ uct_mm_incast_iface_poll_fifo(uct_mm_incast_iface_t *iface, int use_cb,
         /* progress the pending sends (if there are any) */
         ucs_arbiter_dispatch(&mm_iface->arbiter, 1, uct_mm_ep_process_pending, &ret);
     }
+
+#if ENABLE_MT
+    ucs_recursive_spin_unlock(&iface->super.super.super.super.lock);
+#endif
 
     return ret;
 }
@@ -1343,6 +1349,8 @@ unsigned uct_mm_bcast_iface_progress(uct_iface_h tl_iface)
     uct_mm_bcast_ep_t *ep         = iface->last_nonzero_ep;
     unsigned count, count_limit   = mm_iface->fifo_poll_count;
 
+    UCT_BASE_IFACE_LOCK(iface);
+
     if (ucs_likely(ep != NULL)) {
         count = uct_mm_bcast_iface_progress_ep(iface, ep, count_limit);
         if (ucs_likely(count > 0)) {
@@ -1372,6 +1380,10 @@ unsigned uct_mm_bcast_iface_progress(uct_iface_h tl_iface)
 
 poll_done:
     uct_mm_iface_fifo_window_adjust(mm_iface, count);
+
+#if ENABLE_MT
+    ucs_recursive_spin_unlock(&iface->super.super.super.super.lock);
+#endif
 
     return count;
 }
