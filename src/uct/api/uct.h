@@ -928,10 +928,12 @@ enum uct_ep_connect_params_field {
  * @brief  List of possible incast (reduction) operators.
  */
 typedef enum {
-    UCT_INCAST_OPERATOR_NONE = 0,
-    UCT_INCAST_OPERATOR_SUM  = 1,
-    UCT_INCAST_OPERATOR_MIN  = 2,
-    UCT_INCAST_OPERATOR_MAX  = 3,
+    UCT_INCAST_OPERATOR_NONE,
+    UCT_INCAST_OPERATOR_SUM,
+    UCT_INCAST_OPERATOR_MIN,
+    UCT_INCAST_OPERATOR_MAX,
+
+    UCT_INCAST_OPERATOR_LAST,
 
     UCT_INCAST_OPERATOR_CB   = 7,
 #define UCT_INCAST_OPERATOR_BITS (3)
@@ -955,17 +957,31 @@ typedef enum {
     UCT_INCAST_OPERAND_UINT8_T,
     UCT_INCAST_OPERAND_UINT16_T,
     UCT_INCAST_OPERAND_UINT32_T,
-    UCT_INCAST_OPERAND_UINT64_T
+    UCT_INCAST_OPERAND_UINT64_T,
+
+    UCT_INCAST_OPERAND_LAST,
+
+#define UCT_INCAST_OPERAND_BITS (5)
+    UCT_INCAST_OPERAND_MASK = UCS_MASK(UCT_INCAST_OPERAND_BITS)
 } uct_incast_operand_t;
 
-#define UCT_INCAST_CALLBACK_PACK(_operator, _operand) \
-    ((_operator) | ((_operand) << UCT_INCAST_OPERATOR_BITS))
-
-#define UCT_INCAST_CALLBACK_UNPACK_OPERAND(_packed) \
-    ((uintptr_t)(_packed) >> UCT_INCAST_OPERATOR_BITS)
+#define UCT_INCAST_CALLBACK_PACK(_operator, _operand, _cnt) \
+    ((uintptr_t)(_operator) | \
+     ((_operand) <<  UCT_INCAST_OPERATOR_BITS) | \
+     ((_cnt)     << (UCT_INCAST_OPERATOR_BITS + UCT_INCAST_OPERAND_BITS)))
 
 #define UCT_INCAST_CALLBACK_UNPACK_OPERATOR(_packed) \
     ((uintptr_t)(_packed) & UCS_MASK(UCT_INCAST_OPERATOR_BITS))
+
+#define UCT_INCAST_CALLBACK_UNPACK_CB(_packed) \
+    ((uintptr_t)(_packed) >> UCT_INCAST_OPERATOR_BITS)
+
+#define UCT_INCAST_CALLBACK_UNPACK_OPERAND(_packed) \
+    (UCT_INCAST_CALLBACK_UNPACK_CB(_packed) & UCS_MASK(UCT_INCAST_OPERAND_BITS))
+
+#define UCT_INCAST_CALLBACK_UNPACK_CNT(_packed) \
+    ((uintptr_t)(_packed) >> (UCT_INCAST_OPERATOR_BITS + \
+                              UCT_INCAST_OPERAND_BITS))
 
 
 /*

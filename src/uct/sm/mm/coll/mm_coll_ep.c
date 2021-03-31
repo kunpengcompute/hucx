@@ -742,37 +742,96 @@ ucs_status_t uct_mm_incast_ep_am_zcopy(uct_ep_h ep, uint8_t id, const void *head
 
 #define ucs_sum(_x, _y) ((_x)+(_y))
 
-#define UCT_MM_INCAST_IFACE_CB_BODY(_operator, _operand) \
-    void UCT_MM_INCAST_IFACE_CB_NAME(helper, _operator, _operand) \
-        (void *dst, const void *src) { \
-        *(_operand *)dst = ucs_##_operator (*(_operand *)dst, \
-                                            *(_operand *)src); \
-    } \
+#define UCT_MM_INCAST_IFACE_CB_INST_BY_OPERAND_DECL(_operator, _caps1, \
+                                                    _operand, _caps2, \
+                                                    _cnt) \
     static UCS_F_ALWAYS_INLINE \
-    void UCT_MM_INCAST_IFACE_CB_NAME(inline_helper, _operator, _operand) \
+    void UCT_MM_INCAST_IFACE_CB_NAME(inl, _operator, _operand, _cnt) \
         (void *dst, const void *src) { \
-        *(_operand *)dst = ucs_##_operator (*(_operand *)dst, \
-                                            *(_operand *)src); \
+        unsigned cnt; \
+        for (cnt = 0; cnt < (_cnt); cnt++) { \
+            *(_operand *)dst = ucs_##_operator (*(_operand *)dst, \
+                                                *(_operand *)src); \
+            dst = UCS_PTR_BYTE_OFFSET(dst, sizeof(_operand)); \
+            src = UCS_PTR_BYTE_OFFSET(src, sizeof(_operand)); \
+        } \
     } \
-    ucs_status_t UCT_MM_INCAST_IFACE_CB_NAME(short, _operator, _operand) \
+    \
+    void UCT_MM_INCAST_IFACE_CB_NAME(global, _operator, _operand, _cnt) \
+        (void *dst, const void *src) { \
+        UCT_MM_INCAST_IFACE_CB_NAME(inl, _operator, _operand, _cnt) \
+            (dst, src); \
+    } \
+    \
+    ucs_status_t UCT_MM_INCAST_IFACE_CB_NAME(short, _operator, _operand, _cnt) \
         (uct_ep_h ep, uint8_t id, uint64_t h, const void *p, unsigned l) { \
         return uct_mm_incast_ep_am_short_centralized_cb(ep, id, h, p, l, \
-            UCT_MM_INCAST_IFACE_CB_NAME(inline_helper, _operator, _operand)); \
+            UCT_MM_INCAST_IFACE_CB_NAME(inl, _operator, _operand, _cnt)); \
     } \
-    ssize_t UCT_MM_INCAST_IFACE_CB_NAME(bcopy, _operator, _operand) \
+    \
+    ssize_t UCT_MM_INCAST_IFACE_CB_NAME(bcopy, _operator, _operand, _cnt) \
         (uct_ep_h ep, uint8_t id, uct_pack_callback_t cb, void *a, unsigned f) { \
         return uct_mm_incast_ep_am_bcopy_centralized_cb(ep, id, cb, a, f, \
-            UCT_MM_INCAST_IFACE_CB_NAME(inline_helper, _operator, _operand)); \
+            UCT_MM_INCAST_IFACE_CB_NAME(inl, _operator, _operand, _cnt)); \
     }
 
-#define UCT_MM_INCAST_IFACE_CB_INSTANCES(_operator) \
-        UCT_MM_INCAST_IFACE_CB_BODY(_operator, float) \
-        UCT_MM_INCAST_IFACE_CB_BODY(_operator, double)
+#define UCT_MM_INCAST_IFACE_CB_INST_BY_OPERAND_INST(_operator, _caps1, \
+                                                    _operand, _caps2, \
+                                                    _cnt) \
+    uct_mm_incast_ep_am_short_func_arr[UCT_INCAST_OPERATOR_##_caps1] \
+                                      [UCT_INCAST_OPERAND_##_caps2] \
+                                      [_cnt] = \
+        UCT_MM_INCAST_IFACE_CB_NAME(short, _operator, _operand, _cnt); \
+    uct_mm_incast_ep_am_bcopy_func_arr[UCT_INCAST_OPERATOR_##_caps1] \
+                                      [UCT_INCAST_OPERAND_##_caps2] \
+                                      [_cnt] = \
+        UCT_MM_INCAST_IFACE_CB_NAME(bcopy, _operator, _operand, _cnt);
 
-UCT_MM_INCAST_IFACE_CB_INSTANCES(sum)
-UCT_MM_INCAST_IFACE_CB_INSTANCES(min)
-UCT_MM_INCAST_IFACE_CB_INSTANCES(max)
+#define UCT_MM_INCAST_IFACE_CB_INST_BY_OPERATOR(_do, _operator, _caps, _cnt) \
+    UCT_MM_INCAST_IFACE_CB_INST_BY_OPERAND_##_do(_operator, _caps, float,    FLOAT,     _cnt) \
+    UCT_MM_INCAST_IFACE_CB_INST_BY_OPERAND_##_do(_operator, _caps, double,   DOUBLE,    _cnt) \
+    UCT_MM_INCAST_IFACE_CB_INST_BY_OPERAND_##_do(_operator, _caps, int8_t,   INT8_T,    _cnt) \
+    UCT_MM_INCAST_IFACE_CB_INST_BY_OPERAND_##_do(_operator, _caps, int16_t,  INT16_T,   _cnt) \
+    UCT_MM_INCAST_IFACE_CB_INST_BY_OPERAND_##_do(_operator, _caps, int32_t,  INT32_T,   _cnt) \
+    UCT_MM_INCAST_IFACE_CB_INST_BY_OPERAND_##_do(_operator, _caps, int64_t,  INT64_T,   _cnt) \
+    UCT_MM_INCAST_IFACE_CB_INST_BY_OPERAND_##_do(_operator, _caps, uint8_t,  UINT8_T,   _cnt) \
+    UCT_MM_INCAST_IFACE_CB_INST_BY_OPERAND_##_do(_operator, _caps, uint16_t, UINT16_T,  _cnt) \
+    UCT_MM_INCAST_IFACE_CB_INST_BY_OPERAND_##_do(_operator, _caps, uint32_t, UINT32_T,  _cnt) \
+    UCT_MM_INCAST_IFACE_CB_INST_BY_OPERAND_##_do(_operator, _caps, uint64_t, UINT64_T,  _cnt)
 
+#define UCT_MM_INCAST_IFACE_CB_INST_BY_CNT(_do, _cnt) \
+    UCT_MM_INCAST_IFACE_CB_INST_BY_OPERATOR(_do, sum, SUM, _cnt) \
+    UCT_MM_INCAST_IFACE_CB_INST_BY_OPERATOR(_do, min, MIN, _cnt) \
+    UCT_MM_INCAST_IFACE_CB_INST_BY_OPERATOR(_do, max, MAX, _cnt)
+
+UCT_MM_INCAST_IFACE_CB_INST_BY_CNT(DECL, 1)
+UCT_MM_INCAST_IFACE_CB_INST_BY_CNT(DECL, 2)
+UCT_MM_INCAST_IFACE_CB_INST_BY_CNT(DECL, 4)
+UCT_MM_INCAST_IFACE_CB_INST_BY_CNT(DECL, 8)
+UCT_MM_INCAST_IFACE_CB_INST_BY_CNT(DECL, 16)
+
+static int uct_mm_incast_ep_am_func_arr_initialized = 0;
+typeof(uct_ep_am_short_func_t) uct_mm_incast_ep_am_short_func_arr
+    [UCT_INCAST_OPERATOR_LAST]
+    [UCT_INCAST_OPERAND_LAST]
+    [UCT_INCAST_MAX_COUNT_SUPPORTED] = {0};
+typeof(uct_ep_am_bcopy_func_t) uct_mm_incast_ep_am_bcopy_func_arr
+    [UCT_INCAST_OPERATOR_LAST]
+    [UCT_INCAST_OPERAND_LAST]
+    [UCT_INCAST_MAX_COUNT_SUPPORTED] = {0};
+
+void uct_mm_coll_ep_init_incast_cb_arrays() {
+    if (uct_mm_incast_ep_am_func_arr_initialized) {
+        return;
+    }
+    uct_mm_incast_ep_am_func_arr_initialized = 1;
+
+    UCT_MM_INCAST_IFACE_CB_INST_BY_CNT(INST, 1)
+    UCT_MM_INCAST_IFACE_CB_INST_BY_CNT(INST, 2)
+    UCT_MM_INCAST_IFACE_CB_INST_BY_CNT(INST, 4)
+    UCT_MM_INCAST_IFACE_CB_INST_BY_CNT(INST, 8)
+    UCT_MM_INCAST_IFACE_CB_INST_BY_CNT(INST, 16)
+}
 
 static inline ucs_status_t uct_mm_coll_ep_add(uct_mm_coll_ep_t* ep)
 {
@@ -1071,7 +1130,7 @@ uct_mm_coll_ep_process_recv(uct_mm_coll_ep_t *ep, uct_mm_coll_iface_t *iface,
             uint8_t* slot_ptr = uct_mm_coll_iface_centralized_get_slot(elem, ep, 0,
                                                                        is_short, 0, 0,
                                                                        ep->my_offset);
-            /* each receviver has its own slot, No conflict. */
+            /* each receiver has its own slot, No conflict. */
             slot_ptr[0] = iface->my_coll_id;
 
             ucs_assert(slot_ptr[UCS_SYS_CACHE_LINE_SIZE-1] == 0);

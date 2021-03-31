@@ -116,57 +116,49 @@ static uct_iface_ops_t uct_mm_incast_iface_ops = {
     .iface_release_shared_desc = uct_mm_incast_iface_release_shared_desc
 };
 
-#define UCT_MM_INCAST_IFACE_CB_SUBCASE(_operator, _operand) \
-    *cb = UCT_MM_INCAST_IFACE_CB_NAME(helper, _operator, _operand); \
-    uct_mm_incast_iface_ops.ep_am_short = \
-        UCT_MM_INCAST_IFACE_CB_NAME(short, _operator, _operand); \
-    uct_mm_incast_iface_ops.ep_am_bcopy = \
-        UCT_MM_INCAST_IFACE_CB_NAME(bcopy, _operator, _operand);
-
-#define UCT_MM_INCAST_IFACE_CB_CASE(_operand, _operator) \
-    switch (_operand) { \
-    case UCT_INCAST_OPERAND_FLOAT: \
-        UCT_MM_INCAST_IFACE_CB_SUBCASE(_operator, float) \
-        break; \
-    case UCT_INCAST_OPERAND_DOUBLE: \
-        UCT_MM_INCAST_IFACE_CB_SUBCASE(_operator, double) \
-        break; \
-    default: \
-        return UCS_ERR_UNSUPPORTED; \
-    }
-
 static ucs_status_t
 uct_mm_incast_iface_choose_am_send(uct_incast_cb_t *cb,
                                    uct_ep_am_short_func_t *ep_am_short_p,
                                    uct_ep_am_bcopy_func_t *ep_am_bcopy_p)
 {
-    uct_incast_operand_t operand   = UCT_INCAST_CALLBACK_UNPACK_OPERAND(*cb);
     uct_incast_operator_t operator = UCT_INCAST_CALLBACK_UNPACK_OPERATOR(*cb);
 
-    switch (operator) {
-    case UCT_INCAST_OPERATOR_SUM:
-        UCT_MM_INCAST_IFACE_CB_CASE(operand, sum)
-        break;
+    uct_mm_coll_ep_init_incast_cb_arrays();
 
-    case UCT_INCAST_OPERATOR_MIN:
-        UCT_MM_INCAST_IFACE_CB_CASE(operand, min)
-        break;
-
-    case UCT_INCAST_OPERATOR_MAX:
-        UCT_MM_INCAST_IFACE_CB_CASE(operand, max)
-        break;
-
-    case UCT_INCAST_OPERATOR_CB:
+    if (operator == UCT_INCAST_OPERATOR_CB) {
         uct_mm_incast_iface_ops.ep_am_short =
                 uct_mm_incast_ep_am_short_centralized_ep_cb;
         uct_mm_incast_iface_ops.ep_am_bcopy =
                 uct_mm_incast_ep_am_bcopy_centralized_ep_cb;
-        *cb = (uct_incast_cb_t)((uintptr_t)*cb & ~UCT_INCAST_OPERATOR_MASK);
-        break;
+        *cb = (uct_incast_cb_t)UCT_INCAST_CALLBACK_UNPACK_CB(*cb);
+        return UCS_OK;
+    }
 
-    default:
+    if (operator >= UCT_INCAST_OPERATOR_LAST) {
+        return UCS_ERR_INVALID_PARAM;
+    }
+
+    uct_incast_operand_t operand = UCT_INCAST_CALLBACK_UNPACK_OPERAND(*cb);
+    size_t count                 = UCT_INCAST_CALLBACK_UNPACK_CNT(*cb);
+
+
+    if (operand >= UCT_INCAST_OPERAND_LAST) {
+        return UCS_ERR_INVALID_PARAM;
+    }
+
+    if (count >= UCT_INCAST_MAX_COUNT_SUPPORTED) {
         return UCS_ERR_UNSUPPORTED;
-    };
+    }
+
+    uct_mm_incast_iface_ops.ep_am_short = \
+            uct_mm_incast_ep_am_short_func_arr[operator][operand][count];
+    uct_mm_incast_iface_ops.ep_am_bcopy = \
+            uct_mm_incast_ep_am_bcopy_func_arr[operator][operand][count];
+
+    if ((uct_mm_incast_iface_ops.ep_am_short == NULL) ||
+        (uct_mm_incast_iface_ops.ep_am_bcopy == NULL)) {
+        return UCS_ERR_UNSUPPORTED;
+    }
 
     return UCS_OK;
 }

@@ -257,11 +257,15 @@ typedef struct uct_mm_iface {
     UCT_MM_COMPONENT_DEFINE(uct_##_name##_tl_suffix##_component, \
             _name, _tl_suffix, _md_ops, _rkey_unpack, _rkey_release, _cfg_prefix) \
     \
+    static ucs_config_field_t _cfg_table##_tl_suffix[] = { \
+      {"", "", NULL, 0, UCS_CONFIG_TYPE_TABLE(_cfg_table)}, \
+      \
+      {NULL} \
+    }; \
+    \
     UCT_TL_DEFINE(&(uct_##_name##_tl_suffix##_component).super, \
                   _name##_tl_suffix, \
                   uct_sm_base_query_tl_devices, \
-                  uct_mm_iface_t, \
-                  _cfg_prefix, \
                   uct_mm##_tl_suffix##iface_t, \
                   "MM_" _cfg_prefix, \
                   _cfg_table##_tl_suffix, \

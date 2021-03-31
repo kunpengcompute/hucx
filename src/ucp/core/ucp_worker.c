@@ -1013,7 +1013,7 @@ ucs_status_t ucp_worker_add_resource_ifaces(ucp_worker_h worker,
             iface_params.mode.device.dev_name = resource->tl_rsc.dev_name;
         }
 
-        if (worker->flags & UCP_WORKER_FLAG_MT) {
+        if (worker->flags & UCP_WORKER_FLAG_THREAD_MULTI) {
             iface_params.field_mask |= UCT_IFACE_OPEN_MODE_THREAD_SAFE;
         }
 
@@ -1051,13 +1051,13 @@ ucs_status_t ucp_worker_add_resource_ifaces(ucp_worker_h worker,
         }
 
         /* TODO: disable non-thread-safe transports upon such configuration */
-        if ((worker->flags & UCP_WORKER_FLAG_MT) &&
+        if ((worker->flags & UCP_WORKER_FLAG_THREAD_MULTI) &&
             ((wiface->attr.cap.flags & UCT_IFACE_FLAG_THREAD_SAFETY) == 0)) {
             is_uct_thread_safe = 0;
         }
     }
 
-    if ((worker->flags & UCP_WORKER_FLAG_MT) && (is_uct_thread_safe)) {
+    if ((worker->flags & UCP_WORKER_FLAG_THREAD_MULTI) && (is_uct_thread_safe)) {
         /* defer all thread-safety to the transports */
         ucs_async_context_cleanup(&worker->async);
 

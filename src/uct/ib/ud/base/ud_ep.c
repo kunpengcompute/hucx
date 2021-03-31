@@ -230,7 +230,7 @@ static void uct_ud_ep_purge(uct_ud_ep_t *ep, ucs_status_t status)
     uct_ud_iface_t *iface = ucs_derived_of(ep->super.super.iface,
                                            uct_ud_iface_t);
 
-    uct_ud_iface_dispatch_async_comps(iface, ep);
+    uct_ud_iface_dispatch_async_comps(iface, ep, 0);
 
     /* reset the maximal TX psn value to the default, since we should be able
      * to do TX operation after purging of the EP and uct_ep_flush(LOCAL)

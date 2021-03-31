@@ -53,24 +53,43 @@ typedef struct uct_mm_coll_fifo_element {
         .seg_size   = (_bcast_iface)->super.super.config.seg_size \
     }
 
-#define UCT_MM_INCAST_IFACE_CB_NAME(_method, _operator, _operand) \
-    uct_mm_incast_ep_am_##_method##_centralized_##_operator##_##_operand
+#define UCT_MM_INCAST_IFACE_CB_NAME(_method, _operator, _operand, _cnt) \
+    uct_mm_incast_ep_am_##_method##_centralized_##_operator##_##_operand##_##_cnt
 
-#define UCT_MM_INCAST_IFACE_CB_DECL(_operator, _operand) \
-    void UCT_MM_INCAST_IFACE_CB_NAME(helper, _operator, _operand) \
+#define UCT_MM_INCAST_IFACE_CB_DECL_BY_OPERAND(_operator, _operand, _cnt) \
+    void UCT_MM_INCAST_IFACE_CB_NAME(global, _operator, _operand, _cnt) \
         (void *dst, const void *src); \
-    ucs_status_t UCT_MM_INCAST_IFACE_CB_NAME(short, _operator, _operand) \
+    \
+    ucs_status_t UCT_MM_INCAST_IFACE_CB_NAME(short, _operator, _operand, _cnt) \
         (uct_ep_h ep, uint8_t id, uint64_t h, const void *p, unsigned l); \
-    ssize_t UCT_MM_INCAST_IFACE_CB_NAME(bcopy, _operator, _operand) \
+    ssize_t UCT_MM_INCAST_IFACE_CB_NAME(bcopy, _operator, _operand, _cnt) \
         (uct_ep_h ep, uint8_t id, uct_pack_callback_t cb, void *a, unsigned f);
 
-#define UCT_MM_INCAST_IFACE_CB_DECLARATIONS(_operator) \
-        UCT_MM_INCAST_IFACE_CB_DECL(_operator, float) \
-        UCT_MM_INCAST_IFACE_CB_DECL(_operator, double)
+#define UCT_MM_INCAST_IFACE_CB_DECL_BY_OPERATOR(_operator, _cnt) \
+        UCT_MM_INCAST_IFACE_CB_DECL_BY_OPERAND(_operator, float, _cnt) \
+        UCT_MM_INCAST_IFACE_CB_DECL_BY_OPERAND(_operator, double, _cnt)
 
-UCT_MM_INCAST_IFACE_CB_DECLARATIONS(sum)
-UCT_MM_INCAST_IFACE_CB_DECLARATIONS(min)
-UCT_MM_INCAST_IFACE_CB_DECLARATIONS(max)
+#define UCT_MM_INCAST_IFACE_CB_DECL_BY_CNT(_cnt) \
+    UCT_MM_INCAST_IFACE_CB_DECL_BY_OPERATOR(sum, _cnt) \
+    UCT_MM_INCAST_IFACE_CB_DECL_BY_OPERATOR(min, _cnt) \
+    UCT_MM_INCAST_IFACE_CB_DECL_BY_OPERATOR(max, _cnt)
+
+UCT_MM_INCAST_IFACE_CB_DECL_BY_CNT(1)
+UCT_MM_INCAST_IFACE_CB_DECL_BY_CNT(2)
+UCT_MM_INCAST_IFACE_CB_DECL_BY_CNT(4)
+UCT_MM_INCAST_IFACE_CB_DECL_BY_CNT(8)
+UCT_MM_INCAST_IFACE_CB_DECL_BY_CNT(16)
+
+#define UCT_INCAST_MAX_COUNT_SUPPORTED (17)
+
+extern typeof(uct_ep_am_short_func_t) uct_mm_incast_ep_am_short_func_arr
+    [UCT_INCAST_OPERATOR_LAST]
+    [UCT_INCAST_OPERAND_LAST]
+    [UCT_INCAST_MAX_COUNT_SUPPORTED];
+extern typeof(uct_ep_am_bcopy_func_t) uct_mm_incast_ep_am_bcopy_func_arr
+    [UCT_INCAST_OPERATOR_LAST]
+    [UCT_INCAST_OPERAND_LAST]
+    [UCT_INCAST_MAX_COUNT_SUPPORTED];
 
 typedef struct uct_mm_coll_ep uct_mm_coll_ep_t;
 typedef struct uct_mm_bcast_ep uct_mm_bcast_ep_t;

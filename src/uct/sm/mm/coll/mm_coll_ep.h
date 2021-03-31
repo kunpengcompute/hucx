@@ -105,4 +105,6 @@ void uct_mm_coll_ep_release_desc(uct_mm_coll_ep_t *ep, void *desc);
 void uct_mm_coll_ep_destroy(uct_ep_h ep);
 void uct_mm_bcast_ep_destroy(uct_ep_h ep);
 
+void uct_mm_coll_ep_init_incast_cb_arrays();
+
 #endif

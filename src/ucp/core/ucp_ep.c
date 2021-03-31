@@ -2558,13 +2558,11 @@ void ucp_ep_config_lane_info_str(ucp_worker_h worker,
     }
 
     if (lane == key->incast_lane) {
-        snprintf(p, endp - p, " incast");
-        p += strlen(p);
+        ucs_string_buffer_appendf(strbuf, " incast");
     }
 
     if (lane == key->bcast_lane) {
-        snprintf(p, endp - p, " bcast");
-        p += strlen(p);
+        ucs_string_buffer_appendf(strbuf, " bcast");
     }
 
     if (key->wireup_msg_lane == lane) {
