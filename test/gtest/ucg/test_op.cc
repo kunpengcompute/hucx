@@ -3,7 +3,7 @@
  * See file LICENSE for terms.
  */
 
-#include "test_op.h"
+#include "ucg_test.h"
 
 using namespace std;
 

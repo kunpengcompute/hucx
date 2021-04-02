@@ -150,6 +150,7 @@ uct_mm_incast_iface_choose_am_send(uct_incast_cb_t *cb,
         return UCS_ERR_UNSUPPORTED;
     }
 
+    *cb = uct_mm_incast_ep_callback_func_arr[operator][operand][count];
     uct_mm_incast_iface_ops.ep_am_short = \
             uct_mm_incast_ep_am_short_func_arr[operator][operand][count];
     uct_mm_incast_iface_ops.ep_am_bcopy = \
@@ -168,7 +169,7 @@ UCS_CLASS_INIT_FUNC(uct_mm_incast_iface_t, uct_md_h md, uct_worker_h worker,
                     const uct_iface_config_t *tl_config)
 {
     uint32_t procs = (params->field_mask & UCT_IFACE_PARAM_FIELD_COLL_INFO) ?
-                     params->host_info.proc_cnt : 0;
+                     params->host_info.proc_cnt : 1;
 
     uct_mm_incast_iface_config_t *cfg = ucs_derived_of(tl_config,
                                                        uct_mm_incast_iface_config_t);
@@ -180,7 +181,7 @@ UCS_CLASS_INIT_FUNC(uct_mm_incast_iface_t, uct_md_h md, uct_worker_h worker,
     cfg->super.super.fifo_elem_size   = sizeof(uct_mm_coll_fifo_element_t) +
                                         (procs * short_stride);
 
-    if (procs == 0) {
+    if (procs == 1) {
         worker                                         = NULL;
         uct_mm_incast_iface_ops.iface_progress         = uct_mm_iface_progress_dummy;
         uct_mm_incast_iface_ops.iface_progress_enable  = uct_mm_iface_progress_enable_dummy;
@@ -190,18 +191,23 @@ UCS_CLASS_INIT_FUNC(uct_mm_incast_iface_t, uct_md_h md, uct_worker_h worker,
             self->cb = params->incast_cb;
 
             ucs_status_t status = uct_mm_incast_iface_choose_am_send(&self->cb,
-                    &uct_mm_incast_iface_ops.ep_am_short,
-                    &uct_mm_incast_iface_ops.ep_am_bcopy);
-            if (status != UCS_OK) {
+                                &uct_mm_incast_iface_ops.ep_am_short,
+                                &uct_mm_incast_iface_ops.ep_am_bcopy);
+            if (status == UCS_ERR_UNSUPPORTED) {
+                self->cb = NULL;
+            } else if (status != UCS_OK) {
                 return status;
             }
+        } else {
+            self->cb = NULL;
+        }
 
+        if (self->cb != NULL) {
             uct_mm_incast_iface_ops.iface_progress     = uct_mm_incast_iface_progress_cb;
         } else {
             uct_mm_incast_iface_ops.ep_am_short        = uct_mm_incast_ep_am_short_centralized;
             uct_mm_incast_iface_ops.ep_am_bcopy        = uct_mm_incast_ep_am_bcopy_centralized;
             uct_mm_incast_iface_ops.iface_progress     = uct_mm_incast_iface_progress;
-            self->cb = NULL;
         }
         uct_mm_incast_iface_ops.iface_progress_enable  = uct_base_iface_progress_enable;
         uct_mm_incast_iface_ops.iface_progress_disable = uct_base_iface_progress_disable;
@@ -216,7 +222,7 @@ UCS_CLASS_INIT_FUNC(uct_mm_incast_iface_t, uct_md_h md, uct_worker_h worker,
     UCS_CLASS_CALL_SUPER_INIT(uct_mm_coll_iface_t, &uct_mm_incast_iface_ops,
                               md, worker, params, tl_config);
 
-    if (procs == 0) {
+    if (procs == 1) {
         return UCS_OK;
     }
 
@@ -224,9 +230,15 @@ UCS_CLASS_INIT_FUNC(uct_mm_incast_iface_t, uct_md_h md, uct_worker_h worker,
     ucs_assert_always(((uintptr_t)elem % UCS_SYS_CACHE_LINE_SIZE) == 0);
     ucs_assert_always((sizeof(*elem)   % UCS_SYS_CACHE_LINE_SIZE) == 0);
 
+
+    UCT_MM_COLL_EP_DUMMY(dummy, self);
+
     int i;
     ucs_status_t status;
     for (i = 0; i < self->super.super.config.fifo_size; i++) {
+        uct_mm_coll_ep_centralized_reset_elem(elem, &dummy, 0, 1);
+        uct_mm_coll_ep_centralized_reset_elem(elem, &dummy, 1, 1);
+
         elem->pending = 0;
 
         status = ucs_spinlock_init(&elem->lock, UCS_SPINLOCK_FLAG_SHARED);

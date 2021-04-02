@@ -713,7 +713,7 @@ ucp_wireup_send_ep_removed(ucp_worker_h worker, const ucp_wireup_msg_t *msg,
 
     /* Initialize lanes of the reply EP */
     status = ucp_wireup_init_lanes(reply_ep, ep_init_flags, &ucp_tl_bitmap_max,
-                                   remote_address, addr_indices);
+                                   0, remote_address, addr_indices);
     if (status != UCS_OK) {
         goto out_delete_ep;
     }

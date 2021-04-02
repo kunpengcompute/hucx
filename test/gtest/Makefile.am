@@ -151,7 +151,15 @@ gtest_SOURCES = \
 	ucp/ucp_test.cc \
 	ucp/ucp_datatype.cc \
 	\
-	ucg/test_ucg_coll.cc \
+	ucg/test_builtin.cc \
+	ucg/test_cb.cc \
+	ucg/test_coll.cc \
+	ucg/test_coll_algorithm.cc \
+	ucg/test_context.cc \
+	ucg/test_group.cc \
+	ucg/test_op.cc \
+	ucg/test_plan.cc \
+	ucg/test_step.cc \
 	ucg/ucg_test.cc \
 	\
 	ucs/test_algorithm.cc \

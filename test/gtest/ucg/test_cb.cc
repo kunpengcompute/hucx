@@ -3,43 +3,56 @@
  * See file LICENSE for terms.
  */
 
-#include "test_op.h"
-#include "ucg/builtin/ops/builtin_cb.inl"
+#include <common/test.h>
 
-using namespace std;
+#include "ucg_test.h"
 
-class ucg_cb_test : public ucg_op_test {
+#include <string.h> /* for memset() */
+#include <malloc.h> /* for memalign() */
+
+static ucg_collective_params_t allreduce_params = {
+        0 // TODO
+};
+
+class test_ucg_cb : public test_ucg_coll_base {
 public:
-    ucg_cb_test() {
-        num_procs = 2;
-    }
+    test_ucg_cb() : test_ucg_coll_base(1, 2, 0, &allreduce_params) {}
 
-    ~ ucg_cb_test() = default;
+    virtual ~test_ucg_cb() {}
 
 public:
     ucg_builtin_request_t* create_request(ucg_builtin_op_step_t *step);
+    void destroy_request(ucg_builtin_request_t *request);
 };
 
-ucg_builtin_request_t* ucg_cb_test::create_request(ucg_builtin_op_step_t *step) {
-    ucg_builtin_comp_slot_t *slot = new ucg_builtin_comp_slot_t;
-    slot->cb = NULL;
-    slot->step_idx = 1;
-    ucs_list_head_init(&slot->msg_head);
+ucg_builtin_request_t* test_ucg_cb::create_request(ucg_builtin_op_step_t *step) {
+    ucg_builtin_comp_slot_t *slot = (ucg_builtin_comp_slot_t*)
+                                    memalign(UCS_ARCH_CACHE_LINE_SIZE,
+                                             sizeof(*slot));
 
-    ucg_builtin_request_t *req = &slot->req;
-    req->step = step;
-    ucg_request_t *comp_req = new ucg_request_t;
-    comp_req->flags = 0;
-    comp_req->status = UCS_OK;
-    req->comp_req = comp_req;
-    ucg_builtin_op_t *op = new ucg_builtin_op_t;
-    op->send_dt = NULL;
-    op->recv_dt = NULL;
-    op->final_cb = NULL;
-    req->op = op;
+    memset(slot, 0, sizeof(*slot));
 
-    return req;
+    ucs_ptr_array_init(&slot->messages, "slot messages");
+
+    slot->req.comp_req     = new ucg_request_t;
+    slot->req.op           = new ucg_builtin_op_t;
+    slot->req.step         = step;
+
+    return &slot->req;
 }
+
+void test_ucg_cb::destroy_request(ucg_builtin_request_t *request) {
+    ucg_builtin_comp_slot_t *slot = ucs_container_of(request,
+                                                     ucg_builtin_comp_slot_t,
+                                                     req);
+
+    delete (ucg_request_t*)slot->req.comp_req;
+    delete slot->req.op;
+
+    ucs_ptr_array_cleanup(&slot->messages);
+    free(slot);
+}
+
 
 static void reduce_mock(void *mpi_op, char *src_buffer, char *dst_buffer, unsigned dcount, void *mpi_datatype)
 {
@@ -72,25 +85,25 @@ static ucs_status_t coll_ucx_generic_datatype_unpack(void *state, size_t offset,
     return UCS_OK;
 }
 
-TEST_F(ucg_cb_test, test_op_no_optimization) {
+UCS_TEST_F(test_ucg_cb, test_op_no_optimization) {
     ucg_builtin_op_t *op = new ucg_builtin_op_t;
     ucs_status_t ret = ucg_builtin_no_optimization(op);
 
     ASSERT_EQ(UCS_OK, ret);
 }
 
-TEST_F(ucg_cb_test, test_op_cb_init) {
-    ucg_group_h group = create_group();
-    ucg_collective_params_t *params = create_allreduce_params();
-    ucg_plan_t *plan = create_plan(1, params, group);
+UCS_TEST_F(test_ucg_cb, test_op_cb_init) {
+//    ucg_group_h group = create_group();
+//    ucg_collective_params_t *params = create_allreduce_params();
+//    ucg_plan_t *plan = create_plan(1, params, group);
     ucp_dt_generic_t *dt_gen = new ucp_dt_generic_t;
     ucg_op_t *op = new ucg_op_t();
 
-    ucs_status_t ret = ucg_builtin_op_create(plan, params, &op);
-    ASSERT_EQ(UCS_OK, ret);
+//    ucs_status_t ret = ucg_builtin_op_create(plan, params, &op);
+//    ASSERT_EQ(UCS_OK, ret);
 
-    op->params = *params;
-    op->plan = plan;
+//    op->params = *params;
+//    op->plan = plan;
     ((ucg_builtin_op_t *)op)->send_dt = dt_gen;
     ((ucg_builtin_op_t *)op)->recv_dt = dt_gen;
     ucg_builtin_op_step_t *step = &((ucg_builtin_op_t *)op)->steps[0];
@@ -166,7 +179,7 @@ TEST_F(ucg_cb_test, test_op_cb_init) {
     delete dt_gen;
 }
 
-TEST_F(ucg_cb_test, test_op_cb_final) {
+UCS_TEST_F(test_ucg_cb, test_op_cb_final) {
     ucg_group_h group = create_group();
     ucg_collective_params_t *params = create_allreduce_params();
     ucg_plan_t *plan = create_plan(1, params, group);
@@ -244,7 +257,7 @@ TEST_F(ucg_cb_test, test_op_cb_final) {
     delete dt_gen;
 }
 
-TEST_F(ucg_cb_test, test_send_cb) {
+UCS_TEST_F(test_ucg_cb, test_send_cb) {
     ucg_builtin_plan_phase_t *phase = create_phase(UCG_PLAN_METHOD_SEND_TERMINAL);
     unsigned extra_flags = 0;
     unsigned base_am_id = 0;
@@ -272,7 +285,7 @@ TEST_F(ucg_cb_test, test_send_cb) {
     ASSERT_EQ(recv_buf[1], send_buf[0]);
 }
 
-TEST_F(ucg_cb_test, test_recv_cb_recv_one) {
+UCS_TEST_F(test_ucg_cb, test_recv_cb_recv_one) {
     ucg_builtin_plan_phase_t *phase = create_phase(UCG_PLAN_METHOD_RECV_TERMINAL);
     unsigned extra_flags = UCG_BUILTIN_OP_STEP_FLAG_LAST_STEP;
     unsigned base_am_id = 0;
@@ -334,7 +347,7 @@ TEST_F(ucg_cb_test, test_recv_cb_recv_one) {
     delete dt_gen;
 }
 
-TEST_F(ucg_cb_test, test_recv_cb_recv_many) {
+UCS_TEST_F(test_ucg_cb, test_recv_cb_recv_many) {
     ucg_builtin_plan_phase_t *phase = create_phase(UCG_PLAN_METHOD_RECV_TERMINAL);
     unsigned extra_flags = UCG_BUILTIN_OP_STEP_FLAG_LAST_STEP;
     unsigned base_am_id = 0;
@@ -422,7 +435,7 @@ TEST_F(ucg_cb_test, test_recv_cb_recv_many) {
     delete dt_gen;
 }
 
-TEST_F(ucg_cb_test, test_recv_cb_reduce_one) {
+UCS_TEST_F(test_ucg_cb, test_recv_cb_reduce_one) {
     ucg_builtin_plan_phase_t *phase = create_phase(UCG_PLAN_METHOD_RECV_TERMINAL);
     unsigned extra_flags = UCG_BUILTIN_OP_STEP_FLAG_LAST_STEP;
     unsigned base_am_id = 0;
@@ -459,7 +472,7 @@ TEST_F(ucg_cb_test, test_recv_cb_reduce_one) {
     ASSERT_EQ(1, ret_int);
 }
 
-TEST_F(ucg_cb_test, test_recv_cb_reduce_many) {
+UCS_TEST_F(test_ucg_cb, test_recv_cb_reduce_many) {
     ucg_builtin_plan_phase_t *phase = create_phase(UCG_PLAN_METHOD_RECV_TERMINAL);
     unsigned extra_flags = UCG_BUILTIN_OP_STEP_FLAG_LAST_STEP;
     unsigned base_am_id = 0;
@@ -511,7 +524,7 @@ TEST_F(ucg_cb_test, test_recv_cb_reduce_many) {
     ASSERT_EQ(1, ret_int);
 }
 
-TEST_F(ucg_cb_test, test_recv_cb_reduce_full) {
+UCS_TEST_F(test_ucg_cb, test_recv_cb_reduce_full) {
     ucg_builtin_plan_phase_t *phase = create_phase(UCG_PLAN_METHOD_RECV_TERMINAL);
     unsigned extra_flags = UCG_BUILTIN_OP_STEP_FLAG_LAST_STEP;
     unsigned base_am_id = 0;
@@ -557,7 +570,7 @@ TEST_F(ucg_cb_test, test_recv_cb_reduce_full) {
     }
 }
 
-TEST_F(ucg_cb_test, test_recv_cb_wait) {
+UCS_TEST_F(test_ucg_cb, test_recv_cb_wait) {
     ucg_builtin_plan_phase_t *phase = create_phase(UCG_PLAN_METHOD_RECV_TERMINAL);
     unsigned extra_flags = UCG_BUILTIN_OP_STEP_FLAG_LAST_STEP;
     unsigned base_am_id = 0;
@@ -594,7 +607,7 @@ TEST_F(ucg_cb_test, test_recv_cb_wait) {
     ASSERT_EQ(1, ret_int);
 }
 
-TEST_F(ucg_cb_test, test_recv_cb_last_barrier) {
+UCS_TEST_F(test_ucg_cb, test_recv_cb_last_barrier) {
     ucg_builtin_plan_phase_t *phase = create_phase(UCG_PLAN_METHOD_RECV_TERMINAL);
     unsigned extra_flags = UCG_BUILTIN_OP_STEP_FLAG_LAST_STEP;
     unsigned base_am_id = 0;
@@ -632,7 +645,7 @@ TEST_F(ucg_cb_test, test_recv_cb_last_barrier) {
     ASSERT_EQ(1, ret_int);
 }
 
-TEST_F(ucg_cb_test, test_zcopy_step_check_cb) {
+UCS_TEST_F(test_ucg_cb, test_zcopy_step_check_cb) {
     ucg_builtin_plan_phase_t *phase = create_phase(UCG_PLAN_METHOD_RECV_TERMINAL);
     unsigned extra_flags = UCG_BUILTIN_OP_STEP_FLAG_LAST_STEP;
     unsigned base_am_id = 0;
@@ -663,7 +676,7 @@ TEST_F(ucg_cb_test, test_zcopy_step_check_cb) {
     ucg_builtin_step_am_zcopy_comp_step_check_cb(self, UCS_OK);
 }
 
-TEST_F(ucg_cb_test, test_zcopy_prep) {
+UCS_TEST_F(test_ucg_cb, test_zcopy_prep) {
     ucg_builtin_plan_phase_t *phase = create_phase(UCG_PLAN_METHOD_RECV_TERMINAL);
     unsigned extra_flags = UCG_BUILTIN_OP_STEP_FLAG_LAST_STEP;
     unsigned base_am_id = 0;
@@ -684,7 +697,7 @@ TEST_F(ucg_cb_test, test_zcopy_prep) {
     ASSERT_EQ(UCS_OK, ret);
 }
 
-TEST_F(ucg_cb_test, test_bcopy_to_zcopy) {
+UCS_TEST_F(test_ucg_cb, test_bcopy_to_zcopy) {
     ucg_builtin_plan_phase_t *phase = create_phase(UCG_PLAN_METHOD_RECV_TERMINAL);
     unsigned extra_flags = UCG_BUILTIN_OP_STEP_FLAG_LAST_STEP | UCG_BUILTIN_OP_STEP_FLAG_SEND_AM_BCOPY;
     unsigned base_am_id = 0;
@@ -712,7 +725,7 @@ TEST_F(ucg_cb_test, test_bcopy_to_zcopy) {
 /**
  * Test: ucg_builtin_step_select_callbacks
  */
-TEST_F(ucg_cb_test, test_step_callback_select_termonal) {
+UCS_TEST_F(test_ucg_cb, test_step_callback_select_termonal) {
     ucg_builtin_plan_method_type method[] = {UCG_PLAN_METHOD_SEND_TERMINAL, UCG_PLAN_METHOD_RECV_TERMINAL,
                                              UCG_PLAN_METHOD_SCATTER_TERMINAL};
 
@@ -732,7 +745,7 @@ TEST_F(ucg_cb_test, test_step_callback_select_termonal) {
     }
 }
 
-TEST_F(ucg_cb_test, test_step_callback_select_waypoint_fanout) {
+UCS_TEST_F(test_ucg_cb, test_step_callback_select_waypoint_fanout) {
     ucg_builtin_plan_method_type method[] = {UCG_PLAN_METHOD_BCAST_WAYPOINT, UCG_PLAN_METHOD_SCATTER_WAYPOINT,
                                              UCG_PLAN_METHOD_GATHER_WAYPOINT};
 
@@ -756,7 +769,7 @@ TEST_F(ucg_cb_test, test_step_callback_select_waypoint_fanout) {
     }
 }
 
-TEST_F(ucg_cb_test, test_step_callback_select_reduce) {
+UCS_TEST_F(test_ucg_cb, test_step_callback_select_reduce) {
     ucg_builtin_plan_method_type method[] = {UCG_PLAN_METHOD_REDUCE_TERMINAL, UCG_PLAN_METHOD_REDUCE_RECURSIVE,
                                              UCG_PLAN_METHOD_REDUCE_WAYPOINT};
 
@@ -777,7 +790,7 @@ TEST_F(ucg_cb_test, test_step_callback_select_reduce) {
     }
 }
 
-TEST_F(ucg_cb_test, test_step_callback_select_nonzero) {
+UCS_TEST_F(test_ucg_cb, test_step_callback_select_nonzero) {
     ucg_builtin_plan_method_type method[] = {UCG_PLAN_METHOD_ALLGATHER_RECURSIVE,
                                              UCG_PLAN_METHOD_REDUCE_SCATTER_RING};
 
@@ -794,7 +807,7 @@ TEST_F(ucg_cb_test, test_step_callback_select_nonzero) {
     }
 }
 
-TEST_F(ucg_cb_test, test_step_callback_select_barrier) {
+UCS_TEST_F(test_ucg_cb, test_step_callback_select_barrier) {
     ucg_builtin_plan_phase_t *phase = create_phase(UCG_PLAN_METHOD_ALLGATHER_RING);
     ucg_builtin_comp_recv_cb_t *recv_cb = new ucg_builtin_comp_recv_cb_t();
     int nonzero_length = 0;
@@ -811,7 +824,7 @@ TEST_F(ucg_cb_test, test_step_callback_select_barrier) {
 /**
  * Test: ucg_builtin_op_select_callback
  */
-TEST_F(ucg_cb_test, test_op_collback_select) {
+UCS_TEST_F(test_ucg_cb, test_op_collback_select) {
     ucg_builtin_plan_method_type method[] = {UCG_PLAN_METHOD_SEND_TERMINAL, UCG_PLAN_METHOD_RECV_TERMINAL,
                                              UCG_PLAN_METHOD_BCAST_WAYPOINT, UCG_PLAN_METHOD_GATHER_WAYPOINT,
                                              UCG_PLAN_METHOD_SCATTER_TERMINAL, UCG_PLAN_METHOD_SCATTER_WAYPOINT,
@@ -837,7 +850,7 @@ TEST_F(ucg_cb_test, test_op_collback_select) {
 /**
  * Test: ucg_builtin_op_consider_optimization
  */
-TEST_F(ucg_cb_test, test_op_consider_optimization) {
+UCS_TEST_F(test_ucg_cb, test_op_consider_optimization) {
     ucg_group_h group = create_group();
     ucg_collective_params_t *params = create_bcast_params();
     ucg_plan_t *plan = create_plan(1, params, group);

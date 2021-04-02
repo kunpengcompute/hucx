@@ -8,7 +8,7 @@
 
 using namespace std;
 
-TEST_F(ucg_test, select_plan_component) {
+UCS_TEST_F(ucg_test, select_plan_component) {
     vector<ucg_rank_info> all_rank_infos;
 
     m_resource_factory->create_balanced_rank_info(all_rank_infos, 4, 8);
@@ -29,7 +29,7 @@ TEST_F(ucg_test, select_plan_component) {
     all_rank_infos.clear();
 }
 
-TEST_F(ucg_test, create_plan) {
+UCS_TEST_F(ucg_test, create_plan) {
     // vector<ucg_rank_info> all_rank_infos = m_resource_factory->create_balanced_rank_info(4,8);
     // ucg_group_h group = m_resource_factory->create_group(all_rank_infos[0],all_rank_infos,m_ucg_worker);
     // ucg_collective_params_t *params = create_allreduce_params();
@@ -43,7 +43,7 @@ TEST_F(ucg_test, create_plan) {
     // ASSERT_TRUE(plan!=NULL);
 }
 
-TEST_F(ucg_test, create_plan_component) {
+UCS_TEST_F(ucg_test, create_plan_component) {
     vector<ucg_rank_info> all_rank_infos;
 
     m_resource_factory->create_balanced_rank_info(all_rank_infos, 4, 8);
@@ -61,7 +61,7 @@ TEST_F(ucg_test, create_plan_component) {
     all_rank_infos.clear();
 }
 
-TEST_F(ucg_test, destroy_group) {
+UCS_TEST_F(ucg_test, destroy_group) {
     vector<ucg_rank_info> all_rank_infos;
 
     m_resource_factory->create_balanced_rank_info(all_rank_infos, 4, 8);
@@ -75,7 +75,7 @@ TEST_F(ucg_test, destroy_group) {
     all_rank_infos.clear();
 }
 
-TEST_F(ucg_test, progress_group) {
+UCS_TEST_F(ucg_test, progress_group) {
     vector<ucg_rank_info> all_rank_infos;
 
     m_resource_factory->create_balanced_rank_info(all_rank_infos, 4, 8);
@@ -91,7 +91,7 @@ TEST_F(ucg_test, progress_group) {
     all_rank_infos.clear();
 }
 
-TEST_F(ucg_test, query_plan) {
+UCS_TEST_F(ucg_test, query_plan) {
     ucg_plan_desc_t *planners;
     unsigned num_plans;
     ucs_status_t ret = ucg_builtin_component.query(0, &planners, &num_plans);

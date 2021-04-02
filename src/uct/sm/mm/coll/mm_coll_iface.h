@@ -46,11 +46,11 @@ typedef struct uct_mm_coll_fifo_element {
                     (_iface)->super.super.recv_fifo_elems, _index), \
                     uct_mm_coll_fifo_element_t, super)
 
-#define UCT_MM_COLL_BCAST_EP_DUMMY(_name, _bcast_iface) \
+#define UCT_MM_COLL_EP_DUMMY(_name, _iface) \
     uct_mm_coll_ep_t _name = { \
-        .proc_cnt   = (_bcast_iface)->super.sm_proc_cnt - 1, \
-        .elem_size  = (_bcast_iface)->super.super.config.fifo_elem_size, \
-        .seg_size   = (_bcast_iface)->super.super.config.seg_size \
+        .proc_cnt   = (_iface)->super.sm_proc_cnt - 1, \
+        .elem_size  = (_iface)->super.super.config.fifo_elem_size, \
+        .seg_size   = (_iface)->super.super.config.seg_size \
     }
 
 #define UCT_MM_INCAST_IFACE_CB_NAME(_method, _operator, _operand, _cnt) \
@@ -82,6 +82,10 @@ UCT_MM_INCAST_IFACE_CB_DECL_BY_CNT(16)
 
 #define UCT_INCAST_MAX_COUNT_SUPPORTED (17)
 
+extern uct_incast_cb_t uct_mm_incast_ep_callback_func_arr
+    [UCT_INCAST_OPERATOR_LAST]
+    [UCT_INCAST_OPERAND_LAST]
+    [UCT_INCAST_MAX_COUNT_SUPPORTED];
 extern typeof(uct_ep_am_short_func_t) uct_mm_incast_ep_am_short_func_arr
     [UCT_INCAST_OPERATOR_LAST]
     [UCT_INCAST_OPERAND_LAST]
@@ -153,9 +157,11 @@ int uct_mm_coll_iface_is_reachable(const uct_iface_h tl_iface,
                                    const uct_device_addr_t *dev_addr,
                                    const uct_iface_addr_t *tl_iface_addr);
 
-void uct_mm_coll_ep_centralized_reset_bcast_elem(uct_mm_coll_fifo_element_t* elem,
-                                                 uct_mm_coll_ep_t *ep,
-                                                 int is_short);
+void uct_mm_coll_ep_centralized_reset_elem(uct_mm_coll_fifo_element_t* elem,
+                                           uct_mm_coll_ep_t *ep,
+                                           int is_short, int is_incast);
+
+void uct_mm_coll_ep_centralized_reset_incast_desc(uct_mm_coll_fifo_element_t* elem);
 
 unsigned uct_mm_bcast_iface_progress(uct_iface_h tl_iface);
 

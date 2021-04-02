@@ -313,6 +313,8 @@ uct_mm_iface_fifo_has_new_data(uct_mm_fifo_check_t *check_info,
         return 0;
     }
 
+    ucs_memory_cpu_load_fence();
+
     return 1;
 }
 

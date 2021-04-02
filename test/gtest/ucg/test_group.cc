@@ -46,7 +46,7 @@ TEST_F(ucg_group_test, test_group_destroy) {
     //ASSERT_TRUE(true);
 }
 
-TEST_F(ucg_group_test, test_group_progress) {
+UCS_TEST_P(ucg_group_test, test_group_progress) {
     ucg_group_h group;
     ucs_status_t retS = ucg_group_create(m_ucg_worker, m_params, &group);
     EXPECT_EQ(UCS_OK, retS);
@@ -57,3 +57,5 @@ TEST_F(ucg_group_test, test_group_progress) {
     cout << "ucg_group_progress return: " << retU << endl;
     ASSERT_TRUE(true) << "ucg_group_progress return " << retU;
 }
+
+UCG_INSTANTIATE_TEST_CASE(test_ucg_version)

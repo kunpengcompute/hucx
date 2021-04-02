@@ -12,35 +12,7 @@
 
 #define UNCHANGED    ((int)-1)
 
-class test_ucg_coll_base : public ucg_test {
-public:
-    static ucg_params_t get_ucg_ctx_params() {
-        ucg_params_t ucg_params = ucg_test::get_ucg_ctx_params();
-
-        ucg_params.field_mask |= UCG_PARAM_FIELD_ADDRESS_CB   |
-                                 UCG_PARAM_FIELD_NEIGHBORS_CB |
-                                 UCG_PARAM_FIELD_DATATYPE_CB  |
-                                 UCG_PARAM_FIELD_REDUCE_OP_CB |
-                                 UCG_PARAM_FIELD_MPI_IN_PLACE |
-                                 UCG_PARAM_FIELD_HANDLE_FAULT;
-        return ucg_params;
-    }
-
-    static ucp_params_t get_ucp_ctx_params() {
-        ucp_params_t ucp_params = ucg_test::get_ucp_ctx_params();
-
-        return ucp_params;
-    }
-
-    virtual void create_comms(ucg_group_member_index_t group_size) {
-        ucg_group_member_index_t member_idx;
-        for (member_idx = 0; member_idx < group_size; member_idx++) {
-            get_rank(member_idx).groupify(comm(), get_group_params(member_idx));
-        }
-    }
-};
-
-class test_ucg_coll : public test_ucg_coll_base {
+class test_ucg_coll : public test_ucg_group_base {
 public:
     int *m_send_buffer;
     int *m_recv_buffer;

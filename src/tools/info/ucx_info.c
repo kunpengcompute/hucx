@@ -50,7 +50,7 @@ static void usage() {
 #if ENABLE_UCG
     printf("\nUCG information:\n");
     printf("  -g              Show UCG information\n");
-    printf("  -P <planner>    UCG Planner component to use\n");
+    printf("  -Q <planner>    UCG Planner component to use\n");
     printf("  -C <coll_type>  UCG Collective operation type to plan (default: allreduce)\n");
     printf("  -S <size>       UCG Collective operation buffer size  (a.k.a \"count\", default: 1)\n");
     printf("  -I <index>      UCG Group index to use as mine (a.k.a \"rank\", default: 0)\n");
@@ -127,7 +127,7 @@ int main(int argc, char **argv)
     proc_placement           = PROCESS_PLACEMENT_SELF;
     ucp_ep_params.field_mask = 0;
 
-    while ((c = getopt(argc, argv, "fahvcydbswpegCt:n:u:D:P:m:N:A:P:T:Q:C:I:S:r:R:")) != -1) {
+    while ((c = getopt(argc, argv, "fahvcydbswpegCt:n:u:D:P:m:N:A:P:T:Q:C:G:I:S:r:R:")) != -1) {
         switch (c) {
         case 'f':
             print_flags |= UCS_CONFIG_PRINT_CONFIG | UCS_CONFIG_PRINT_HEADER | UCS_CONFIG_PRINT_DOC;
@@ -180,7 +180,7 @@ int main(int argc, char **argv)
         case 'r':
             root_index = atol(optarg);
             break;
-        case 'C':
+        case 'G':
             collective_type_name = optarg;
             break;
         case 'T':

@@ -7,7 +7,7 @@
 
 using namespace std;
 
-class ucg_context_test : public ucg_test {
+class test_ucg_context : public ucg_test {
 public:
     static ucg_params_t get_ctx_params() {
         ucg_params_t params = get_ctx_params_inner();
@@ -24,7 +24,7 @@ protected:
     }
 };
 
-TEST(ucg_context_test, minimal_field_mask) {
+UCS_TEST_F(test_ucg_context, minimal_field_mask) {
     ucs::handle<ucg_config_t *> config;
     UCS_TEST_CREATE_HANDLE(ucg_config_t *, config, ucg_config_release,
                            ucg_config_read, NULL, NULL);
@@ -55,10 +55,10 @@ TEST(ucg_context_test, minimal_field_mask) {
 }
 
 
-class ucg_version_test : public ucg_context_test {
+class test_ucg_version : public test_ucg_context {
 };
 
-TEST_F(ucg_version_test, test_wrong_api_version) {
+UCS_TEST_F(ucg_version_test, test_wrong_api_version) {
     ucs::handle<ucg_config_t *> config;
     UCS_TEST_CREATE_HANDLE(ucg_config_t *, config, ucg_config_release,
                            ucg_config_read, NULL, NULL);
@@ -77,7 +77,7 @@ TEST_F(ucg_version_test, test_wrong_api_version) {
     }
 }
 
-TEST_F(ucg_version_test, test_version) {
+UCS_TEST_F(test_ucg_version, test_version) {
     char buffer[256];
     snprintf(buffer, sizeof(buffer), "%d.%d.%d", UCG_API_MAJOR, UCG_API_MINOR, 0);
 
@@ -85,7 +85,7 @@ TEST_F(ucg_version_test, test_version) {
     cout << "Ucg version : " << UCG_API_VERSION << endl;
 }
 
-TEST_F(ucg_version_test, test_version_string) {
+UCS_TEST_F(test_ucg_version, test_version_string) {
     unsigned major_version, minor_version, release_number;
 
     ucg_get_version(&major_version, &minor_version, &release_number);
@@ -98,4 +98,3 @@ TEST_F(ucg_version_test, test_version_string) {
 
     EXPECT_EQ(std::string(buffer), std::string(ucg_get_version_string()));
 }
-

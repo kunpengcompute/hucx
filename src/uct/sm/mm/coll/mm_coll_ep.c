@@ -12,35 +12,48 @@
         ((uct_mm_coll_fifo_element_t*)((char*)(_ep)->super.fifo_elems + \
                 (((_index) & (_ep)->fifo_mask) * (_ep)->elem_size)))
 
-#define UCT_MM_COLL_GET_BASE_ADDRESS(_is_short, _is_batch, _elem, _ep, \
-                                     _is_loopback, _is_recv, _stride) \
-({ \
-    uint8_t *ret_address; \
-    if (_is_short) { \
-        ret_address = (uint8_t*)((_elem) + 1); \
-    } else { \
-        if (_is_loopback) { \
-            ret_address = (_elem)->super.desc_data; \
-        } else { \
-            ucs_status_t status = uct_mm_ep_get_remote_seg(&(_ep)->super, \
-                    (_elem)->super.desc.seg_id, (_elem)->super.desc.seg_size, \
-                    (void**)&ret_address); \
-            if (ucs_unlikely(status != UCS_OK)) { \
-                return status; \
-            } \
-            VALGRIND_MAKE_MEM_DEFINED(ret_address, \
-                                      (_elem)->super.desc.seg_size); \
-            ret_address += (_elem)->super.desc.offset; \
-        } \
-    } \
-    if ((_is_batch) && (!_is_loopback) && (!_is_recv)) { \
-        ret_address += (_ep)->my_offset * (_stride); \
-        ucs_assert(((_ep)->my_offset * (_stride)) < (_is_short ? \
-                ((_ep)->elem_size - sizeof(uct_mm_coll_fifo_element_t)) : \
-                (_ep)->seg_size)); \
-    } \
-    ret_address; \
-})
+static ucs_status_t UCS_F_ALWAYS_INLINE
+uct_mm_coll_get_base_address(int is_short, int is_batch,
+                             uct_mm_coll_fifo_element_t *elem,
+                             uct_mm_coll_ep_t *ep, int is_loopback, int is_recv,
+                             size_t stride, uint8_t **base_address)
+{
+    void *ret_address;
+    ucs_status_t status;
+
+    if (is_short) {
+        ret_address = (uint8_t*)(elem + 1);
+    } else {
+        if (is_loopback) {
+            ret_address = elem->super.desc_data;
+        } else {
+            status = uct_mm_ep_get_remote_seg(&ep->super,
+                                              elem->super.desc.seg_id,
+                                              elem->super.desc.seg_size,
+                                              &ret_address);
+            if (ucs_unlikely(status != UCS_OK)) {
+                return status;
+            }
+
+            ret_address = UCS_PTR_BYTE_OFFSET(ret_address,
+                                              elem->super.desc.offset);
+        }
+
+        VALGRIND_MAKE_MEM_DEFINED(ret_address, elem->super.desc.seg_size -
+                                               elem->super.desc.offset);
+    }
+
+    if ((is_batch) && (!is_loopback) && (!is_recv)) {
+        ret_address = UCS_PTR_BYTE_OFFSET(ret_address, ep->my_offset * stride);
+        ucs_assert((ep->my_offset * stride) < (is_short ?
+                   (ep->elem_size - sizeof(uct_mm_coll_fifo_element_t)) :
+                   ep->seg_size));
+    }
+
+    *base_address = ret_address;
+
+    return UCS_OK;
+}
 
 static UCS_F_ALWAYS_INLINE uint8_t
 uct_mm_coll_ep_centralized_check_buffer(uint8_t *slot_ptr, unsigned slot_size)
@@ -66,20 +79,20 @@ uct_mm_coll_ep_centralized_check_buffer(uint8_t *slot_ptr, unsigned slot_size)
      * slot is reserved - and is always empty.
      */
 
-    /* prevent the pending from pointing to a zero-ed slot */
-    ucs_memory_cpu_store_fence();
-
     return pending_counter;
 }
 
 static UCS_F_ALWAYS_INLINE void
 uct_mm_coll_iface_centralized_set_slot_counter(uint8_t *slot_ptr,
                                                unsigned slot_size,
-                                               uint8_t new_counter_value)
+                                               uint8_t new_counter_value,
+                                               int is_init)
 {
     uint8_t *slot_counter = slot_ptr + slot_size - 1;
 
-    ucs_assert(*slot_counter == 0);
+    ucs_assert(is_init || (*slot_counter == 0));
+
+    ucs_memory_cpu_store_fence();
 
     *slot_counter = new_counter_value;
 
@@ -121,10 +134,9 @@ uct_mm_coll_iface_centralized_get_ptr(uct_mm_coll_fifo_element_t *elem,
                                       int is_loopback,
                                       uint8_t **base_address)
 {
-    *base_address = UCT_MM_COLL_GET_BASE_ADDRESS(is_short, 1 /* _is_batch */,
-            elem, ep, is_loopback, 1 /* _is_recv */, 0 /* _stride */);
-
-    return UCS_OK;
+    return uct_mm_coll_get_base_address(is_short, 1 /* _is_batch */, elem, ep,
+                                        is_loopback, 1 /* _is_recv */,
+                                        0 /* _stride */, base_address);
 }
 
 static UCS_F_ALWAYS_INLINE uint8_t*
@@ -150,27 +162,44 @@ uct_mm_coll_ep_centralized_mark_done(uct_mm_coll_fifo_element_t *elem,
                                      uct_mm_coll_ep_t *ep,
                                      uint8_t *slot_ptr,
                                      unsigned slot_size,
-                                     uct_incast_cb_t cb)
+                                     int use_cb, uct_incast_cb_t cb,
+                                     const void *payload,
+                                     size_t length)
 {
-    uint8_t* next_slot = slot_ptr + slot_size;
+    uint8_t *next_slot = slot_ptr + slot_size;
     uint8_t my_offset  = ep->my_offset;
-    uint8_t cnt        = uct_mm_coll_ep_centralized_check_buffer(next_slot,
-                                                                 slot_size);
 
-    ucs_memory_cpu_store_fence();
+    ucs_memory_cpu_load_fence();
+
+    uint8_t cnt = uct_mm_coll_ep_centralized_check_buffer(next_slot, slot_size);
 
     ucs_assert(elem->pending <= my_offset);
     if (ucs_likely(elem->pending == my_offset)) {
         ucs_assert(slot_ptr[slot_size - 1] == 0);
 
         /* If enabled - reduce my data into the next data available */
-        if ((cb) && (cnt)) {
-            cb(slot_ptr + (cnt * slot_size), slot_ptr);
+        if (use_cb) {
+            if (cnt) {
+                if (payload == NULL) {
+                    payload = slot_ptr + sizeof(uint64_t);
+                }
+
+                cb(slot_ptr + (cnt * slot_size) + sizeof(uint64_t), payload);
+            } else if (payload != NULL) {
+                memcpy(slot_ptr, payload, length);
+            }
         }
+
+        ucs_memory_cpu_store_fence();
 
         elem->pending = my_offset + cnt + 1;
     } else {
-        uct_mm_coll_iface_centralized_set_slot_counter(slot_ptr, slot_size, cnt + 1);
+        if (use_cb && (payload != NULL)) {
+            memcpy(slot_ptr, payload, length);
+        }
+
+        uct_mm_coll_iface_centralized_set_slot_counter(slot_ptr, slot_size,
+                                                       cnt + 1, 0);
     }
 }
 
@@ -179,9 +208,12 @@ uct_mm_coll_ep_centralized_mark_incast_tx_done(uct_mm_coll_fifo_element_t *elem,
                                                uct_mm_coll_ep_t *ep,
                                                uint8_t *slot_ptr,
                                                unsigned slot_size,
-                                               uct_incast_cb_t cb)
+                                               int use_cb, uct_incast_cb_t cb,
+                                               const void *payload,
+                                               size_t length)
 {
-    uct_mm_coll_ep_centralized_mark_done(elem, ep, slot_ptr, slot_size, cb);
+    uct_mm_coll_ep_centralized_mark_done(elem, ep, slot_ptr, slot_size,
+                                         use_cb, cb, payload, length);
 }
 
 static UCS_F_ALWAYS_INLINE void
@@ -194,7 +226,8 @@ uct_mm_coll_ep_centralized_mark_bcast_rx_done(uct_mm_coll_fifo_element_t *elem,
                                                                ep->my_offset);
 
     uct_mm_coll_ep_centralized_mark_done(elem, ep, slot_ptr,
-                                         UCS_SYS_CACHE_LINE_SIZE, NULL);
+                                         UCS_SYS_CACHE_LINE_SIZE,
+                                         0, NULL, NULL, 0);
 
     /*
      * Note: no use calling uct_mm_progress_fifo_tail() here, as it is unlikely
@@ -253,19 +286,21 @@ is_ready:
     return 1;
 }
 
-void uct_mm_coll_ep_centralized_reset_bcast_elem(uct_mm_coll_fifo_element_t* elem,
-                                                 uct_mm_coll_ep_t *ep,
-                                                 int is_short)
+void uct_mm_coll_ep_centralized_reset_elem(uct_mm_coll_fifo_element_t* elem,
+                                           uct_mm_coll_ep_t *ep,
+                                           int is_short, int is_incast)
 {
     uint8_t  slot_idx;
     uint8_t  slot_cnt = ep->proc_cnt;
-    uint8_t* slot_ptr = uct_mm_coll_iface_centralized_get_slot(elem, ep, 0,
-                                                               is_short, 1,
-                                                               0, 0);
+    size_t   slot_len = uct_mm_coll_iface_centralized_get_slot_size(ep, 0,
+                                                                    is_short);
+    uint8_t *slot_ptr = uct_mm_coll_iface_centralized_get_slot(elem, ep,
+                                                               is_incast,
+                                                               is_short,
+                                                               1, 0, 0);
 
-    for (slot_idx = 0; slot_idx < slot_cnt; slot_idx++) {
-        slot_ptr[UCS_SYS_CACHE_LINE_SIZE - 1] = 0;
-        slot_ptr += UCS_SYS_CACHE_LINE_SIZE;
+    for (slot_idx = 0; slot_idx < slot_cnt; slot_idx++, slot_ptr += slot_len) {
+        uct_mm_coll_iface_centralized_set_slot_counter(slot_ptr, slot_len, 0, 1);
     }
 }
 
@@ -377,10 +412,12 @@ uct_mm_coll_ep_am_common_send(uct_coll_dtype_mode_t op_mode, int is_bcast,
                               size_t length, uint64_t header,
                               const void *payload, uct_pack_callback_t pack_cb,
                               void *arg, unsigned flags, int is_centralized,
-                              uct_incast_cb_t cb)
+                              int use_cb, uct_incast_cb_t cb)
 {
     uct_mm_coll_iface_t *iface = ucs_derived_of(tl_ep->iface, uct_mm_coll_iface_t);
     uct_mm_coll_ep_t *ep       = ucs_derived_of(tl_ep, uct_mm_coll_ep_t);
+    ucs_status_t status;
+    uint8_t *base_address;
     uint8_t elem_flags;
 
     /* Sanity checks */
@@ -423,10 +460,12 @@ uct_mm_coll_ep_am_common_send(uct_coll_dtype_mode_t op_mode, int is_bcast,
     uct_mm_coll_fifo_element_t *elem = ep->tx_elem;
 
     /* Write the buffer (or reduce onto an existing buffer) */
-    uint8_t *base_address = UCT_MM_COLL_GET_BASE_ADDRESS(is_short, is_batched,
-                                                         elem, ep, is_bcast,
-                                                         0 /* _is_recv */,
-                                                         stride);
+    status = uct_mm_coll_get_base_address(is_short, is_batched, elem, ep,
+                                          is_bcast, 0 /* _is_recv */, stride,
+                                          &base_address);
+    if (ucs_unlikely(status != UCS_OK)) {
+        return status;
+    }
 
     uint32_t previous_pending = 0;
     int is_lock_needed = !is_short && !is_bcast && (flags & UCT_SEND_FLAG_PACK_LOCK);
@@ -436,8 +475,11 @@ uct_mm_coll_ep_am_common_send(uct_coll_dtype_mode_t op_mode, int is_bcast,
     }
 
     if (is_short) {
-        /* Last writer writes the header too, the rest - only payload */
-        memcpy(base_address, payload, length);
+        if (!use_cb) {
+            memcpy(base_address, payload, length);
+        } else {
+            ucs_assert(is_batched && is_centralized);
+        }
     } else {
         /* For some reduce operations - ask the callback to do the reduction */
         if (!is_bcast &&
@@ -449,6 +491,13 @@ uct_mm_coll_ep_am_common_send(uct_coll_dtype_mode_t op_mode, int is_bcast,
 
         /* Write the portion of this process into the shared buffer */
         length = pack_cb(base_address, arg);
+
+        if (use_cb) {
+            payload = NULL;
+        }
+
+        ucs_assert(length > sizeof(header));
+        ucs_assert(*(uint64_t*)base_address != 0);
     }
 
     /* No need to mess with coordination if I'm the only writer (broadcast) */
@@ -462,9 +511,11 @@ uct_mm_coll_ep_am_common_send(uct_coll_dtype_mode_t op_mode, int is_bcast,
         if (is_centralized) {
             uct_mm_coll_ep_centralized_mark_incast_tx_done(elem, ep,
                                                            base_address,
-                                                           stride, cb);
+                                                           stride, use_cb, cb,
+                                                           payload, length);
         } else {
-            uct_mm_coll_iface_centralized_set_slot_counter(base_address, stride, 1);
+            uct_mm_coll_iface_centralized_set_slot_counter(base_address, stride,
+                                                           1, 0);
         }
 
         /*
@@ -502,8 +553,8 @@ last_writer:
          * The owner bit flips after every FIFO wrap-around */
         elem_flags = (head & fifo_size) && UCT_MM_FIFO_ELEM_FLAG_OWNER;
         if (is_short) {
-            elem_flags    |= UCT_MM_FIFO_ELEM_FLAG_INLINE;
-            elem->header   = header;
+            elem_flags  |= UCT_MM_FIFO_ELEM_FLAG_INLINE;
+            elem->header = header;
         }
         elem->op_mode      = op_mode;
         elem->super.am_id  = am_id;
@@ -561,7 +612,7 @@ trace_send:
 static UCS_F_ALWAYS_INLINE ucs_status_t
 uct_mm_coll_ep_am_short(uct_ep_h ep, uint8_t id, uint64_t header,
                         const void *payload, unsigned length, int is_bcast,
-                        int is_centralized, uct_incast_cb_t cb)
+                        int is_centralized, int use_cb, uct_incast_cb_t cb)
 {
     unsigned orig_length          = UCT_COLL_DTYPE_MODE_UNPACK_VALUE(length);
     uct_coll_dtype_mode_t op_mode = UCT_COLL_DTYPE_MODE_UNPACK_MODE(length);
@@ -570,7 +621,7 @@ uct_mm_coll_ep_am_short(uct_ep_h ep, uint8_t id, uint64_t header,
                (op_mode == UCT_COLL_DTYPE_MODE_PACKED));
 
     ssize_t ret = uct_mm_coll_ep_am_common_send(op_mode, is_bcast, 1, ep, id,
-        orig_length, header, payload, NULL, NULL, 0, is_centralized, cb);
+        orig_length, header, payload, NULL, NULL, 0, is_centralized, use_cb, cb);
 
     return (ret > 0) ? UCS_OK : (ucs_status_t)ret;
 }
@@ -581,7 +632,7 @@ ucs_status_t uct_mm_bcast_ep_am_short_batched(uct_ep_h ep,
                                               const void *payload,
                                               unsigned length)
 {
-    return uct_mm_coll_ep_am_short(ep, id, header, payload, length, 1, 0, NULL);
+    return uct_mm_coll_ep_am_short(ep, id, header, payload, length, 1, 0, 0, NULL);
 }
 
 ucs_status_t uct_mm_bcast_ep_am_short_centralized(uct_ep_h ep,
@@ -590,7 +641,7 @@ ucs_status_t uct_mm_bcast_ep_am_short_centralized(uct_ep_h ep,
                                                   const void *payload,
                                                   unsigned length)
 {
-    return uct_mm_coll_ep_am_short(ep, id, header, payload, length, 1, 1, NULL);
+    return uct_mm_coll_ep_am_short(ep, id, header, payload, length, 1, 1, 0, NULL);
 }
 
 ucs_status_t uct_mm_incast_ep_am_short_batched(uct_ep_h ep,
@@ -599,7 +650,7 @@ ucs_status_t uct_mm_incast_ep_am_short_batched(uct_ep_h ep,
                                                const void *payload,
                                                unsigned length)
 {
-    return uct_mm_coll_ep_am_short(ep, id, header, payload, length, 0, 0, NULL);
+    return uct_mm_coll_ep_am_short(ep, id, header, payload, length, 0, 0, 0, NULL);
 }
 
 ucs_status_t uct_mm_incast_ep_am_short_centralized(uct_ep_h ep,
@@ -608,7 +659,7 @@ ucs_status_t uct_mm_incast_ep_am_short_centralized(uct_ep_h ep,
                                                    const void *payload,
                                                    unsigned length)
 {
-    return uct_mm_coll_ep_am_short(ep, id, header, payload, length, 0, 1, NULL);
+    return uct_mm_coll_ep_am_short(ep, id, header, payload, length, 0, 1, 0, NULL);
 }
 
 static UCS_F_ALWAYS_INLINE
@@ -619,7 +670,7 @@ ucs_status_t uct_mm_incast_ep_am_short_centralized_cb(uct_ep_h ep,
                                                       unsigned length,
                                                       uct_incast_cb_t cb)
 {
-    return uct_mm_coll_ep_am_short(ep, id, header, payload, length, 0, 1, cb);
+    return uct_mm_coll_ep_am_short(ep, id, header, payload, length, 0, 1, 1, cb);
 }
 
 ucs_status_t uct_mm_incast_ep_am_short_centralized_ep_cb(uct_ep_h ep,
@@ -631,23 +682,22 @@ ucs_status_t uct_mm_incast_ep_am_short_centralized_ep_cb(uct_ep_h ep,
     uct_incast_cb_t cb = ucs_derived_of(ep, uct_mm_incast_ep_t)->cb;
 
     /* Note: in this case - cb would be checked to be non-zero during runtime */
-    return uct_mm_coll_ep_am_short(ep, id, header, payload, length, 0, 1, cb);
+    return uct_mm_coll_ep_am_short(ep, id, header, payload, length, 0, 1, 1, cb);
 }
 
 static UCS_F_ALWAYS_INLINE ssize_t
 uct_mm_coll_ep_am_bcopy(uct_ep_h ep, uint8_t id, uct_pack_callback_t pack_cb,
                         void *arg, unsigned flags, int is_bcast,
-                        int is_centralized, uct_incast_cb_t cb)
+                        int is_centralized, int use_cb, uct_incast_cb_t cb)
 {
     unsigned orig_flags           = UCT_COLL_DTYPE_MODE_UNPACK_VALUE(flags);
     uct_coll_dtype_mode_t op_mode = UCT_COLL_DTYPE_MODE_UNPACK_MODE(flags);
 
-    ucs_assert((op_mode == UCT_COLL_DTYPE_MODE_PADDED) ||
-               (op_mode == UCT_COLL_DTYPE_MODE_PACKED));
+    ucs_assert(op_mode == UCT_COLL_DTYPE_MODE_PADDED);
 
     ssize_t ret = uct_mm_coll_ep_am_common_send(op_mode, is_bcast, 0, ep, id, 0,
                                                 0, NULL, pack_cb, arg, orig_flags,
-                                                is_centralized, cb);
+                                                is_centralized, use_cb, cb);
 
     return ret;
 }
@@ -656,28 +706,28 @@ ssize_t uct_mm_bcast_ep_am_bcopy_batched(uct_ep_h ep, uint8_t id,
                                          uct_pack_callback_t pack_cb,
                                          void *arg, unsigned flags)
 {
-    return uct_mm_coll_ep_am_bcopy(ep, id, pack_cb, arg, flags, 1, 0, NULL);
+    return uct_mm_coll_ep_am_bcopy(ep, id, pack_cb, arg, flags, 1, 0, 0, NULL);
 }
 
 ssize_t uct_mm_bcast_ep_am_bcopy_centralized(uct_ep_h ep, uint8_t id,
                                              uct_pack_callback_t pack_cb,
                                              void *arg, unsigned flags)
 {
-    return uct_mm_coll_ep_am_bcopy(ep, id, pack_cb, arg, flags, 1, 1, NULL);
+    return uct_mm_coll_ep_am_bcopy(ep, id, pack_cb, arg, flags, 1, 1, 0, NULL);
 }
 
 ssize_t uct_mm_incast_ep_am_bcopy_batched(uct_ep_h ep, uint8_t id,
                                           uct_pack_callback_t pack_cb,
                                           void *arg, unsigned flags)
 {
-    return uct_mm_coll_ep_am_bcopy(ep, id, pack_cb, arg, flags, 0, 0, NULL);
+    return uct_mm_coll_ep_am_bcopy(ep, id, pack_cb, arg, flags, 0, 0, 0, NULL);
 }
 
 ssize_t uct_mm_incast_ep_am_bcopy_centralized(uct_ep_h ep, uint8_t id,
                                               uct_pack_callback_t pack_cb,
                                               void *arg, unsigned flags)
 {
-    return uct_mm_coll_ep_am_bcopy(ep, id, pack_cb, arg, flags, 0, 1, NULL);
+    return uct_mm_coll_ep_am_bcopy(ep, id, pack_cb, arg, flags, 0, 1, 0, NULL);
 }
 
 static UCS_F_ALWAYS_INLINE
@@ -686,7 +736,7 @@ ssize_t uct_mm_incast_ep_am_bcopy_centralized_cb(uct_ep_h ep, uint8_t id,
                                                  void *arg, unsigned flags,
                                                  uct_incast_cb_t cb)
 {
-    return uct_mm_coll_ep_am_bcopy(ep, id, pack_cb, arg, flags, 0, 1, cb);
+    return uct_mm_coll_ep_am_bcopy(ep, id, pack_cb, arg, flags, 0, 1, 1, cb);
 }
 
 ssize_t uct_mm_incast_ep_am_bcopy_centralized_ep_cb(uct_ep_h ep, uint8_t id,
@@ -696,7 +746,7 @@ ssize_t uct_mm_incast_ep_am_bcopy_centralized_ep_cb(uct_ep_h ep, uint8_t id,
     uct_incast_cb_t cb = ucs_derived_of(ep, uct_mm_incast_ep_t)->cb;
 
     /* Note: in this case - cb would be checked to be non-zero during runtime */
-    return uct_mm_coll_ep_am_bcopy(ep, id, pack_cb, arg, flags, 0, 1, cb);
+    return uct_mm_coll_ep_am_bcopy(ep, id, pack_cb, arg, flags, 0, 1, 1, cb);
 }
 
 static UCS_F_ALWAYS_INLINE ucs_status_t
@@ -717,7 +767,9 @@ uct_mm_coll_ep_am_zcopy(uct_ep_h ep, uint8_t id, const void *header,
             ucs_derived_of(ep->iface, uct_mm_coll_iface_t)->sm_proc_cnt));
 
     ssize_t ret = uct_mm_coll_ep_am_common_send(op_mode, is_bcast, 1, ep, id,
-            length, header_value, payload, NULL, offsets, orig_flags, 1, 0);
+                                                length, header_value, payload,
+                                                NULL, offsets, orig_flags, 1, 0,
+                                                NULL);
 
     return (ret > 0) ? UCS_OK : (ucs_status_t)ret;
 }
@@ -771,6 +823,7 @@ ucs_status_t uct_mm_incast_ep_am_zcopy(uct_ep_h ep, uint8_t id, const void *head
     \
     ssize_t UCT_MM_INCAST_IFACE_CB_NAME(bcopy, _operator, _operand, _cnt) \
         (uct_ep_h ep, uint8_t id, uct_pack_callback_t cb, void *a, unsigned f) { \
+        ucs_assert(_cnt != 1); \
         return uct_mm_incast_ep_am_bcopy_centralized_cb(ep, id, cb, a, f, \
             UCT_MM_INCAST_IFACE_CB_NAME(inl, _operator, _operand, _cnt)); \
     }
@@ -778,6 +831,10 @@ ucs_status_t uct_mm_incast_ep_am_zcopy(uct_ep_h ep, uint8_t id, const void *head
 #define UCT_MM_INCAST_IFACE_CB_INST_BY_OPERAND_INST(_operator, _caps1, \
                                                     _operand, _caps2, \
                                                     _cnt) \
+    uct_mm_incast_ep_callback_func_arr[UCT_INCAST_OPERATOR_##_caps1] \
+                                      [UCT_INCAST_OPERAND_##_caps2] \
+                                      [_cnt] = \
+        UCT_MM_INCAST_IFACE_CB_NAME(global, _operator, _operand, _cnt); \
     uct_mm_incast_ep_am_short_func_arr[UCT_INCAST_OPERATOR_##_caps1] \
                                       [UCT_INCAST_OPERAND_##_caps2] \
                                       [_cnt] = \
@@ -811,6 +868,10 @@ UCT_MM_INCAST_IFACE_CB_INST_BY_CNT(DECL, 8)
 UCT_MM_INCAST_IFACE_CB_INST_BY_CNT(DECL, 16)
 
 static int uct_mm_incast_ep_am_func_arr_initialized = 0;
+uct_incast_cb_t uct_mm_incast_ep_callback_func_arr
+    [UCT_INCAST_OPERATOR_LAST]
+    [UCT_INCAST_OPERAND_LAST]
+    [UCT_INCAST_MAX_COUNT_SUPPORTED] = {0};
 typeof(uct_ep_am_short_func_t) uct_mm_incast_ep_am_short_func_arr
     [UCT_INCAST_OPERATOR_LAST]
     [UCT_INCAST_OPERAND_LAST]
@@ -1043,8 +1104,12 @@ uct_mm_coll_ep_process_recv(uct_mm_coll_ep_t *ep, uct_mm_coll_iface_t *iface,
                             uct_mm_coll_fifo_element_t *elem, int is_incast,
                             int is_loopback, int use_cb, uct_incast_cb_t cb)
 {
-    /* Detect incoming message parameters */
     int am_cb_flags;
+    uint16_t stride;
+    ucs_status_t status;
+    uint8_t *base_address;
+
+    /* Detect incoming message parameters */
     int is_short           = elem->super.flags & UCT_MM_FIFO_ELEM_FLAG_INLINE;
     int is_pending_batched = (elem->op_mode == UCT_COLL_DTYPE_MODE_PADDED);
 
@@ -1056,16 +1121,17 @@ uct_mm_coll_ep_process_recv(uct_mm_coll_ep_t *ep, uct_mm_coll_iface_t *iface,
         }
     }
 
-    ucs_memory_cpu_load_fence();
-
-    uint16_t stride       = elem->super.length;
-    uint8_t *base_address = UCT_MM_COLL_GET_BASE_ADDRESS(is_short,
-                            0 /* _is_batch */, elem, ep, is_incast,
-                            1 /* _is_recv */, 0 /* _stride */);
+    stride = elem->super.length;
+    status = uct_mm_coll_get_base_address(is_short, 0 /* _is_batch */, elem, ep,
+                                          is_incast, 1 /* _is_recv */,
+                                          0 /* _stride */, &base_address);
+    if (ucs_unlikely(status != UCS_OK)) {
+        return 0;
+    }
 
     if (use_cb) {
         size_t shift  = uct_mm_coll_iface_centralized_get_slot_offset(ep,
-                            is_incast, is_short, stride, ep->proc_cnt);
+                            is_incast, is_short, stride, ep->proc_cnt - 1);
         base_address += shift - sizeof(uint64_t);
         if (is_short) {
             /* Place the header right before the resulting buffer */
@@ -1077,24 +1143,28 @@ uct_mm_coll_ep_process_recv(uct_mm_coll_ep_t *ep, uct_mm_coll_iface_t *iface,
             /* Set the callback to receive a pointer to the data itself*/
             base_address += sizeof(uint64_t);
         }
-
-        am_cb_flags = 0;
     }
 
     /* choose the flags for the Active Message callback argument */
     if (!is_short) {
         if (is_incast) {
             if (use_cb) {
-                am_cb_flags = UCT_CB_PARAM_FLAG_DESC | UCT_CB_PARAM_FLAG_SHIFTED;
+                am_cb_flags = UCT_CB_PARAM_FLAG_DESC   |
+                              UCT_CB_PARAM_FLAG_STRIDE |
+                              UCT_CB_PARAM_FLAG_SHIFTED;
             } else {
-                am_cb_flags = UCT_CB_PARAM_FLAG_DESC | UCT_CB_PARAM_FLAG_STRIDE;
+                am_cb_flags = UCT_CB_PARAM_FLAG_DESC |
+                              UCT_CB_PARAM_FLAG_STRIDE;
             }
         } else {
-            am_cb_flags     = UCT_CB_PARAM_FLAG_DESC | UCT_CB_PARAM_FLAG_SHARED;
+            am_cb_flags     = UCT_CB_PARAM_FLAG_DESC |
+                              UCT_CB_PARAM_FLAG_SHARED;
         }
-    } else if (!use_cb) {
+    } else {
         am_cb_flags         = is_incast ? UCT_CB_PARAM_FLAG_STRIDE : 0;
-        base_address       -= sizeof(elem->header);
+        if (!use_cb) {
+            base_address   -= sizeof(elem->header);
+        }
     }
 
     uct_iface_trace_am(&iface->super.super.super, UCT_AM_TRACE_TYPE_RECV,
@@ -1103,9 +1173,8 @@ uct_mm_coll_ep_process_recv(uct_mm_coll_ep_t *ep, uct_mm_coll_iface_t *iface,
 
     /* Process the incoming message using the active-message callback */
     ucs_assert(!is_incast || !is_pending_batched || (stride >= 64));
-    ucs_status_t status = uct_iface_invoke_am(&iface->super.super.super,
-                                              elem->super.am_id, base_address,
-                                              stride, am_cb_flags);
+    status = uct_iface_invoke_am(&iface->super.super.super, elem->super.am_id,
+                                 base_address, stride, am_cb_flags);
 
     /*
      * This descriptor may reside on memory belonging to another process.
@@ -1125,6 +1194,9 @@ uct_mm_coll_ep_process_recv(uct_mm_coll_ep_t *ep, uct_mm_coll_iface_t *iface,
 
             /* later release of this desc - the easy way */
             uct_recv_desc(desc) = (uct_recv_desc_t*)&iface->super.release_desc;
+
+            /* mark all the counters in the descriptor as "not ready" */
+            uct_mm_coll_ep_centralized_reset_elem(elem, ep, 0, 1);
         } else {
             /* set information for @ref uct_mm_bcast_iface_release_shared_desc_func */
             uint8_t* slot_ptr = uct_mm_coll_iface_centralized_get_slot(elem, ep, 0,
@@ -1190,9 +1262,7 @@ uct_mm_incast_iface_poll_fifo(uct_mm_incast_iface_t *iface, int use_cb,
         ucs_arbiter_dispatch(&mm_iface->arbiter, 1, uct_mm_ep_process_pending, &ret);
     }
 
-#if ENABLE_MT
-    ucs_recursive_spin_unlock(&iface->super.super.super.super.lock);
-#endif
+    UCT_BASE_IFACE_UNLOCK(iface);
 
     return ret;
 }
@@ -1334,7 +1404,7 @@ uct_mm_bcast_ep_poll_tail(uct_mm_bcast_iface_t *iface)
     uint64_t read_limit              = fifo_ctl->head;
     int progress                     = 0;
 
-    UCT_MM_COLL_BCAST_EP_DUMMY(dummy, iface);
+    UCT_MM_COLL_EP_DUMMY(dummy, iface);
 
     while ((ucs_unlikely(read_index < read_limit)) &&
            (!uct_mm_iface_fifo_flag_no_new_data(elem->super.flags, read_index,
@@ -1440,9 +1510,7 @@ unsigned uct_mm_bcast_iface_progress(uct_iface_h tl_iface)
 poll_done:
     uct_mm_iface_fifo_window_adjust(mm_iface, count);
 
-#if ENABLE_MT
-    ucs_recursive_spin_unlock(&iface->super.super.super.super.lock);
-#endif
+    UCT_BASE_IFACE_UNLOCK(iface);
 
     return count;
 }

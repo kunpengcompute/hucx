@@ -100,7 +100,7 @@ UCS_CLASS_INIT_FUNC(uct_mm_bcast_iface_t, uct_md_h md, uct_worker_h worker,
                     const uct_iface_config_t *tl_config)
 {
     uint32_t procs = (params->field_mask & UCT_IFACE_PARAM_FIELD_COLL_INFO) ?
-                     params->host_info.proc_cnt : 0;
+                     params->host_info.proc_cnt : 1;
 
     uct_mm_bcast_iface_config_t *cfg = ucs_derived_of(tl_config,
                                                       uct_mm_bcast_iface_config_t);
@@ -110,7 +110,7 @@ UCS_CLASS_INIT_FUNC(uct_mm_bcast_iface_t, uct_md_h md, uct_worker_h worker,
     self->last_nonzero_ep = NULL;
     self->poll_ep_idx     = 0;
 
-    if (procs == 0) {
+    if (procs == 1) {
         worker                                        = NULL;
         uct_mm_bcast_iface_ops.iface_progress         = uct_mm_iface_progress_dummy;
         uct_mm_bcast_iface_ops.iface_progress_enable  = uct_mm_iface_progress_enable_dummy;
@@ -132,11 +132,11 @@ UCS_CLASS_INIT_FUNC(uct_mm_bcast_iface_t, uct_md_h md, uct_worker_h worker,
     UCS_CLASS_CALL_SUPER_INIT(uct_mm_coll_iface_t, &uct_mm_bcast_iface_ops, md,
                               worker, params, tl_config);
 
-    if (procs == 0) {
+    if (procs == 1) {
         return UCS_OK;
     }
 
-    UCT_MM_COLL_BCAST_EP_DUMMY(dummy, self);
+    UCT_MM_COLL_EP_DUMMY(dummy, self);
 
     uct_mm_coll_fifo_element_t *elem = self->super.super.recv_fifo_elems;
     ucs_assert_always(((uintptr_t)elem % UCS_SYS_CACHE_LINE_SIZE) == 0);
@@ -144,8 +144,8 @@ UCS_CLASS_INIT_FUNC(uct_mm_bcast_iface_t, uct_md_h md, uct_worker_h worker,
 
     int i;
     for (i = 0; i < self->super.super.config.fifo_size; i++) {
-        uct_mm_coll_ep_centralized_reset_bcast_elem(elem, &dummy, 0);
-        uct_mm_coll_ep_centralized_reset_bcast_elem(elem, &dummy, 1);
+        uct_mm_coll_ep_centralized_reset_elem(elem, &dummy, 0, 0);
+        uct_mm_coll_ep_centralized_reset_elem(elem, &dummy, 1, 0);
 
         elem->pending = 0;
 

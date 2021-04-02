@@ -234,7 +234,7 @@ void print_ucg_topology(const char *req_planner_name, ucp_worker_h worker,
         goto group_cleanup;
     }
 
-    plan->group_id = 1;
+    plan->group_id = UCG_GROUP_FIRST_GROUP_ID;
     plan->group    = group;
     plan->planner  = planner;
     ucs_list_head_init(&plan->op_head);

@@ -1543,7 +1543,7 @@ ucp_wireup_add_incast_lane(const ucp_wireup_select_params_t *select_params,
     criteria.local_iface_flags  = UCT_IFACE_FLAG_INCAST;
     criteria.calc_score         = ucp_wireup_am_score_func;
 
-    status = ucp_wireup_select_transport(select_params, &criteria,
+    status = ucp_wireup_select_transport(select_ctx, select_params, &criteria,
                                          ucp_tl_bitmap_max, UINT64_MAX,
                                          UINT64_MAX, UINT64_MAX, 0,
                                          &select_info);
@@ -1581,7 +1581,7 @@ ucp_wireup_add_bcast_lane(const ucp_wireup_select_params_t *select_params,
     criteria.local_iface_flags  = UCT_IFACE_FLAG_BCAST;
     criteria.calc_score         = ucp_wireup_am_score_func;
 
-    status = ucp_wireup_select_transport(select_params, &criteria,
+    status = ucp_wireup_select_transport(select_ctx, select_params, &criteria,
                                          ucp_tl_bitmap_max, UINT64_MAX,
                                          UINT64_MAX, UINT64_MAX, 0,
                                          &select_info);

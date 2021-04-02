@@ -627,12 +627,12 @@ UCS_CLASS_INIT_FUNC(uct_mm_base_iface_t, uct_iface_ops_t *ops, uct_md_h md,
                                      params->rx_headroom : 0;
     self->release_desc.cb          = uct_mm_iface_release_desc;
 
-    ucs_arbiter_init(&self->arbiter);
-
     /* For dummy collective transports - stop now */
     if (!worker) {
         return UCS_OK;
     }
+
+    ucs_arbiter_init(&self->arbiter);
 
     /* Allocate the receive FIFO */
     status = uct_iface_mem_alloc(&self->super.super.super,
@@ -726,14 +726,14 @@ err:
 
 static UCS_CLASS_CLEANUP_FUNC(uct_mm_base_iface_t)
 {
+    if (!self->super.super.worker) {
+        return;
+    }
+
     uct_base_iface_progress_disable(&self->super.super.super,
                                     UCT_PROGRESS_SEND | UCT_PROGRESS_RECV);
 
     ucs_arbiter_cleanup(&self->arbiter);
-
-    if (!self->super.super.worker) {
-        return;
-    }
 
     /* return all the descriptors that are now 'assigned' to the FIFO,
      * to their mpool */

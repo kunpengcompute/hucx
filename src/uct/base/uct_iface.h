@@ -339,7 +339,8 @@ UCS_CLASS_DECLARE(uct_base_ep_t, uct_base_iface_t*);
 { \
     uct_base_ep_t *base_ep       = ucs_derived_of(_ep, uct_base_ep_t); \
     uct_base_iface_t *base_iface = ucs_derived_of(_iface, uct_base_iface_t); \
-    if (ucs_likely(ucs_recursive_spin_is_locked(&base_ep->lock))) { \
+    if (ucs_likely((base_iface->is_locking) && \
+                   (ucs_recursive_spin_is_locked(&base_ep->lock)))) { \
         ucs_recursive_spin_lock(&base_iface->lock); \
     } \
 }
@@ -348,7 +349,8 @@ UCS_CLASS_DECLARE(uct_base_ep_t, uct_base_iface_t*);
 { \
     uct_base_ep_t *base_ep       = ucs_derived_of(_ep, uct_base_ep_t); \
     uct_base_iface_t *base_iface = ucs_derived_of(_iface, uct_base_iface_t); \
-    if (ucs_likely(ucs_recursive_spin_is_locked(&base_ep->lock))) { \
+    if (ucs_likely((base_iface->is_locking) && \
+                   (ucs_recursive_spin_is_locked(&base_ep->lock)))) { \
         ucs_recursive_spin_unlock(&base_iface->lock); \
     } \
 }

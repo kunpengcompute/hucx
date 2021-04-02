@@ -5,16 +5,15 @@
 
 #include <common/test.h>
 
+#include "ucg_test.h"
+
 extern "C" {
 #include <ucg/builtin/plan/builtin_plan.h>
 #include <ucg/builtin/ops/builtin_ops.h>
 #include <ucg/api/ucg_plan_component.h>
 }
 
-#include "ucg_test.h"
-#include "ucg_plan_test.h"
-
-TEST(ucg_plan_test, test_ring) {
+UCS_TEST_F(test_ucg_plan, test_ring) {
     ucs_status_t ret;
     ucg_plan_test *obj = NULL;
     ucg_builtin_plan_t *plan = NULL;
@@ -35,7 +34,7 @@ TEST(ucg_plan_test, test_ring) {
     }
 }
 
-TEST(ucg_plan_test, test_recursive) {
+UCS_TEST_F(test_ucg_plan, test_recursive) {
     ucs_status_t ret;
     ucg_plan_test *obj = NULL;
     ucg_builtin_plan_t *plan = NULL;
@@ -141,7 +140,7 @@ static void ucg_algo_set(int option)
     }
 }
 
-TEST(ucg_plan_test, test_binomial_tree) {
+UCS_TEST_F(test_ucg_plan, test_binomial_tree) {
     unsigned i;
     ucs_status_t ret;
     ucg_plan_test *obj = NULL;
@@ -187,4 +186,3 @@ TEST(ucg_plan_test, test_binomial_tree) {
         ASSERT_EQ(UCS_OK, ret);
     }
 }
-
