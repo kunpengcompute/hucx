@@ -121,7 +121,8 @@ noinst_HEADERS = \
 	async/pipe.h \
 	async/signal.h \
 	async/thread.h \
-	async/async_int.h
+	async/async_int.h \
+	counters/ethtool_ctrs.h
 
 libucs_la_SOURCES = \
 	algorithm/crc.c \
