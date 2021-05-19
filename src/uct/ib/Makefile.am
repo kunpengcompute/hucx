@@ -123,14 +123,15 @@ noinst_HEADERS += \
 	ud/base/ud_ep.h \
 	ud/base/ud_def.h \
 	ud/base/ud_inl.h \
-	ud/verbs/ud_verbs.h\
-	ud/verbs/ud_mcast_verbs.h
+	ud/base/ud_mcast.h \
+	ud/verbs/ud_verbs.h
 
 libuct_ib_la_SOURCES += \
 	ud/base/ud_iface_common.c \
 	ud/base/ud_iface.c \
 	ud/base/ud_ep.c \
 	ud/base/ud_log.c \
+	ud/base/ud_mcast.c \
 	ud/verbs/ud_verbs.c\
 	ud/verbs/ud_mcast_verbs.c
 
@@ -138,8 +139,7 @@ libuct_ib_la_SOURCES += \
 if HAVE_MLX5_HW_UD
 noinst_HEADERS += \
 	ud/accel/ud_mlx5_common.h \
-	ud/accel/ud_mlx5.h \
-    ud/accel/ud_mcast_mlx5.h
+	ud/accel/ud_mlx5.h
 
 
 libuct_ib_la_SOURCES += \

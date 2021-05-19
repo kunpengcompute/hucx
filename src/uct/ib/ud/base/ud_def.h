@@ -35,14 +35,16 @@
 #define UCT_UD_CA_MAX_WINDOW    1025
 
 
-typedef uint16_t                 uct_ud_psn_t;
-#define UCT_UD_PSN_COMPARE       UCS_CIRCULAR_COMPARE16
-typedef struct uct_ud_iface      uct_ud_iface_t;
-typedef struct uct_ud_ep         uct_ud_ep_t;
-typedef struct uct_ud_ctl_hdr    uct_ud_ctl_hdr_t;
-typedef struct uct_ud_iface_addr uct_ud_iface_addr_t;
-typedef struct uct_ud_ep_addr    uct_ud_ep_addr_t;
-typedef struct uct_ud_iface_peer uct_ud_iface_peer_t;
+typedef uint16_t                       uct_ud_psn_t;
+#define UCT_UD_PSN_COMPARE             UCS_CIRCULAR_COMPARE16
+typedef struct uct_ud_iface            uct_ud_iface_t;
+typedef struct uct_ud_ep               uct_ud_ep_t;
+typedef struct uct_ud_ctl_hdr          uct_ud_ctl_hdr_t;
+typedef struct uct_ud_iface_addr       uct_ud_iface_addr_t;
+typedef struct uct_ud_mcast_iface_addr uct_ud_mcast_iface_addr_t;
+typedef struct uct_ud_ep_addr          uct_ud_ep_addr_t;
+typedef struct uct_ud_mcast_ep_addr    uct_ud_mcast_ep_addr_t;
+typedef struct uct_ud_iface_peer       uct_ud_iface_peer_t;
 
 enum {
     UCT_UD_PACKET_ACK_REQ_SHIFT   = 25,
@@ -225,10 +227,23 @@ struct uct_ud_iface_addr {
 };
 
 
+struct uct_ud_mcast_iface_addr {
+    uct_ud_iface_addr_t super;
+    uint32_t            coll_id;
+    union ibv_gid       mgid;
+};
+
+
 struct uct_ud_ep_addr {
     uct_ud_iface_addr_t iface_addr;
     uct_ib_uint24_t     ep_id;
 };
+
+
+typedef struct uct_ud_mcast_ep_addr {
+    uct_ud_ep_addr_t super;
+    union ibv_gid    mgid;
+} uct_ud_mcast_ep_addr_t;
 
 
 static inline uint32_t uct_ud_neth_get_dest_id(uct_ud_neth_t *neth)

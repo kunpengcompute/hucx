@@ -219,13 +219,14 @@ ucs_status_t ucs_socket_set_buffer_size(int fd, size_t sockopt_sndbuf,
  * @param [in]  reuse_addr        Whether or not to allow the socket to use an
  *                                address that is already in use and was not
  *                                released by another socket yet.
+ * @param [in]  socket_type       Socket type selection (i.e. TCP / UDP).
  * @param [out] listen_fd         The fd that belongs to the server.
  *
  * @return UCS_OK on success or an error code on failure.
  */
 ucs_status_t ucs_socket_server_init(const struct sockaddr *saddr, socklen_t socklen,
                                     int backlog, int silent_bind, int reuse_addr,
-                                    int *listen_fd);
+                                    int socket_type, int *listen_fd);
 
 
 /**

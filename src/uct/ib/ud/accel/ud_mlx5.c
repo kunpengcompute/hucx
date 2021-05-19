@@ -219,7 +219,6 @@ UCS_CLASS_DEFINE_NEW_FUNC(uct_ud_mlx5_ep_t, uct_ep_t,
                                  const uct_ep_params_t*);
 UCS_CLASS_DEFINE_DELETE_FUNC(uct_ud_mlx5_ep_t, uct_ep_t);
 
-#include "ud_mcast_mlx5.h"
 /*
  * Generic inline+iov post-send function
  * The caller should check that header size + sg list would not exceed WQE size.
@@ -273,12 +272,13 @@ static UCS_F_ALWAYS_INLINE ucs_status_t uct_ud_mlx5_ep_inline_iov_post(
     neth->packet_type = (am_id << UCT_UD_PACKET_AM_ID_SHIFT) |
                         ep->super.dest_ep_id |
                         packet_flags;
-    if (iface->super.is_mcast_iface) {
+
+    if (ucs_unlikely(iface->super.mcast_ctx != NULL)) {
         if (ep->super.dest_ep_id != UCT_UD_EP_NULL_ID) {
-            uct_ud_mcast_mlx5_iface_t *mcast_iface = (uct_ud_mcast_mlx5_iface_t *)iface;
-            neth->packet_type |= mcast_iface->coll_id << 8;
+            neth->packet_type |= iface->super.mcast_ctx->coll_id << 8;
         }
     }
+
     uct_ud_neth_init_data(&ep->super, neth);
     if (!(packet_flags & UCT_UD_PACKET_FLAG_ACK_REQ)) {
         /* check for ACK_REQ, if not already enabled by packet_flags */
@@ -360,9 +360,8 @@ uct_ud_mlx5_ep_short_common(uct_ep_h tl_ep, uint8_t am_id,
                                           UCT_EP_STAT_BYTES_SHORT, func_name);
 }
 
-static ucs_status_t
-uct_ud_mlx5_ep_am_short(uct_ep_h tl_ep, uint8_t id, uint64_t hdr,
-                        const void *buffer, unsigned length)
+ucs_status_t uct_ud_mlx5_ep_am_short(uct_ep_h tl_ep, uint8_t id, uint64_t hdr,
+                                     const void *buffer, unsigned length)
 {
     return uct_ud_mlx5_ep_short_common(tl_ep, id,
                                        /* inline header */ &hdr, sizeof(hdr),
@@ -372,9 +371,8 @@ uct_ud_mlx5_ep_am_short(uct_ep_h tl_ep, uint8_t id, uint64_t hdr,
                                        "uct_ud_mlx5_ep_am_short");
 }
 
-static ucs_status_t uct_ud_mlx5_ep_am_short_iov(uct_ep_h tl_ep, uint8_t id,
-                                                const uct_iov_t *iov,
-                                                size_t iovcnt)
+ucs_status_t uct_ud_mlx5_ep_am_short_iov(uct_ep_h tl_ep, uint8_t id,
+                                         const uct_iov_t *iov, size_t iovcnt)
 {
     char dummy = 0; /* pass dummy pointer to 0-length header and data to avoid
                      * compiler warnings */
@@ -394,9 +392,9 @@ static ucs_status_t uct_ud_mlx5_ep_am_short_iov(uct_ep_h tl_ep, uint8_t id,
             "uct_ud_mlx5_ep_am_short_iov");
 }
 
-static ssize_t uct_ud_mlx5_ep_am_bcopy(uct_ep_h tl_ep, uint8_t id,
-                                       uct_pack_callback_t pack_cb, void *arg,
-                                       unsigned flags)
+ssize_t uct_ud_mlx5_ep_am_bcopy(uct_ep_h tl_ep, uint8_t id,
+                                uct_pack_callback_t pack_cb, void *arg,
+                                unsigned flags)
 {
     uct_ud_mlx5_ep_t *ep       = ucs_derived_of(tl_ep, uct_ud_mlx5_ep_t);
     uct_ud_mlx5_iface_t *iface = ucs_derived_of(tl_ep->iface,
@@ -592,8 +590,8 @@ static unsigned uct_ud_mlx5_iface_async_progress(uct_ud_iface_t *ud_iface)
     return count;
 }
 
-static ucs_status_t
-uct_ud_mlx5_iface_query(uct_iface_h tl_iface, uct_iface_attr_t *iface_attr)
+ucs_status_t uct_ud_mlx5_iface_query(uct_iface_h tl_iface,
+                                     uct_iface_attr_t *iface_attr)
 {
     uct_ud_iface_t *iface = ucs_derived_of(tl_iface, uct_ud_iface_t);
     ucs_status_t status;
@@ -778,7 +776,7 @@ uct_ud_iface_ops_t uct_ud_mlx5_iface_ops = {
     .peer_address_str        = uct_ud_mlx5_iface_peer_address_str,
 };
 
-static uct_iface_ops_t uct_ud_mlx5_iface_tl_ops = {
+uct_iface_ops_t uct_ud_mlx5_iface_tl_ops = {
     .ep_put_short             = uct_ud_mlx5_ep_put_short,
     .ep_am_short              = uct_ud_mlx5_ep_am_short,
     .ep_am_short_iov          = uct_ud_mlx5_ep_am_short_iov,
@@ -808,9 +806,8 @@ static uct_iface_ops_t uct_ud_mlx5_iface_tl_ops = {
     .iface_is_reachable       = uct_ib_iface_is_reachable
 };
 
-// CALLED BY (A) uct_ud_mlx5_iface_wrapper_t and (B) uct_ud_mcast_mlx5_iface_t
 UCS_CLASS_INIT_FUNC(uct_ud_mlx5_iface_t, uct_ud_iface_ops_t *ops,
-                    uct_md_h md, uct_worker_h worker,
+                    uct_iface_ops_t *tl_ops, uct_md_h md, uct_worker_h worker,
                     const uct_iface_params_t *params,
                     const uct_iface_config_t *tl_config)
 {
@@ -880,7 +877,6 @@ UCS_CLASS_INIT_FUNC(uct_ud_mlx5_iface_t, uct_ud_iface_ops_t *ops,
     return uct_ud_iface_complete_init(&self->super);
 }
 
-// Called from outside UCT
 UCS_CLASS_INIT_FUNC(uct_ud_mlx5_iface_wrapper_t, 
                     uct_md_h md, uct_worker_h worker,
                     const uct_iface_params_t *params,
@@ -888,7 +884,8 @@ UCS_CLASS_INIT_FUNC(uct_ud_mlx5_iface_wrapper_t,
 {
     ucs_status_t status = UCS_OK;
     UCS_CLASS_CALL_SUPER_INIT(uct_ud_mlx5_iface_t, &uct_ud_mlx5_iface_ops,
-                              md, worker, params, tl_config);
+                              &uct_ud_mlx5_iface_tl_ops, md, worker, params,
+                              tl_config);
     return status;
 }
 
@@ -904,9 +901,10 @@ UCS_CLASS_CLEANUP_FUNC(uct_ud_mlx5_iface_wrapper_t)
 
 UCS_CLASS_DEFINE(uct_ud_mlx5_iface_t, uct_ud_iface_t);
 
-UCS_CLASS_DEFINE_NEW_FUNC(uct_ud_mlx5_iface_t, uct_iface_t, uct_ud_iface_ops_t *,uct_md_h,
-                                 uct_worker_h, const uct_iface_params_t*,
-                                 const uct_iface_config_t*);
+UCS_CLASS_DEFINE_NEW_FUNC(uct_ud_mlx5_iface_t, uct_iface_t,
+                          uct_ud_iface_ops_t *, uct_iface_ops_t *, uct_md_h,
+                          uct_worker_h, const uct_iface_params_t*,
+                          const uct_iface_config_t*);
 
 UCS_CLASS_DEFINE_DELETE_FUNC(uct_ud_mlx5_iface_t, uct_iface_t);
 
@@ -914,8 +912,8 @@ UCS_CLASS_DEFINE_DELETE_FUNC(uct_ud_mlx5_iface_t, uct_iface_t);
 UCS_CLASS_DEFINE(uct_ud_mlx5_iface_wrapper_t, uct_ud_iface_t);
 
 UCS_CLASS_DEFINE_NEW_FUNC(uct_ud_mlx5_iface_wrapper_t, uct_iface_t, uct_md_h,
-                                 uct_worker_h, const uct_iface_params_t*,
-                                 const uct_iface_config_t*);
+                          uct_worker_h, const uct_iface_params_t*,
+                          const uct_iface_config_t*);
 
 UCS_CLASS_DEFINE_DELETE_FUNC(uct_ud_mlx5_iface_wrapper_t, uct_iface_t);
 
@@ -930,5 +928,6 @@ uct_ud_mlx5_query_tl_devices(uct_md_h md,
 }
 
 UCT_TL_DEFINE(&uct_ib_component, ud_mlx5, uct_ud_mlx5_query_tl_devices,
-              uct_ud_mlx5_iface_wrapper_t, "UD_MLX5_", uct_ud_mlx5_iface_config_table,
+              uct_ud_mlx5_iface_wrapper_t, "UD_MLX5_",
+              uct_ud_mlx5_iface_config_table,
               uct_ud_mlx5_iface_config_t);

@@ -366,7 +366,8 @@ ucs_status_t ucs_socket_set_buffer_size(int fd, size_t sockopt_sndbuf,
 
 ucs_status_t ucs_socket_server_init(const struct sockaddr *saddr, socklen_t socklen,
                                     int backlog, int silent_err_in_use,
-                                    int reuse_addr, int *listen_fd)
+                                    int reuse_addr, int socket_type,
+                                    int *listen_fd)
 {
     int so_reuse_optval = 1;
     char ip_port_str[UCS_SOCKADDR_STRING_LEN];
@@ -376,7 +377,7 @@ ucs_status_t ucs_socket_server_init(const struct sockaddr *saddr, socklen_t sock
 
     /* Create the server socket for accepting incoming connections */
     fd     = -1; /* Suppress compiler warning */
-    status = ucs_socket_create(saddr->sa_family, SOCK_STREAM, &fd);
+    status = ucs_socket_create(saddr->sa_family, socket_type, &fd);
     if (status != UCS_OK) {
         goto err;
     }
@@ -408,7 +409,7 @@ ucs_status_t ucs_socket_server_init(const struct sockaddr *saddr, socklen_t sock
         goto err_close_socket;
     }
 
-    if (listen(fd, backlog) < 0) {
+    if ((socket_type == SOCK_STREAM) && (listen(fd, backlog) < 0)) {
         ucs_error("listen(fd=%d addr=%s backlog=%d) failed: %m",
                   fd, ucs_sockaddr_str(saddr, ip_port_str, sizeof(ip_port_str)),
                   backlog);

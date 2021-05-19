@@ -23,6 +23,7 @@
 
 #include "ud_def.h"
 #include "ud_ep.h"
+#include "ud_mcast.h"
 #include "ud_iface_common.h"
 
 BEGIN_C_DECLS
@@ -154,8 +155,9 @@ KHASH_IMPL(uct_ud_iface_gid, union ibv_gid, char, 0,
 
 
 struct uct_ud_iface {
-    uct_ib_iface_t           super;
-    struct ibv_qp           *qp;
+    uct_ib_iface_t            super;
+    struct ibv_qp            *qp;
+    uct_ud_mcast_iface_ctx_t *mcast_ctx;
     struct {
         ucs_mpool_t          mp;
         unsigned             available;
@@ -207,8 +209,6 @@ struct uct_ud_iface {
         unsigned                  last_len;
         khash_t(uct_ud_iface_gid) hash;
     } gid_table;
-
-    int is_mcast_iface;
 };
 
 
@@ -246,7 +246,11 @@ ucs_status_t uct_ud_iface_query(uct_ud_iface_t *iface,
 
 void uct_ud_iface_release_desc(uct_recv_desc_t *self, void *desc);
 
-ucs_status_t uct_ud_iface_get_address(uct_iface_h tl_iface, uct_iface_addr_t *addr);
+ucs_status_t uct_ud_iface_get_address(uct_iface_h tl_iface,
+                                      uct_iface_addr_t *addr);
+
+ucs_status_t uct_ud_mcast_iface_get_address(uct_iface_h tl_iface,
+                                            uct_iface_addr_t *addr);
 
 void uct_ud_iface_add_ep(uct_ud_iface_t *iface, uct_ud_ep_t *ep);
 
@@ -390,9 +394,10 @@ static UCS_F_ALWAYS_INLINE int
 uct_ud_iface_check_grh(uct_ud_iface_t *iface, void *packet, int is_grh_present,
                        uint8_t roce_pkt_type)
 {
-    if (iface->is_mcast_iface) {
+    if (iface->mcast_ctx) {
         return 1;
     }
+
     struct ibv_grh *grh = (struct ibv_grh *)packet;
     size_t gid_len;
     union ibv_gid *gid;
@@ -530,8 +535,30 @@ uct_ud_iface_unpack_peer_address(uct_ud_iface_t *iface,
                                  const uct_ud_iface_addr_t *if_addr,
                                  unsigned path_index, void *address_p)
 {
+    uct_ib_address_t *mcast_ib_addr;
+    uct_ib_address_pack_params_t ib_params;
+    uct_ud_iface_addr_t mcast_if_addr;
+
     uct_ud_iface_ops_t *ud_ops = ucs_derived_of(iface->super.ops,
                                                 uct_ud_iface_ops_t);
+
+    if ((iface->mcast_ctx != NULL) && (iface->mcast_ctx->coll_id == 0)) {
+        uct_ib_address_unpack(ib_addr, &ib_params);
+        memcpy(&ib_params.gid.raw, &iface->mcast_ctx->mgid.raw,
+               sizeof(ib_params.gid.raw));
+
+        mcast_ib_addr    = (uct_ib_address_t*)
+                           ucs_alloca(uct_ib_address_size(&ib_params));
+        ib_params.flags &= ~UCT_IB_ADDRESS_PACK_FLAG_PKEY;
+        uct_ib_address_pack(&ib_params, mcast_ib_addr);
+
+        memcpy(&mcast_if_addr, if_addr, sizeof(mcast_if_addr));
+        uct_ib_pack_uint24(mcast_if_addr.qp_num, 0xFFFFFF);
+
+        ib_addr = mcast_ib_addr;
+        if_addr = &mcast_if_addr;
+    }
+
     return ud_ops->unpack_peer_address(iface, ib_addr, if_addr,
                                        path_index, address_p);
 }

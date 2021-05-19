@@ -321,7 +321,8 @@ uct_cuda_copy_estimate_perf(uct_iface_h tl_iface, uct_perf_attr_t *perf_attr)
     }
 
     if (perf_attr->field_mask & UCT_PERF_ATTR_FIELD_OVERHEAD) {
-        perf_attr->overhead = UCT_CUDA_COPY_IFACE_OVERHEAD;
+        perf_attr->overhead_short = UCT_CUDA_COPY_IFACE_OVERHEAD;
+        perf_attr->overhead_bcopy = UCT_CUDA_COPY_IFACE_OVERHEAD;
     }
 
     return UCS_OK;

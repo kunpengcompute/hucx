@@ -463,7 +463,7 @@ UCS_CLASS_INIT_FUNC(uct_ud_iface_t, uct_ud_iface_ops_t *ops,
         return UCS_ERR_INVALID_PARAM;
     }
 
-    self->is_mcast_iface         = 0;
+    self->mcast_ctx              = NULL;
     self->tx.unsignaled          = 0;
     self->tx.available           = config->super.tx.queue_len;
     self->tx.timer_sweep_count   = 0;
@@ -730,16 +730,25 @@ ucs_status_t uct_ud_iface_query(uct_ud_iface_t *iface,
         iface_attr->cap.flags |= UCT_IFACE_FLAG_AM_SHORT;
     }
 
+    if (iface->mcast_ctx != NULL) {
+        uct_ud_mcast_iface_query_update(iface_attr);
+    }
+
     return UCS_OK;
 }
 
 ucs_status_t
 uct_ud_iface_get_address(uct_iface_h tl_iface, uct_iface_addr_t *iface_addr)
 {
-    uct_ud_iface_t *iface = ucs_derived_of(tl_iface, uct_ud_iface_t);
+    uct_ud_iface_t *iface     = ucs_derived_of(tl_iface, uct_ud_iface_t);
     uct_ud_iface_addr_t *addr = (uct_ud_iface_addr_t *)iface_addr;
 
     uct_ib_pack_uint24(addr->qp_num, iface->qp->qp_num);
+
+    if (iface->mcast_ctx != NULL) {
+        ((uct_ud_mcast_iface_addr_t*)addr)->mgid    = iface->mcast_ctx->mgid;
+        ((uct_ud_mcast_iface_addr_t*)addr)->coll_id = iface->mcast_ctx->coll_id;
+    }
 
     return UCS_OK;
 }

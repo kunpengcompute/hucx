@@ -1,346 +1,84 @@
+/**
+* Copyright (C) Huawei Technologies Co., Ltd. 2021.  ALL RIGHTS RESERVED.
+*
+* See file LICENSE for terms.
+*/
+
 #ifdef HAVE_CONFIG_H
 #  include "config.h"
 #endif
 
-#include "ud_mcast_mlx5.h"
+#include "ud_mlx5.h"
 
-#include <uct/api/uct.h>
-#include <uct/ib/base/ib_iface.h>
-#include <uct/base/uct_md.h>
-#include <uct/base/uct_log.h>
-#include <ucs/debug/log.h>
-#include <ucs/debug/memtrack.h>
-#include <ucs/type/class.h>
-#include <string.h>
-#include <arpa/inet.h> /* For htonl */
-
-#include <uct/ib/mlx5/ib_mlx5_log.h>
-#include <uct/ib/mlx5/ib_mlx5.inl>
-#include <uct/ib/mlx5/dv/ib_mlx5_dv.h>
-
-#include <uct/ib/ud/base/ud_iface.h>
-#include <uct/ib/ud/base/ud_ep.h>
-#include <uct/ib/ud/base/ud_def.h>
-#include <uct/ib/ud/base/ud_inl.h>
-#include <sys/socket.h>
+#include <uct/ib/ud/base/ud_mcast.h>
 
 extern uct_ud_iface_ops_t uct_ud_mlx5_iface_ops;
-static uct_ud_iface_ops_t super_ops;
-
+extern uct_iface_ops_t    uct_ud_mlx5_iface_tl_ops;
 extern ucs_config_field_t uct_ud_mlx5_iface_config_table[];
+
 ucs_config_field_t uct_ud_mcast_mlx5_iface_config_table[] = {
-  {"", "", NULL,
-    ucs_offsetof(uct_ud_mcast_mlx5_iface_config_t, super),
-    UCS_CONFIG_TYPE_TABLE(uct_ud_mlx5_iface_config_table)},
+    {"MC_", "", NULL, 0,
+     UCS_CONFIG_TYPE_TABLE(uct_ud_mlx5_iface_config_table)},
 
-  {"ROOT_ID", "0", "root",
-    ucs_offsetof(uct_ud_mcast_mlx5_iface_config_t, root_id),
-    UCS_CONFIG_TYPE_UINT},
-
-  {NULL}
+    {NULL}
 };
 
 void UCS_CLASS_DELETE_FUNC_NAME(uct_ud_mcast_mlx5_iface_t)(uct_iface_t*);
 
-static ucs_status_t
-uct_ud_mcast_iface_get_address(uct_iface_h tl_iface, uct_iface_addr_t *iface_addr)
-{
-    uct_ud_mcast_mlx5_iface_t *iface = ucs_derived_of(tl_iface, uct_ud_mcast_mlx5_iface_t);
-    uct_ud_mcast_iface_addr_t *if_addr = (uct_ud_mcast_iface_addr_t *)iface_addr;
-    super_ops.super.super.iface_get_address(tl_iface, iface_addr);
-    if_addr->mgid = iface->mgid;
-    if_addr->coll_id = iface->coll_id;
-    return UCS_OK;
-}
-
-static ucs_status_t
-uct_ud_mcast_mlx5_iface_unpack_peer_address(uct_ud_iface_t *ud_iface,
-                                            const uct_ib_address_t *ib_addr,
-                                            const uct_ud_iface_addr_t *if_addr,
-                                            int path_index, void *address_p)
-{
-    ucs_status_t status;
-    uct_ud_mcast_mlx5_iface_t *iface      = ucs_derived_of(ud_iface, uct_ud_mcast_mlx5_iface_t);
-
-    uct_ud_iface_addr_t if_addr_cpy;
-    memcpy(&if_addr_cpy, if_addr, sizeof(if_addr_cpy)); 
-
-    uct_ib_address_t *ib_addr_cpy;
-    const uct_ib_address_t *ib_addr_used;
-
-    if(iface->coll_id == 0) {
-        uct_ib_address_pack_params_t params;
-        uct_ib_address_unpack(ib_addr, &params);
-        memcpy(&params.gid.raw, &iface->mgid.raw, sizeof(params.gid.raw)); 
-
-        ib_addr_cpy = ucs_alloca(uct_ib_address_size(&params));
-        params.flags &= ~UCT_IB_ADDRESS_PACK_FLAG_PKEY;
-        uct_ib_address_pack(&params, ib_addr_cpy);
-        uct_ib_pack_uint24(if_addr_cpy.qp_num, 0xFFFFFF);
-
-        ib_addr_used = ib_addr_cpy;
-    } else {
-        ib_addr_used = ib_addr;
-    }
-
-    status = super_ops.unpack_peer_address(ud_iface, ib_addr_used, &if_addr_cpy, path_index, address_p);
-    return status;
-}
-
-static UCS_F_ALWAYS_INLINE size_t uct_ud_mlx5_max_am_iov()
-{
-    return ucs_min(UCT_IB_MLX5_AM_ZCOPY_MAX_IOV, UCT_IB_MAX_IOV);
-}
-
-static ucs_status_t
-uct_ud_mcast_mlx5_iface_query(uct_iface_h tl_iface, uct_iface_attr_t *iface_attr)
-{
-    uct_ud_iface_t *iface = ucs_derived_of(tl_iface, uct_ud_iface_t);
-    ucs_status_t status;
-
-    ucs_trace_func("");
-
-    status = uct_ud_iface_query(iface, iface_attr, uct_ud_mlx5_max_am_iov(),
-                                UCT_IB_MLX5_AM_ZCOPY_MAX_HDR(UCT_IB_MLX5_AV_FULL_SIZE)
-                                - sizeof(uct_ud_neth_t));
-    if (status != UCS_OK) {
-        return status;
-    }
-
-    iface_attr->overhead_short = 80e-9; /* Software overhead (short sends) */
-    iface_attr->overhead_bcopy = 81e-9; /* Software overhead (bcopy sends) */
-
-    iface_attr->iface_addr_len            = sizeof(uct_ud_mcast_iface_addr_t);
-    iface_attr->ep_addr_len               = sizeof(uct_ud_mcast_mlx5_ep_addr_t);
-    iface_attr->cap.am.coll_mode_flags    = UCS_BIT(UCT_COLL_DTYPE_MODE_PADDED);
-    iface_attr->cap.coll_mode.short_flags = UCS_BIT(UCT_COLL_DTYPE_MODE_PADDED);
-    iface_attr->cap.coll_mode.bcopy_flags = UCS_BIT(UCT_COLL_DTYPE_MODE_PADDED);
-    iface_attr->cap.coll_mode.zcopy_flags = 0; /* TODO: implement... */
-
-    iface_attr->cap.flags |= UCT_IFACE_FLAG_BCAST;
-
-    return UCS_OK;
-}
-
-static ucs_status_t uct_ud_mcast_ep_get_address(uct_ep_h tl_ep, uct_ep_addr_t *addr)
-{
-    ucs_status_t status = super_ops.super.super.ep_get_address(tl_ep, addr);
-    if (status){
-        return status;
-    }
-    uct_ud_ep_t *ep = ucs_derived_of(tl_ep, uct_ud_ep_t);
-    uct_ud_mcast_mlx5_iface_t *iface = ucs_derived_of(ep->super.super.iface, uct_ud_mcast_mlx5_iface_t);
-    uct_ud_mcast_mlx5_ep_addr_t *ep_addr = (uct_ud_mcast_mlx5_ep_addr_t *)addr;
-
-    memcpy(ep_addr->mgid.raw, iface->mgid.raw, sizeof(iface->mgid.raw));
-    return UCS_OK;
-}
-
-static ucs_status_t
-uct_ud_mcast_mlx5_ep_am_short(uct_ep_h tl_ep, uint8_t id, uint64_t hdr,
-                        const void *buffer, unsigned length)
+static ucs_status_t uct_ud_mcast_mlx5_ep_am_short(uct_ep_h tl_ep,
+                                                  uint8_t id,
+                                                  uint64_t hdr,
+                                                  const void *buffer,
+                                                  unsigned length)
 {
     unsigned orig_length = UCT_COLL_DTYPE_MODE_UNPACK_VALUE(length);
-    return super_ops.super.super.ep_am_short(tl_ep, id, hdr, buffer, orig_length);
+
+    return uct_ud_mlx5_ep_am_short(tl_ep, id, hdr, buffer, orig_length);
+}
+
+static ucs_status_t uct_ud_mcast_mlx5_ep_am_short_iov(uct_ep_h tl_ep,
+                                                      uint8_t id,
+                                                      const uct_iov_t *iov,
+                                                      size_t iovcnt)
+{
+    size_t orig_iovcnt = UCT_COLL_DTYPE_MODE_UNPACK_VALUE(iovcnt);
+
+    return uct_ud_mlx5_ep_am_short_iov(tl_ep, id, iov, orig_iovcnt);
 }
 
 static ssize_t uct_ud_mcast_mlx5_ep_am_bcopy(uct_ep_h tl_ep, uint8_t id,
-                                       uct_pack_callback_t pack_cb, void *arg,
-                                       unsigned flags)
+                                             uct_pack_callback_t pack_cb,
+                                             void *arg, unsigned flags)
 {
     unsigned orig_flags = UCT_COLL_DTYPE_MODE_UNPACK_VALUE(flags);
-    return super_ops.super.super.ep_am_bcopy(tl_ep, id, pack_cb, arg, orig_flags);
+
+    return uct_ud_mlx5_ep_am_bcopy(tl_ep, id, pack_cb, arg, orig_flags);
 }
 
-static ucs_status_t
-uct_ud_mcast_mlx5_ep_create(const uct_ep_params_t* params, uct_ep_h *ep_p)
+static void uct_ud_mcast_mlx5_init_ops(uct_iface_ops_t *tl_ops)
 {
-    ucs_status_t status;
-
-    uct_ud_mcast_mlx5_iface_t *iface =
-            ucs_derived_of(params->iface, uct_ud_mcast_mlx5_iface_t);
-
-    if (ucs_test_all_flags(params->field_mask, UCT_EP_PARAM_FIELD_DEV_ADDR |
-                                               UCT_EP_PARAM_FIELD_IFACE_ADDR)) {
-        if (iface->coll_id != 0) {
-            const uct_ud_mcast_iface_addr_t *if_addr =
-                    (const uct_ud_mcast_iface_addr_t*)params->iface_addr;
-
-            /* Ignore loopback connections outside the multicast root */
-            if (if_addr->coll_id == iface->coll_id) {
-                return UCS_OK;
-            }
-
-            /* Attached to multicast group before proceeding to connecting */
-            status = ibv_attach_mcast(iface->super.super.qp, &if_addr->mgid, 0);
-            if (status != UCS_OK) {
-                return status;
-            }
-
-            char p[128];
-            ucs_debug("ibv_attach_mcast passed on qp 0x%x, mgid %s", iface->super.super.qp->qp_num, uct_ib_gid_str(&if_addr->mgid, p, sizeof(p)));
-        }
-
-        status = uct_ud_ep_create_connected_common(params, ep_p);
-    } else {
-        status = uct_ud_mlx5_ep_t_new(params, ep_p);
-    }
-    if (status != UCS_OK) {
-        return status;
-    }
-
-    /* On the multicast root - expect all CREPs to arrive before connecting */
-    if (iface->coll_id == 0) {
-        ((uct_ud_ep_t*)*ep_p)->rx_crep_count = iface->coll_cnt;
-    }
-
-    return UCS_OK;
-
+    *tl_ops                 = uct_ud_mlx5_iface_tl_ops;
+    tl_ops->ep_am_short     = uct_ud_mcast_mlx5_ep_am_short;
+    tl_ops->ep_am_short_iov = uct_ud_mcast_mlx5_ep_am_short_iov;
+    tl_ops->ep_am_bcopy     = uct_ud_mcast_mlx5_ep_am_bcopy;
 }
 
-void uct_reset_mcast_reliability_arr(uct_ud_iface_t *iface) {
-    uct_ud_mcast_mlx5_iface_t *mcast_iface = (uct_ud_mcast_mlx5_iface_t*)iface;
-    for (int i = 0; i < mcast_iface->num_of_peers; i++) {
-        mcast_iface->acked_psn_by_src[i] = UCT_UD_INITIAL_PSN - 1;
-    }
-}
-
-static void init_ops(uct_ud_mcast_mlx5_iface_t *self, uct_ud_iface_ops_t *ops) {
-    *ops      = uct_ud_mlx5_iface_ops;
-    super_ops = uct_ud_mlx5_iface_ops;
-
-    /* Control path - adding mcast address */
-    ops->super.super.iface_get_address = uct_ud_mcast_iface_get_address;
-    ops->super.super.ep_get_address    = uct_ud_mcast_ep_get_address;
-    ops->super.super.ep_create         = uct_ud_mcast_mlx5_ep_create;
-    ops->super.super.iface_query       = uct_ud_mcast_mlx5_iface_query;
-    ops->unpack_peer_address           = uct_ud_mcast_mlx5_iface_unpack_peer_address;
-    ops->super.super.ep_am_short       = uct_ud_mcast_mlx5_ep_am_short;
-    ops->super.super.ep_am_bcopy       = uct_ud_mcast_mlx5_ep_am_bcopy;
-}
-
-//multicast addresses are between 239.0.0.0 - 239.255.255.255
-static int mcg_cnt = 0;
-#define MCG_GID_INIT_VAL {0,0,0,0,0,0,0,0,0,0,255,255,0,0,0,0}
-#define MCG_MAX_VAL (255 | 255 << 8 | 255 << 16)
-
-static int init_multicast_group(uct_ud_mcast_mlx5_iface_t *self) {
-    ucs_status_t status;
-    union ibv_gid mgid;
-    if ((mcg_cnt + 10*self->coll_id) > MCG_MAX_VAL) {
-        ucs_debug("init_multicast_group: reached maximum allowed multicast group ip.");
-        return UCS_ERR_OUT_OF_RANGE;
-    }
-    uint8_t mcg_gid[16] = MCG_GID_INIT_VAL;
-    uint32_t *mcg_gid_32 = (uint32_t*)mcg_gid;
-    mcg_gid_32[3] = 239 | (mcg_cnt + 10*self->coll_id) << 8;
-    mcg_cnt++;
-    memcpy(mgid.raw,mcg_gid,16);
-
-    self->mgid = mgid;
-
-    if ((self->listen_fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
-        ucs_debug("init_multicast_group: socket create failed.");
-        return UCS_ERR_INVALID_PARAM;
-    }
-    int enable = 1;
-    if (setsockopt(self->listen_fd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0) {
-        ucs_debug("sock enable reuse failed to load.");
-        return UCS_ERR_INVALID_PARAM;
-    }
-
-    struct sockaddr_in multicastAddr; /* Multicast Address */
-    memset(&multicastAddr, 0, sizeof(multicastAddr));   /* Zero out structure */
-    multicastAddr.sin_family = AF_INET;                 /* Internet address family */
-    multicastAddr.sin_addr.s_addr =  htonl(INADDR_ANY);  /* Any incoming interface */
-    multicastAddr.sin_port = htons(1900);      /* Multicast port */
-
-    /* Bind to the multicast port */
-    int ret = bind(self->listen_fd, (struct sockaddr *) &multicastAddr, sizeof(multicastAddr));
-    if (ret < 0) {
-        ucs_debug("init_multicast_group: bind socket failed.");
-        return UCS_ERR_INVALID_PARAM;
-    }
-
-    char ndev_name[IFNAMSIZ];
-    uct_ib_device_t *dev = uct_ib_iface_device(&self->super.super.super);
-    uint8_t port_num     = self->super.super.super.config.port_num;
-    uint8_t gid_index    = self->super.super.super.gid_info.gid_index;
-
-    status = uct_ib_device_get_roce_ndev_name(dev, port_num, gid_index,
-                                              ndev_name, sizeof(ndev_name));
-    if (status != UCS_OK) {
-        ucs_debug("init_multicast_group: device name failed to load.");
-        return UCS_ERR_INVALID_PARAM;
-    }
-    struct ifreq ifr;
-
-    status = ucs_netif_ioctl(ndev_name, SIOCGIFADDR, &ifr);
-    ucs_debug("device ip loaded %s.", inet_ntoa(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr));
-
-    if (status != UCS_OK) {
-        return UCS_ERR_INVALID_PARAM;
-    }
-    char *tmp = inet_ntoa(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr);
-    char *localIF = malloc(strlen(tmp) + 1);
-    strcpy(localIF, tmp);
-
-    struct in_addr multicastIP;
-    multicastIP.s_addr = mcg_gid[12] | mcg_gid[13] << 8 | mcg_gid[14] << 16 | mcg_gid[15] << 24;
-    tmp = inet_ntoa(multicastIP);
-    char *mcast = malloc(strlen(tmp) + 1);
-    strcpy(mcast, tmp);
-
-    struct ip_mreq multicastRequest;
-    multicastRequest.imr_multiaddr.s_addr = inet_addr(mcast);
-    multicastRequest.imr_interface.s_addr = inet_addr(localIF);
-
-    status =  ucs_socket_setopt(self->listen_fd, IPPROTO_IP, IP_ADD_MEMBERSHIP,(void *) &multicastRequest,
-            sizeof(multicastRequest));
-    if (status != UCS_OK) {
-        return UCS_ERR_INVALID_PARAM;
-    }
-    return UCS_OK;
-}
-
-static uct_ud_iface_ops_t ops;
 
 UCS_CLASS_INIT_FUNC(uct_ud_mcast_mlx5_iface_t,
                     uct_md_h md, uct_worker_h worker,
                     const uct_iface_params_t *params,
                     const uct_iface_config_t *tl_config)
 {
-    ucs_status_t status = UCS_OK;
+    uct_iface_ops_t mcast_ops;
 
     ucs_trace_func("");
 
-    init_ops(self, &ops);
+    uct_ud_mcast_mlx5_init_ops(&mcast_ops);
 
-    UCS_CLASS_CALL_SUPER_INIT(uct_ud_mlx5_iface_t, &ops,
-                              md, worker, params,tl_config)
+    UCS_CLASS_CALL_SUPER_INIT(uct_ud_mlx5_iface_t, &uct_ud_mlx5_iface_ops,
+                              &mcast_ops, md, worker, params,tl_config)
 
-    self->super.super.is_mcast_iface = 1;
-
-    self->coll_id  = params->global_info.proc_idx;
-    self->coll_cnt = params->global_info.proc_cnt;
-
-    status = init_multicast_group(self);
-
-    if (self->coll_id == 0) {
-        self->num_of_peers     = self->coll_cnt;
-        self->acked_psn_by_src = ucs_malloc(sizeof(*self->acked_psn_by_src)*self->num_of_peers, "alloc acked_psn");
-        if(!self->acked_psn_by_src) {
-            return UCS_ERR_NO_MEMORY;
-        }
-        for (int i = 0; i < self->num_of_peers; i++) {
-            self->acked_psn_by_src[i] = UCT_UD_INITIAL_PSN - 1;
-        }
-    } else {
-        self->num_of_peers     = 0;
-        self->acked_psn_by_src = NULL;
-    }
-
-    return status;
+    return uct_ud_mcast_iface_init(&self->super.super, &self->mcast, params);
 }
 
 
@@ -367,6 +105,8 @@ uct_ud_mcast_mlx5_query_tl_devices(uct_md_h md,
                                      tl_devices_p, num_tl_devices_p);
 }
 
-UCT_TL_DEFINE(&uct_ib_component, ud_mcast_mlx5, uct_ud_mcast_mlx5_query_tl_devices,
-              uct_ud_mcast_mlx5_iface_t, "UD_MC_", uct_ud_mcast_mlx5_iface_config_table,
-              uct_ud_mcast_mlx5_iface_config_t);
+UCT_TL_DEFINE(&uct_ib_component, ud_mcast_mlx5,
+              uct_ud_mcast_mlx5_query_tl_devices,
+              uct_ud_mcast_mlx5_iface_t, "MC_UD_",
+              uct_ud_mcast_mlx5_iface_config_table,
+              uct_ud_mlx5_iface_config_t);
