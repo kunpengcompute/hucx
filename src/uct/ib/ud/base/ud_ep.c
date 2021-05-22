@@ -676,7 +676,7 @@ uct_ud_ep_process_ack(uct_ud_iface_t *iface, uct_ud_ep_t *ep,
 
 #if HAVE_HNS_ROCE
     if (dummy_ack) {
-        ucs_queue_push(&ep->pending_skb, &skb->queue);
+        ucs_queue_push(&ep->pending_skb, &iface->tx.skb->queue);
         return;
     }
 #endif
