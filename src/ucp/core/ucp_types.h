@@ -153,6 +153,7 @@ typedef enum {
                                           defined AM */
     UCP_AM_ID_SINGLE_REPLY      =  26, /* Single fragment user defined AM
                                           carrying remote ep for reply */
+    UCP_AM_ID_PAGG              =  27, /* Packet aggregation */
     UCP_AM_ID_LAST,
     UCP_AM_ID_DISCARD           =  UCT_AM_ID_DISCARD, /* Discard such messages */
     UCP_AM_ID_MAX               =  UCT_AM_ID_MAX  /* Total IDs available */

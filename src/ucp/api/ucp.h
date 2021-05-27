@@ -152,8 +152,10 @@ enum ucp_feature {
     UCP_FEATURE_STREAM       = UCS_BIT(5),  /**< Request stream support */
     UCP_FEATURE_AM           = UCS_BIT(6),  /**< Request Active Message
                                                  support */
-    UCP_FEATURE_GROUPS       = UCS_BIT(7)   /**< Request collective
+    UCP_FEATURE_GROUPS       = UCS_BIT(7),  /**< Request collective
                                                  operations support */
+    UCP_FEATURE_PAGG         = UCS_BIT(8)   /**< Request packet aggregation
+                                                 support */
 };
 
 
@@ -173,8 +175,9 @@ enum ucp_worker_params_field {
                                                            descriptor */
     UCP_WORKER_PARAM_FIELD_FLAGS        = UCS_BIT(5), /**< Worker flags */
     UCP_WORKER_PARAM_FIELD_NAME         = UCS_BIT(6), /**< Worker name */
-    UCP_WORKER_PARAM_FIELD_AM_ALIGNMENT = UCS_BIT(7) /**< Alignment of active
+    UCP_WORKER_PARAM_FIELD_AM_ALIGNMENT = UCS_BIT(7), /**< Alignment of active
                                                           messages on the receiver */
+    UCP_WORKER_PARAM_FIELD_UUID         = UCS_BIT(8)  /**< Worker UUID */
 };
 
 
@@ -1278,6 +1281,14 @@ typedef struct ucp_worker_params {
      * @a ucp_am_recv_callback_t.
      */
     size_t                  am_alignment;
+
+    /**
+     * Worker UUID.
+     * This value is optional.
+     * If @ref UCP_WORKER_PARAM_FIELD_UUID is not set in the field_mask, the
+     * value of this field will be generated randomly.
+     */
+    uint64_t                uuid;
 } ucp_worker_params_t;
 
 
