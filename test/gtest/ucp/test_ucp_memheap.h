@@ -35,10 +35,13 @@ public:
 protected:
     virtual void init();
 
+    ucs_status_t map_buffer(mem_buffer *memheap, unsigned mem_map_flags,
+                            ucp_mem_h *memh_p);
+
     void test_xfer(send_func_t send_func, size_t size, unsigned num_iters,
                    size_t alignment, ucs_memory_type_t send_mem_type,
                    ucs_memory_type_t target_mem_type, unsigned mem_map_flags,
-                   bool is_ep_flush, void *arg);
+                   bool is_ep_flush, bool is_append, void *arg);
 };
 
 #endif

@@ -121,6 +121,21 @@ ucp_amo_init_fetch(ucp_request_t *req, ucp_ep_h ep, void *buffer,
 }
 
 static UCS_F_ALWAYS_INLINE
+void ucp_amo_init_append(ucp_request_t *req, ucp_ep_h ep, void* result_addr,
+                         uint64_t remote_addr, ucp_rkey_h ptr_rkey,
+                         ucp_rkey_h data_rkey, const void *buffer,
+                         uint64_t value, const ucp_amo_proto_t *proto)
+{
+    ucp_amo_init_fetch(req, ep, result_addr, UCT_ATOMIC_OP_ADD, sizeof(void*),
+                       remote_addr, ptr_rkey, value, proto);
+
+    /* Mark this request to remain until after @ref ucp_append_amo_nbx_cb */
+    req->flags                 &= ~UCP_REQUEST_FLAG_RELEASED;
+    req->send.amo.append.rkey   = data_rkey;
+    req->send.amo.append.buffer = buffer;
+}
+
+static UCS_F_ALWAYS_INLINE
 void ucp_amo_init_post(ucp_request_t *req, ucp_ep_h ep, uct_atomic_op_t op,
                        size_t op_size, uint64_t remote_addr, ucp_rkey_h rkey,
                        uint64_t value, const ucp_amo_proto_t *proto)
@@ -356,4 +371,98 @@ UCS_PROFILE_FUNC(ucs_status_t, ucp_atomic_cswap64,
 {
     return ucp_atomic_cswap_b(ep, compare, swap, sizeof(swap), remote_addr,
                               rkey, result, "atomic_cswap64");
+}
+
+ucs_status_t ucp_append_nbi(ucp_ep_h ep, const void *buffer, size_t length,
+                            uint64_t remote_ptr_addr, ucp_rkey_h ptr_rkey,
+                            ucp_rkey_h data_rkey, uint64_t *result_addr)
+{
+    ucs_status_ptr_t status_ptr;
+
+    status_ptr = ucp_append_nbx(ep, buffer, length, remote_ptr_addr, ptr_rkey,
+                                data_rkey, result_addr, &ucp_request_null_param);
+    if (UCS_PTR_IS_PTR(status_ptr)) {
+        ucp_request_free(status_ptr);
+        return UCS_INPROGRESS;
+    }
+
+    /* coverity[overflow] */
+    return UCS_PTR_STATUS(status_ptr);
+}
+
+ucs_status_ptr_t ucp_append_nb(ucp_ep_h ep, const void *buffer, size_t length,
+                               uint64_t remote_ptr_addr, ucp_rkey_h ptr_rkey,
+                               ucp_rkey_h data_rkey, uint64_t *result_addr,
+                               ucp_send_callback_t cb)
+{
+    ucp_request_param_t param = {
+        .op_attr_mask = UCP_OP_ATTR_FIELD_CALLBACK,
+        .cb.send      = (ucp_send_nbx_callback_t)cb
+    };
+
+    return ucp_append_nbx(ep, buffer, length, remote_ptr_addr, ptr_rkey,
+                          data_rkey, result_addr, &param);
+}
+
+ucs_status_ptr_t ucp_append_nbx(ucp_ep_h ep, const void *buffer, size_t count,
+                                uint64_t remote_ptr_addr, ucp_rkey_h ptr_rkey,
+                                ucp_rkey_h data_rkey, uint64_t *result_addr,
+                                const ucp_request_param_t *param)
+{
+    ucp_worker_h worker = ep->worker;
+    ucs_status_ptr_t status_p;
+    ucs_status_t status;
+    ucp_request_t *req;
+
+    UCP_RMA_CHECK_CONTIG1(param);
+    UCP_RMA_CHECK_PTR(worker->context, buffer, count);
+    UCP_AMO_CHECK_PARAM_NBX(worker->context, remote_ptr_addr, sizeof(void*),
+                            count, 0, UCP_ATOMIC_OP_LAST,
+                            return UCS_STATUS_PTR(UCS_ERR_INVALID_PARAM));
+    UCP_WORKER_THREAD_CS_ENTER_CONDITIONAL(ep->worker);
+
+    ucs_trace_req("append_nbx buffer %p count %zu remote_addr %"PRIx64
+                  " ptr_rkey %p data_rkey %p result_addr %p to %s cb %p",
+                  buffer, count, remote_ptr_addr, ptr_rkey, data_rkey,
+                  result_addr, ucp_ep_peer_name(ep),
+                  (param->op_attr_mask & UCP_OP_ATTR_FIELD_CALLBACK) ?
+                  param->cb.send : NULL);
+
+    status = UCP_RKEY_RESOLVE(ptr_rkey, ep, amo);
+    if (status != UCS_OK) {
+        status_p = UCS_STATUS_PTR(status);
+        goto out;
+    }
+
+    req = ucp_request_get_param(worker, param,
+                                {status_p = UCS_STATUS_PTR(UCS_ERR_NO_MEMORY);
+                                 goto out;});
+
+    ucp_amo_init_append(req, ep, result_addr, remote_ptr_addr, ptr_rkey,
+                        data_rkey, buffer, count, ptr_rkey->cache.amo_proto);
+
+    status_p = ucp_rma_send_request_cb(req,
+                                       (ucp_send_callback_t)ucp_append_amo_cb);
+    if (UCS_PTR_IS_PTR(status_p)) {
+        ucp_request_release(status_p);
+        status_p = UCS_STATUS_PTR(UCS_OK);
+    }
+
+out:
+    UCP_WORKER_THREAD_CS_EXIT_CONDITIONAL(ep->worker);
+    return status_p;
+}
+
+UCS_PROFILE_FUNC(ucs_status_t, ucp_append,
+                 (ep, buffer, length, remote_ptr_addr, ptr_rkey, data_rkey,
+                  result_addr),
+                 ucp_ep_h ep, void *buffer, size_t length,
+                 uint64_t remote_ptr_addr, ucp_rkey_h ptr_rkey,
+                 ucp_rkey_h data_rkey, uint64_t *result_addr)
+{
+    return ucp_rma_wait(ep->worker,
+                        ucp_append_nb(ep, buffer, length, remote_ptr_addr,
+                                      ptr_rkey, data_rkey, result_addr,
+                                      (ucp_send_callback_t)ucs_empty_function),
+                        "append");
 }

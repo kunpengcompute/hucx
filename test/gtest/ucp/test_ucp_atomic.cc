@@ -154,7 +154,8 @@ private:
     }
 
     void test_all_opcodes(send_func_t send_func, unsigned num_iters,
-                          uint64_t op_mask, int is_ep_flush) {
+                          uint64_t op_mask, bool is_ep_flush,
+                          bool is_append = false) {
         ucs::detail::message_stream ms("INFO");
 
         unsigned op_value;
@@ -163,7 +164,7 @@ private:
             ms << opcode_name(op) << " ";
             test_xfer(send_func, sizeof(T), num_iters, sizeof(T),
                       UCS_MEMORY_TYPE_HOST, UCS_MEMORY_TYPE_HOST, 0,
-                      is_ep_flush, &op);
+                      is_ep_flush, is_append, &op);
         }
     }
 };

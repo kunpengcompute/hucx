@@ -4261,6 +4261,154 @@ ucp_atomic_op_nbx(ucp_ep_h ep, ucp_atomic_op_t opcode, const void *buffer,
 
 /**
  * @ingroup UCP_COMM
+ * @brief Non-blocking implicit remote memory append operation.
+ *
+ * This routine initiates a storage of contiguous block of data that is
+ * described by the local address @a buffer in the remote contiguous memory
+ * region described by @a remote_addr address and the @ref ucp_rkey_h "memory
+ * handle" @a rkey. The routine returns immediately and @b does @b not
+ * guarantee re-usability of the source address @e buffer. If the operation is
+ * completed immediately the routine return UCS_OK, otherwise UCS_INPROGRESS
+ * or an error is returned to user.
+ *
+ * @note A user can use @ref ucp_worker_flush_nb "ucp_worker_flush_nb()"
+ * in order to guarantee re-usability of the source address @e buffer.
+ *
+ * @param [in]  ep               Remote endpoint handle.
+ * @param [in]  buffer           Pointer to the local source address.
+ * @param [in]  length           Length of the data (in bytes) stored under the
+ *                               source address.
+ * @param [in]  remote_ptr_addr  Pointer to the destination remote memory
+ *                               address holding the pointer of where to append.
+ * @param [in]  ptr_rkey         Remote memory key associated with the
+ *                               remote memory address of the pointer.
+ * @param [in]  data_rkey        Remote memory key associated with the
+ *                               remote memory address of the data.
+ * @param [out] result_addr      Local memory address to store resulting remote
+ *                               pointer, where the data had been written to.
+ *
+ * @return Error code as defined by @ref ucs_status_t
+ */
+ucs_status_t ucp_append_nbi(ucp_ep_h ep, const void *buffer, size_t length,
+                            uint64_t remote_ptr_addr, ucp_rkey_h ptr_rkey,
+                            ucp_rkey_h data_rkey, uint64_t *result_addr);
+
+/**
+ * @ingroup UCP_COMM
+ * @brief Non-blocking remote memory append operation.
+ *
+ * This routine initiates a storage of contiguous block of data that is
+ * described by the local address @a buffer in the remote contiguous memory
+ * region described by @a remote_addr address and the @ref ucp_rkey_h "memory
+ * handle" @a rkey.  The routine returns immediately and @b does @b not
+ * guarantee re-usability of the source address @e buffer. If the operation is
+ * completed immediately the routine return UCS_OK, otherwise UCS_INPROGRESS
+ * or an error is returned to user. If the put operation completes immediately,
+ * the routine returns UCS_OK and the call-back routine @a cb is @b not
+ * invoked. If the operation is @b not completed immediately and no error is
+ * reported, then the UCP library will schedule invocation of the call-back
+ * routine @a cb upon completion of the put operation. In other words, the
+ * completion of a put operation can be signaled by the return code or
+ * execution of the call-back.
+ *
+ * @note A user can use @ref ucp_worker_flush_nb "ucp_worker_flush_nb()"
+ * in order to guarantee re-usability of the source address @e buffer.
+ *
+ * @param [in]  ep               Remote endpoint handle.
+ * @param [in]  buffer           Pointer to the local source address.
+ * @param [in]  length           Length of the data (in bytes) stored under the
+ *                               source address.
+ * @param [in]  remote_ptr_addr  Pointer to the destination remote memory
+ *                               address holding the pointer of where to append.
+ * @param [in]  ptr_rkey         Remote memory key associated with the
+ *                               remote memory address of the pointer.
+ * @param [in]  data_rkey        Remote memory key associated with the
+ *                               remote memory address of the data.
+ * @param [out] result_addr      Local memory address to store resulting remote
+ *                               pointer, where the data had been written to.
+ * @param [in]  cb               Call-back function that is invoked whenever the
+ *                               put operation is completed and the local buffer
+ *                               can be modified. Does not guarantee remote
+ *                               completion.
+ *
+ * @return NULL                 - The operation was completed immediately.
+ * @return UCS_PTR_IS_ERR(_ptr) - The operation failed.
+ * @return otherwise            - Operation was scheduled and can be
+ *                              completed at any point in time. The request handle
+ *                              is returned to the application in order to track
+ *                              progress of the operation. The application is
+ *                              responsible for releasing the handle using
+ *                              @ref ucp_request_free "ucp_request_free()" routine.
+ */
+ucs_status_ptr_t ucp_append_nb(ucp_ep_h ep, const void *buffer, size_t length,
+                               uint64_t remote_ptr_addr, ucp_rkey_h ptr_rkey,
+                               ucp_rkey_h data_rkey, uint64_t *result_addr,
+                               ucp_send_callback_t cb);
+
+
+/**
+ * @ingroup UCP_COMM
+ * @brief Non-blocking remote memory append operation.
+ *
+ * This routine initiates a storage of contiguous block of data that is
+ * described by the local address @a buffer in the remote contiguous memory
+ * region described by @a remote_addr address and the @ref ucp_rkey_h "memory
+ * handle" @a rkey.  The routine returns immediately and @b does @b not
+ * guarantee re-usability of the source address @e buffer. If the operation is
+ * completed immediately the routine return UCS_OK, otherwise UCS_INPROGRESS
+ * or an error is returned to user. If the put operation completes immediately,
+ * the routine returns UCS_OK and the call-back routine @a param.cb.send is
+ * @b not invoked. If the operation is @b not completed immediately and no
+ * error is reported, then the UCP library will schedule invocation of the
+ * call-back routine @a param.cb.send upon completion of the put operation.
+ * In other words, the completion of a put operation can be signaled by the
+ * return code or execution of the call-back.
+ * Immediate completion signals can be fine-tuned via the
+ * @ref ucp_request_param_t.op_attr_mask field in the
+ * @ref ucp_request_param_t structure. The values of this field
+ * are a bit-wise OR of the @ref ucp_op_attr_t enumeration.
+ *
+ * @note A user can use @ref ucp_worker_flush_nb "ucp_worker_flush_nb()"
+ * in order to guarantee re-usability of the source address @e buffer.
+ *
+ * @param [in]  ep               Remote endpoint handle.
+ * @param [in]  buffer           Pointer to the local source address.
+ * @param [in]  count            Number of elements of type
+ *                               @ref ucp_request_param_t.datatype to put. If
+ *                               @ref ucp_request_param_t.datatype is not
+ *                               specified, the type defaults to
+ *                               ucp_dt_make_contig(1), which corresponds to
+ *                               byte elements.
+ * @param [in]  remote_ptr_addr  Pointer to the destination remote memory
+ *                               address holding the pointer of where to append.
+ * @param [in]  ptr_rkey         Remote memory key associated with the
+ *                               remote memory address of the pointer.
+ * @param [in]  data_rkey        Remote memory key associated with the
+ *                               remote memory address of the data.
+ * @param [out] result_addr      Local memory address to store resulting remote
+ *                               pointer, where the data had been written to.
+ * @param [in]  param            Operation parameters, see @ref ucp_request_param_t
+ *
+ * @return UCS_OK               - The operation was completed immediately.
+ * @return UCS_PTR_IS_ERR(_ptr) - The operation failed.
+ * @return otherwise            - Operation was scheduled and can be
+ *                                completed at any point in time. The request handle
+ *                                is returned to the application in order to track
+ *                                progress of the operation. The application is
+ *                                responsible for releasing the handle using
+ *                                @ref ucp_request_free "ucp_request_free()" routine.
+ *
+ * @note Only the datatype ucp_dt_make_contig(1) is supported
+ * for @a param->datatype, see @ref ucp_dt_make_contig.
+ */
+ucs_status_ptr_t ucp_append_nbx(ucp_ep_h ep, const void *buffer, size_t count,
+                                uint64_t remote_ptr_addr, ucp_rkey_h ptr_rkey,
+                                ucp_rkey_h data_rkey, uint64_t *result_addr,
+                                const ucp_request_param_t *param);
+
+
+/**
+ * @ingroup UCP_COMM
  * @brief Check the status of non-blocking request.
  *
  * This routine checks the state of the request and returns its current status.

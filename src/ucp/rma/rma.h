@@ -86,6 +86,8 @@ ucs_status_t ucp_rma_request_advance(ucp_request_t *req, ssize_t frag_length,
                                      ucs_status_t status,
                                      ucs_ptr_map_key_t req_id);
 
+void ucp_append_amo_cb(void *request, ucs_status_t status, void *user_data);
+
 void ucp_ep_flush_remote_completed(ucp_request_t *req);
 
 void ucp_rma_sw_send_cmpl(ucp_ep_h ep);
@@ -97,6 +99,49 @@ void ucp_rma_sw_send_cmpl(ucp_ep_h ep);
     if (((_init_params)->select_param->op_id    != (_op_id)) || \
         ((_init_params)->select_param->dt_class != UCP_DATATYPE_CONTIG)) { \
         return UCS_ERR_UNSUPPORTED; \
+    }
+
+
+#define UCP_RMA_CHECK_BUFFER(_buffer, _action) \
+    do { \
+        if (ENABLE_PARAMS_CHECK && ucs_unlikely((_buffer) == NULL)) { \
+            _action; \
+        } \
+    } while (0)
+
+
+#define UCP_RMA_CHECK_ZERO_LENGTH(_length, _action) \
+    do { \
+        if ((_length) == 0) { \
+            _action; \
+        } \
+    } while (0)
+
+
+#define UCP_RMA_CHECK(_context, _buffer, _length) \
+    do { \
+        UCP_CONTEXT_CHECK_FEATURE_FLAGS(_context, UCP_FEATURE_RMA, \
+                                        return UCS_ERR_INVALID_PARAM); \
+        UCP_RMA_CHECK_ZERO_LENGTH(_length, return UCS_OK); \
+        UCP_RMA_CHECK_BUFFER(_buffer, return UCS_ERR_INVALID_PARAM); \
+    } while (0)
+
+
+#define UCP_RMA_CHECK_PTR(_context, _buffer, _length) \
+    do { \
+        UCP_CONTEXT_CHECK_FEATURE_FLAGS(_context, UCP_FEATURE_RMA, \
+                                        return UCS_STATUS_PTR(UCS_ERR_INVALID_PARAM)); \
+        UCP_RMA_CHECK_ZERO_LENGTH(_length, return NULL); \
+        UCP_RMA_CHECK_BUFFER(_buffer, \
+                             return UCS_STATUS_PTR(UCS_ERR_INVALID_PARAM)); \
+    } while (0)
+
+
+#define UCP_RMA_CHECK_CONTIG1(_param) \
+    if (ucs_unlikely(ENABLE_PARAMS_CHECK && \
+                     ((_param)->op_attr_mask & UCP_OP_ATTR_FIELD_DATATYPE) && \
+                     ((_param)->datatype != ucp_dt_make_contig(1)))) { \
+        return UCS_STATUS_PTR(UCS_ERR_UNSUPPORTED); \
     }
 
 

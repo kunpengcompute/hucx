@@ -57,12 +57,30 @@ public:
         request_release(status_ptr);
     }
 
+    void append_b(size_t size, void *target_ptr, ucp_rkey_h rkey,
+                  void *expected_data, void *arg) {
+        /* ucs_memory_type_t args[] = {send_mem_type, target_mem_type}; */
+        ucs_status_ptr_t status_ptr = do_append(size, target_ptr, rkey,
+                                                expected_data,
+                                                ((ucs_memory_type_t*)arg)[1]);
+        request_wait(status_ptr);
+    }
+
+    void append_nbi(size_t size, void *target_ptr, ucp_rkey_h rkey,
+                    void *expected_data, void *arg) {
+        /* ucs_memory_type_t args[] = {send_mem_type, target_mem_type}; */
+        ucs_status_ptr_t status_ptr = do_append(size, target_ptr, rkey,
+                                                expected_data,
+                                                ((ucs_memory_type_t*)arg)[1]);
+        request_release(status_ptr);
+    }
+
 protected:
     static size_t default_max_size() {
         return (100 * UCS_MBYTE) / ucs::test_time_multiplier();
     }
 
-    void test_mem_types(send_func_t send_func,
+    void test_mem_types(send_func_t send_func, bool is_append = false,
                         size_t max_size = default_max_size()) {
         std::vector<std::vector<ucs_memory_type_t> > pairs =
                 ucs::supported_mem_type_pairs();
@@ -76,15 +94,19 @@ protected:
                 continue;
             }
 
-            test_message_sizes(send_func, max_size, pairs[i][0], pairs[i][1], 0);
+            test_message_sizes(send_func, max_size, pairs[i][0], pairs[i][1], 0,
+                               is_append);
         }
 
         /* test non-blocking map with host memory */
         test_message_sizes(send_func, max_size, UCS_MEMORY_TYPE_HOST,
-                           UCS_MEMORY_TYPE_HOST, UCP_MEM_MAP_NONBLOCK);
+                           UCS_MEMORY_TYPE_HOST, UCP_MEM_MAP_NONBLOCK,
+                           is_append);
     }
 
 private:
+    mapped_buffer *m_atomic; /* for append operations */
+
     /* Test variants */
     enum {
         FLUSH_EP     = UCS_BIT(0), /* If not set, flush worker */
@@ -111,10 +133,28 @@ private:
                            (uintptr_t)target_ptr, rkey, &param);
     }
 
+    ucs_status_ptr_t do_append(size_t size, void *target_ptr, ucp_rkey_h rkey,
+                               void *expected_data,
+                               ucs_memory_type_t atomic_mem_type) {
+        uint64_t *result;
+        ucp_rkey_h atomic_rkey;
+        ucp_request_param_t param;
+        param.op_attr_mask = 0;
+
+        result = (uint64_t*)UCS_PTR_BYTE_OFFSET(target_ptr, sizeof(void*));
+
+        mem_buffer::copy_from(result, &atomic_rkey, sizeof(ucp_rkey_h),
+                              atomic_mem_type);
+
+        return ucp_append_nbx(sender().ep(), expected_data, size,
+                              (uintptr_t)target_ptr, atomic_rkey,
+                              rkey, result, &param);
+    }
+
     void test_message_sizes(send_func_t send_func, size_t max_size,
                             ucs_memory_type_t send_mem_type,
                             ucs_memory_type_t target_mem_type,
-                            unsigned mem_map_flags) {
+                            unsigned mem_map_flags, bool is_append) {
         ucs::detail::message_stream ms("INFO");
 
         ms << ucs_memory_type_names[send_mem_type] << "->" <<
@@ -136,7 +176,8 @@ private:
 
             ucs_memory_type_t mem_types[] = {send_mem_type, target_mem_type};
             test_xfer(send_func, size, num_iters, 1, send_mem_type,
-                      target_mem_type, mem_map_flags, is_ep_flush(), mem_types);
+                      target_mem_type, mem_map_flags, is_ep_flush(), is_append,
+                      mem_types);
 
             if (HasFailure() || (num_errors() > 0)) {
                 break;
@@ -169,9 +210,17 @@ UCS_TEST_P(test_ucp_rma, get_nonblocking) {
     test_mem_types(static_cast<send_func_t>(&test_ucp_rma::get_nbi));
 }
 
+UCS_TEST_P(test_ucp_rma, append_blocking) {
+    test_mem_types(static_cast<send_func_t>(&test_ucp_rma::append_b));
+}
+
+UCS_TEST_P(test_ucp_rma, append_nonblocking) {
+    test_mem_types(static_cast<send_func_t>(&test_ucp_rma::append_nbi));
+}
+
 UCS_TEST_P(test_ucp_rma, get_blocking_zcopy, "ZCOPY_THRESH=0") {
     /* test get_zcopy minimal message length is respected */
-    test_mem_types(static_cast<send_func_t>(&test_ucp_rma::get_b),
+    test_mem_types(static_cast<send_func_t>(&test_ucp_rma::get_b), false,
                    64 * UCS_KBYTE);
 }
 
