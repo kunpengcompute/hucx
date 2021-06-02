@@ -403,12 +403,15 @@ AS_IF([test "x$with_ib" = "xyes"],
        # Device Memory support
        AS_IF([test "x$with_dm" != xno], [
            AC_CHECK_DECLS([ibv_exp_alloc_dm],
-               [AC_DEFINE([HAVE_IBV_DM], 1, [Device Memory support])
-                AC_DEFINE([HAVE_IBV_EXP_DM], 1, [Device Memory support (EXP)])],
+               [AC_DEFINE([HAVE_IBV_EXP_DM], 1, [Device Memory support (EXP)])
+                has_ib_dm=yes],
                [], [[#include <infiniband/verbs_exp.h>]])
            AC_CHECK_DECLS([ibv_alloc_dm],
-               [AC_DEFINE([HAVE_IBV_DM], 1, [Device Memory support])],
+               [AC_DEFINE([HAVE_IBV_DM], 1, [Device Memory support (Verbs)])
+                has_ib_dm=yes],
                [], [[#include <infiniband/verbs.h>]])])
+       AS_IF([test "x$has_ib_dm" = xyes],
+             [AC_DEFINE([HAVE_DM], 1, [Device Memory support])])
 
        # HNS RoCE support
        AC_CHECK_MEMBER([struct hns_roce_ib_create_cq.cqe_size],
@@ -449,6 +452,7 @@ AM_CONDITIONAL([HAVE_DC_EXP],  [test -n "$have_dc_exp"])
 AM_CONDITIONAL([HAVE_TL_UD],   [test "x$with_ud" != xno])
 AM_CONDITIONAL([HAVE_MLX5_HW], [test "x$with_mlx5_hw" != xno])
 AM_CONDITIONAL([HAVE_MLX5_DV], [test "x$with_mlx5_dv" = xyes])
+AM_CONDITIONAL([HAVE_IB_DM],   [test -n "$has_ib_dm"])
 AM_CONDITIONAL([HAVE_DEVX],    [test -n "$have_devx"])
 AM_CONDITIONAL([HAVE_EXP],     [test "x$verbs_exp" != xno])
 AM_CONDITIONAL([HAVE_MLX5_HW_UD], [test "x$with_mlx5_hw" != xno -a "x$has_get_av" != xno])

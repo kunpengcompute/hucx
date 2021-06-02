@@ -5,16 +5,16 @@
  * See file LICENSE for terms.
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include "mem_buffer.h"
 
 #include <sys/types.h>
 #include <ucp/core/ucp_mm.h>
 #include <ucs/debug/assert.h>
 #include <common/test_helpers.h>
+
+#if HAVE_DM
+#include <uct/ib/base/ib_md.h>
+#endif
 
 #if HAVE_CUDA
 #  include <cuda.h>
@@ -66,9 +66,23 @@ bool mem_buffer::is_rocm_supported()
 #endif
 }
 
-bool mem_buffer::is_gpu_supported()
+bool mem_buffer::is_dm_supported()
 {
-    return is_cuda_supported() || is_rocm_supported();
+#if HAVE_DM
+    int num_devices;
+    struct ibv_device **device_list = ibv_get_device_list(&num_devices);
+    if (device_list != NULL) {
+        ibv_free_device_list(device_list);
+    }
+    return (device_list != NULL) && (num_devices > 0);
+#else
+    return false;
+#endif
+}
+
+bool mem_buffer::is_only_host_mem_supported()
+{
+    return !(is_cuda_supported() || is_rocm_supported() || is_dm_supported());
 }
 
 bool mem_buffer::is_rocm_managed_supported()
@@ -101,6 +115,9 @@ const std::vector<ucs_memory_type_t>&  mem_buffer::supported_mem_types()
         if (is_rocm_managed_supported()) {
             vec.push_back(UCS_MEMORY_TYPE_ROCM_MANAGED);
         }
+        if (is_dm_supported()) {
+            vec.push_back(UCS_MEMORY_TYPE_RDMA_DM);
+        }
     }
 
     return vec;
@@ -129,9 +146,10 @@ void mem_buffer::set_device_context()
     device_set = true;
 }
 
-void *mem_buffer::allocate(size_t size, ucs_memory_type_t mem_type)
+void *mem_buffer::allocate(size_t size, ucs_memory_type_t mem_type, uct_md_h md)
 {
     void *ptr;
+    uct_mem_h memh;
 
     if (size == 0) {
         return NULL;
@@ -160,13 +178,19 @@ void *mem_buffer::allocate(size_t size, ucs_memory_type_t mem_type)
         ROCM_CALL(hipMallocManaged(&ptr, size));
         return ptr;
 #endif
+#if HAVE_DM
+    case UCS_MEMORY_TYPE_RDMA_DM:
+        ucs_assert(md != NULL);
+        md->ops->mem_alloc(md, &size, &ptr, mem_type, 0, "mem_buffer", &memh);
+        return memh;
+#endif
     default:
         UCS_TEST_SKIP_R(std::string(ucs_memory_type_names[mem_type]) +
                         " memory is not supported");
     }
 }
 
-void mem_buffer::release(void *ptr, ucs_memory_type_t mem_type)
+void mem_buffer::release(void *ptr, ucs_memory_type_t mem_type, uct_md_h md)
 {
     switch (mem_type) {
     case UCS_MEMORY_TYPE_HOST:
@@ -182,6 +206,12 @@ void mem_buffer::release(void *ptr, ucs_memory_type_t mem_type)
     case UCS_MEMORY_TYPE_ROCM:
     case UCS_MEMORY_TYPE_ROCM_MANAGED:
         ROCM_CALL(hipFree(ptr));
+        break;
+#endif
+#if HAVE_DM
+    case UCS_MEMORY_TYPE_RDMA_DM:
+        ucs_assert(md != NULL);
+        md->ops->mem_free(md, ptr);
         break;
 #endif
     default:
@@ -267,6 +297,19 @@ void mem_buffer::pattern_check(const void *buffer, size_t length, uint64_t seed,
 void mem_buffer::copy_to(void *dst, const void *src, size_t length,
                          ucs_memory_type_t dst_mem_type)
 {
+#if HAVE_DM
+    uct_ib_dm_t *dm;
+#if HAVE_IBV_EXP_DM
+    struct ibv_exp_memcpy_dm_attr dm_attr = {
+            .memcpy_dir = IBV_EXP_DM_CPY_TO_DEVICE,
+            .host_addr  = (void*)src,
+            .dm_offset  = (uint64_t)dst,
+            .length     = length,
+            .comp_mask  = 0
+    };
+#endif
+#endif
+
     switch (dst_mem_type) {
     case UCS_MEMORY_TYPE_HOST:
     case UCS_MEMORY_TYPE_ROCM_MANAGED:
@@ -286,6 +329,17 @@ void mem_buffer::copy_to(void *dst, const void *src, size_t length,
         ROCM_CALL(hipDeviceSynchronize());
         break;
 #endif
+#if HAVE_DM
+    case UCS_MEMORY_TYPE_RDMA_DM:
+        dm = (typeof(dm))dst;
+#if HAVE_IBV_EXP_DM
+        ibv_exp_memcpy_dm(dm->dm, &dm_attr);
+        break;
+#elif HAVE_IBV_DM
+        ibv_memcpy_to_dm(dm->dm, (uintptr_t)dst, src, length);
+        break;
+#endif
+#endif
     default:
         abort_wrong_mem_type(dst_mem_type);
     }
@@ -294,6 +348,19 @@ void mem_buffer::copy_to(void *dst, const void *src, size_t length,
 void mem_buffer::copy_from(void *dst, const void *src, size_t length,
                            ucs_memory_type_t src_mem_type)
 {
+#if HAVE_DM
+    uct_ib_dm_t *dm;
+#if HAVE_IBV_EXP_DM
+    struct ibv_exp_memcpy_dm_attr dm_attr = {
+            .memcpy_dir = IBV_EXP_DM_CPY_TO_HOST,
+            .host_addr  = (void*)dst,
+            .dm_offset  = (uint64_t)src,
+            .length     = length,
+            .comp_mask  = 0
+    };
+#endif
+#endif
+
     switch (src_mem_type) {
     case UCS_MEMORY_TYPE_HOST:
     case UCS_MEMORY_TYPE_ROCM_MANAGED:
@@ -312,6 +379,17 @@ void mem_buffer::copy_from(void *dst, const void *src, size_t length,
         ROCM_CALL(hipMemcpy(dst, src, length, hipMemcpyDeviceToHost));
         ROCM_CALL(hipDeviceSynchronize());
         break;
+#endif
+#if HAVE_DM
+    case UCS_MEMORY_TYPE_RDMA_DM:
+        dm = (typeof(dm))dst;
+#if HAVE_IBV_EXP_DM
+        ibv_exp_memcpy_dm(dm->dm, &dm_attr);
+        break;
+#elif HAVE_IBV_DM
+        ibv_memcpy_from_dm(dst, dm->dm, (uintptr_t)src, length);
+        break;
+#endif
 #endif
     default:
         abort_wrong_mem_type(src_mem_type);
@@ -375,12 +453,17 @@ uint64_t mem_buffer::pat(uint64_t prev) {
     return (prev << 1) | (__builtin_parityl(prev & polynom) & 1);
 }
 
-mem_buffer::mem_buffer(size_t size, ucs_memory_type_t mem_type) :
-    m_mem_type(mem_type), m_ptr(allocate(size, mem_type)), m_size(size) {
+mem_buffer::mem_buffer(size_t size, ucs_memory_type_t mem_type, uct_md_h md) :
+    m_mem_type(mem_type), m_ptr(allocate(size, mem_type, md)), m_size(size)
+#if HAVE_DM
+    , m_md(md), m_dm_obj(NULL) {  /* TOOO: get obj from md!*/
+#else
+    {
+#endif
 }
 
 mem_buffer::~mem_buffer() {
-    release(ptr(), mem_type());
+    release(ptr(), mem_type(), md());
 }
 
 ucs_memory_type_t mem_buffer::mem_type() const {
@@ -393,4 +476,12 @@ void *mem_buffer::ptr() const {
 
 size_t mem_buffer::size() const {
     return m_size;
+}
+
+uct_md_h mem_buffer::md() const {
+#if HAVE_DM
+    return m_md;
+#else
+    return NULL;
+#endif
 }

@@ -76,4 +76,16 @@ enum mlx5dv_obj_type {
     MLX5DV_OBJ_RWQ  = 1 << 3,
 };
 
+#ifdef HAVE_DM
+#include <ucs/type/status.h>
+#include <uct/ib/base/ib_md.h>
+
+#ifdef HAVE_IBV_EXP_DM
+typedef union uct_ib_mlx5_dm uct_ib_mlx5_dm_t;
+ucs_status_t
+uct_ib_mlx5_exp_md_dm_create(uct_ib_md_t *md, size_t length, uct_ib_mlx5_dm_t *dm);
+void uct_ib_mlx5_exp_md_dm_destroy(uct_ib_mlx5_dm_t *dm);
+#endif
+#endif
+
 #endif

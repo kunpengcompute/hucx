@@ -410,7 +410,7 @@ protected:
                            ucs_memory_type_t mem_type = UCS_MEMORY_TYPE_HOST,
                            unsigned data_cb_flags = 0)
     {
-        mem_buffer sbuf(size, mem_type);
+        mem_buffer sbuf(size, mem_type, NULL);
         mem_buffer::pattern_fill(sbuf.ptr(), size, SEED, mem_type);
         m_hdr.resize(header_size);
         ucs::fill_random(m_hdr);
@@ -475,7 +475,7 @@ protected:
             return UCS_OK;
         }
 
-        m_rx_buf = mem_buffer::allocate(length, m_rx_memtype);
+        m_rx_buf = mem_buffer::allocate(length, m_rx_memtype, NULL);
         mem_buffer::pattern_fill(m_rx_buf, length, 0ul, m_rx_memtype);
 
         m_rx_dt_desc.make(m_rx_dt, m_rx_buf, length);
@@ -515,7 +515,7 @@ protected:
         ASSERT_FALSE(m_am_received);
         m_am_received = true;
         mem_buffer::pattern_check(m_rx_buf, length, SEED, m_rx_memtype);
-        mem_buffer::release(m_rx_buf, m_rx_memtype);
+        mem_buffer::release(m_rx_buf, m_rx_memtype, NULL);
     }
 
     static ucs_status_t am_data_cb(void *arg, const void *header,
@@ -802,11 +802,11 @@ public:
 
     static void base_test_generator(std::vector<ucp_test_variant> &variants)
     {
-        // 1. Do not instantiate test case if no GPU memtypes supported.
+        // 1. Do not instantiate test case if no GPU/DM memtypes supported.
         // 2. Do not exclude host memory type, because this generator is used by
         //    test_ucp_am_nbx_rndv_memtype class to generate combinations like
         //    host<->cuda, cuda-managed<->host, etc.
-        if (!mem_buffer::is_gpu_supported()) {
+        if (mem_buffer::is_only_host_mem_supported()) {
             return;
         }
 

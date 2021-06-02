@@ -564,6 +564,7 @@ public:
 
     static void get_test_variants(std::vector<ucp_test_variant>& variants) {
         add_variant_memtypes(variants, test_ucp_tag::get_test_variants,
+                             UCS_BIT(UCS_MEMORY_TYPE_RDMA_DM) |
                              UCS_BIT(UCS_MEMORY_TYPE_CUDA) |
                              UCS_BIT(UCS_MEMORY_TYPE_ROCM));
     }
@@ -838,6 +839,7 @@ public:
     static void get_test_variants(std::vector<ucp_test_variant>& variants) {
         add_variant_memtypes(variants,
                              test_ucp_tag_offload_stats::get_test_variants,
+                             UCS_BIT(UCS_MEMORY_TYPE_RDMA_DM) |
                              UCS_BIT(UCS_MEMORY_TYPE_CUDA) |
                              UCS_BIT(UCS_MEMORY_TYPE_ROCM));
     }

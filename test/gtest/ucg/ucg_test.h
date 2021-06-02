@@ -20,11 +20,14 @@
 #include <common/test.h>
 #include <vector>
 #include <memory>
+
+extern "C" {
 #include "ucg/builtin/plan/builtin_plan.h"
 #include "ucg/builtin/ops/builtin_ops.h"
 #include "ucg/base/ucg_group.h"
 #include "ucg/api/ucg_plan_component.h"
 #include "ucg/api/ucg.h"
+}
 
 #if HAVE_CUDA
 #include <cuda.h>

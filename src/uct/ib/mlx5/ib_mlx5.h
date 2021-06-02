@@ -243,7 +243,7 @@ typedef enum {
 
 
 typedef struct uct_ib_mlx5_iface_config {
-#if HAVE_IBV_DM
+#if HAVE_DM
     struct {
         size_t               seg_len;
         unsigned             count;
@@ -488,6 +488,34 @@ struct uct_ib_mlx5_atomic_masked_fadd64_seg {
 } UCS_S_PACKED;
 
 ucs_status_t uct_ib_mlx5_md_get_atomic_mr_id(uct_ib_md_t *md, uint8_t *mr_id);
+
+
+#ifdef HAVE_DM
+static inline ucs_status_t
+uct_ib_mlx5_md_dm_create(uct_ib_md_t *md, size_t length, uct_ib_mlx5_dm_t *dm)
+{
+#if HAVE_INFINIBAND_MLX5DV_H
+    return uct_ib_mlx5dv_md_dm_create(md, length, dm);
+#else
+#ifdef HAVE_IBV_EXP_DM
+    return uct_ib_mlx5_exp_md_dm_create(md, length, dm);
+#else
+    return UCS_ERR_UNSUPPORTED;
+#endif
+#endif
+}
+
+static inline void uct_ib_mlx5_md_dm_destroy(uct_ib_mlx5_dm_t *dm)
+{
+#if HAVE_INFINIBAND_MLX5DV_H
+    uct_ib_mlx5dv_md_dm_destroy(dm);
+#else
+#ifdef HAVE_IBV_EXP_DM
+    uct_ib_mlx5_exp_md_dm_destroy(dm);
+#endif
+#endif
+}
+#endif
 
 ucs_status_t uct_ib_mlx5_iface_get_res_domain(uct_ib_iface_t *iface,
                                               uct_ib_mlx5_qp_t *txwq);

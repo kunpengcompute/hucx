@@ -1265,7 +1265,7 @@ UCS_TEST_SKIP_COND_P(memtype_hooks, alloc_free,
     ASSERT_UCS_OK(status);
 
     const size_t size = 64 * UCS_KBYTE;
-    ucs::auto_ptr<mem_buffer> buffer(new mem_buffer(size, mem_type()));
+    ucs::auto_ptr<mem_buffer> buffer(new mem_buffer(size, mem_type(), NULL));
     void *ptr = buffer->ptr();
 
     EXPECT_TRUE(is_event_fired(UCM_EVENT_MEM_TYPE_ALLOC, ptr, size));

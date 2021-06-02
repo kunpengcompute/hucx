@@ -127,7 +127,7 @@ bool test_md::check_reg_mem_type(ucs_memory_type_t mem_type)
 void test_md::alloc_memory(void **address, size_t size, char *fill_buffer,
                            ucs_memory_type_t mem_type)
 {
-    *address = mem_buffer::allocate(size, mem_type);
+    *address = mem_buffer::allocate(size, mem_type, md());
     if (fill_buffer) {
         mem_buffer::copy_to(*address, fill_buffer, size, mem_type);
     }
@@ -141,7 +141,7 @@ void test_md::check_memory(void *address, void *expect, size_t size,
 
 void test_md::free_memory(void *address, ucs_memory_type_t mem_type)
 {
-    mem_buffer::release(address, mem_type);
+    mem_buffer::release(address, mem_type, md());
 }
 
 bool test_md::is_device_detected(ucs_memory_type_t mem_type)
@@ -370,7 +370,7 @@ UCS_TEST_P(test_md, mem_query) {
             continue;
         }
 
-        mem_buffer mem_buf(4 * UCS_KBYTE, mem_type);
+        mem_buffer mem_buf(4 * UCS_KBYTE, mem_type, NULL);
         uct_md_mem_attr_t mem_attr = {};
 
         mem_attr.field_mask = UCT_MD_MEM_ATTR_FIELD_MEM_TYPE |
