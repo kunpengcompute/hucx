@@ -42,7 +42,7 @@ void test_ucp_memheap::test_xfer(send_func_t send_func, size_t size,
                                  unsigned mem_map_flags,
                                  bool is_ep_flush, bool is_append, void *arg)
 {
-    void *send_buf, *atomic_val = NULL;
+    void *send_buf = NULL, *atomic_val = NULL;
     ucp_rkey_h rkey, atomic_rkey;
     ucp_mem_h memh, atomic_memh;
     ucs_status_t status;

@@ -661,8 +661,10 @@ ucp_ep_create_to_worker_addr(ucp_worker_h worker,
         goto err_delete;
     }
 
-    ucp_ep_get_tl_bitmap(ep, &ep_tl_bitmap);
-    ucp_tl_bitmap_validate(&ep_tl_bitmap, local_tl_bitmap);
+    if (iface_tl_base == 0) {
+        ucp_ep_get_tl_bitmap(ep, &ep_tl_bitmap);
+        ucp_tl_bitmap_validate(&ep_tl_bitmap, local_tl_bitmap);
+    }
 
     *ep_p = ep;
     return UCS_OK;

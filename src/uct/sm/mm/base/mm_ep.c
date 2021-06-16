@@ -484,10 +484,8 @@ void uct_mm_ep_pending_purge(uct_ep_h tl_ep, uct_pending_purge_callback_t cb,
 ucs_status_t uct_mm_ep_flush(uct_ep_h tl_ep, unsigned flags,
                              uct_completion_t *comp)
 {
-    uct_mm_ep_t *ep = ucs_derived_of(tl_ep, uct_mm_ep_t);
-
     ucs_memory_cpu_store_fence();
-    UCT_TL_EP_STAT_FLUSH(&ep->super);
+    UCT_TL_EP_STAT_FLUSH(&ucs_derived_of(tl_ep, uct_mm_ep_t)->super);
     return UCS_OK;
 }
 
