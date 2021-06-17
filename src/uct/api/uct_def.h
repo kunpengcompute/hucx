@@ -91,7 +91,8 @@ enum uct_cb_param_flags {
     UCT_CB_PARAM_FLAG_STRIDE  = UCS_BIT(4),
     UCT_CB_PARAM_FLAG_SHIFTED = UCS_BIT(5),
 
-    UCT_CB_PARAM_FLAG_LAST    = UCS_BIT(6)
+    UCT_CB_PARAM_FLAG_LAST    = UCS_BIT(6),
+    UCT_CB_PARAM_FLAG_SHIFT   = 6
 };
 
 /**

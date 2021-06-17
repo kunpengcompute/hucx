@@ -1156,6 +1156,7 @@ uct_mm_coll_ep_process_recv(uct_mm_coll_ep_t *ep, uct_mm_coll_iface_t *iface,
                 am_cb_flags = UCT_CB_PARAM_FLAG_DESC |
                               UCT_CB_PARAM_FLAG_STRIDE;
             }
+            am_cb_flags    |= iface->sm_proc_cnt << UCT_CB_PARAM_FLAG_SHIFT;
         } else {
             am_cb_flags     = UCT_CB_PARAM_FLAG_DESC |
                               UCT_CB_PARAM_FLAG_SHARED;
