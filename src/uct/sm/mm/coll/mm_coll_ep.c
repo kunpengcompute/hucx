@@ -1117,6 +1117,7 @@ uct_mm_coll_ep_process_recv(uct_mm_coll_ep_t *ep, uct_mm_coll_iface_t *iface,
     if (ucs_likely(is_pending_batched) && is_incast) {
         if (!uct_mm_coll_ep_centralized_is_elem_ready(elem, ep, 1, is_short,
                                                       is_loopback, use_cb, cb)) {
+            iface->super.recv_check.flags_state = UCT_MM_FIFO_FLAG_STATE_CACHED_READY;
             return 0; /* incast started, but not all peers have written yet */
         }
     }
@@ -1150,13 +1151,11 @@ uct_mm_coll_ep_process_recv(uct_mm_coll_ep_t *ep, uct_mm_coll_iface_t *iface,
         if (is_incast) {
             if (use_cb) {
                 am_cb_flags = UCT_CB_PARAM_FLAG_DESC   |
-                              UCT_CB_PARAM_FLAG_STRIDE |
                               UCT_CB_PARAM_FLAG_SHIFTED;
             } else {
                 am_cb_flags = UCT_CB_PARAM_FLAG_DESC |
                               UCT_CB_PARAM_FLAG_STRIDE;
             }
-            am_cb_flags    |= iface->sm_proc_cnt << UCT_CB_PARAM_FLAG_SHIFT;
         } else {
             am_cb_flags     = UCT_CB_PARAM_FLAG_DESC |
                               UCT_CB_PARAM_FLAG_SHARED;
@@ -1238,7 +1237,7 @@ uct_mm_incast_iface_poll_fifo(uct_mm_incast_iface_t *iface, int use_cb,
     uct_mm_coll_fifo_element_t *elem = ucs_derived_of(recv_check->read_elem,
                                                       uct_mm_coll_fifo_element_t);
 
-    while ((uct_mm_iface_fifo_has_new_data(recv_check, &elem->super, 0)) &&
+    while ((uct_mm_iface_fifo_has_new_data(recv_check, &elem->super)) &&
            (uct_mm_coll_ep_process_recv(&dummy, &iface->super, elem, 1, 1, use_cb, cb))) {
         elem->pending = 0;
 
@@ -1434,7 +1433,7 @@ uct_mm_bcast_ep_poll_fifo(uct_mm_bcast_iface_t *iface, uct_mm_bcast_ep_t *ep)
                                                         uct_mm_coll_fifo_element_t,
                                                         super);
 
-    if (!uct_mm_iface_fifo_has_new_data(recv_check, &elem->super, 0)) {
+    if (!uct_mm_iface_fifo_has_new_data(recv_check, &elem->super)) {
         return 0;
     }
 

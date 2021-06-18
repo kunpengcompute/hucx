@@ -271,7 +271,7 @@ uct_mm_iface_poll_fifo(uct_mm_base_iface_t *iface)
     uct_mm_fifo_check_t *recv_check = &iface->recv_check;
     uct_mm_fifo_element_t *elem     = recv_check->read_elem;
 
-    if (!uct_mm_iface_fifo_has_new_data(recv_check, elem, 1)) {
+    if (!uct_mm_iface_fifo_has_new_data(recv_check, elem)) {
         return 0;
     }
 

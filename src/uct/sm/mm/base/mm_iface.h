@@ -31,9 +31,9 @@ enum {
 };
 
 typedef enum uct_mm_fifo_flag_state {
-    UCT_MM_FIFO_FLAG_STATE_UNCACHED,
+    UCT_MM_FIFO_FLAG_STATE_CACHED_READY,
     UCT_MM_FIFO_FLAG_STATE_CACHED_WAITING,
-    UCT_MM_FIFO_FLAG_STATE_CACHED_READY
+    UCT_MM_FIFO_FLAG_STATE_UNCACHED
 } uct_mm_fifo_flag_state_t;
 
 
@@ -288,23 +288,26 @@ uct_mm_iface_fifo_flag_no_new_data(uint8_t flags,
 
 static UCS_F_ALWAYS_INLINE int
 uct_mm_iface_fifo_has_new_data(uct_mm_fifo_check_t *check_info,
-                               uct_mm_fifo_element_t *read_elem,
-                               int is_exclusive)
+                               uct_mm_fifo_element_t *read_elem)
 {
-    /* Flags already indicate an incoming message - proceed */
-    if ((!is_exclusive) &&
-        (check_info->flags_state == UCT_MM_FIFO_FLAG_STATE_CACHED_READY)) {
-        return 1;
-    }
+    uint8_t flags;
 
-    /* Start by checking the flags to see if anything changed */
-    uint8_t flags = read_elem->flags;
-    if (ucs_likely((check_info->flags_state == UCT_MM_FIFO_FLAG_STATE_CACHED_WAITING) &&
-                   (check_info->flags_cache == flags))) {
-        return 0;
+    switch (check_info->flags_state) {
+    case UCT_MM_FIFO_FLAG_STATE_CACHED_READY:
+        return 1;
+
+    case UCT_MM_FIFO_FLAG_STATE_CACHED_WAITING:
+        if (ucs_likely(check_info->flags_cache == read_elem->flags)) {
+            return 0;
+        }
+        break;
+
+    case UCT_MM_FIFO_FLAG_STATE_UNCACHED:
+        break;
     }
 
     /* check the read_index to see if there is a new item to read (checking the owner bit) */
+    flags = read_elem->flags;
     if (uct_mm_iface_fifo_flag_no_new_data(flags,
                                            check_info->read_index,
                                            check_info->fifo_shift)) {
