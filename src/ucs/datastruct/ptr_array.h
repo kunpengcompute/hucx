@@ -259,6 +259,13 @@ __ucs_ptr_array_for_each_get_step_size(ucs_ptr_array_t *ptr_array,
  */
 
 
+enum ucs_ptr_array_locked_flags {
+    UCS_PTR_ARRAY_LOCKED_FLAG_TRY_LOCK               = UCS_BIT(0),
+    UCS_PTR_ARRAY_LOCKED_FLAG_KEEP_LOCK_IF_FOUND     = UCS_BIT(1),
+    UCS_PTR_ARRAY_LOCKED_FLAG_KEEP_LOCK_IF_NOT_FOUND = UCS_BIT(2)
+};
+
+
 /* Locked ptr array */
 typedef struct ucs_ptr_array_locked {
     ucs_ptr_array_t          super;
@@ -319,6 +326,23 @@ void ucs_ptr_array_locked_set(ucs_ptr_array_locked_t *locked_ptr_array,
 
 
 /**
+ * Set a pointer in the array, unless that slot is occupied - in which case
+ * retrieve the existing contents. If the slot was not occupied - return the
+ * value which was just set.
+ *
+ * @param [in]  locked_ptr_array  Pointer to a locked ptr array.
+ * @param [in]  element_index     Index of slot.
+ * @param [in]  new_val           Value to put into slot given by index.
+ * @param [out] set_val           Value which now resides in said slot.
+ *
+ * Complexity: O(n)
+ */
+void ucs_ptr_array_locked_set_first(ucs_ptr_array_locked_t *locked_ptr_array,
+                                    unsigned element_index, void *new_val,
+                                    void **set_val);
+
+
+/**
  * Remove a pointer from the locked array.
  *
  * @param [in] locked_ptr_array  Pointer to a locked ptr array.
@@ -355,6 +379,15 @@ void *ucs_ptr_array_locked_replace(ucs_ptr_array_locked_t *locked_ptr_array,
 
 
 /**
+ * Try to acquire the ptr_array lock.
+ *
+ * @param [in] _locked_ptr_array  Pointer to a locked ptr array.
+ */
+#define ucs_ptr_array_locked_try_lock(_locked_ptr_array) \
+    ucs_recursive_spin_trylock(&(_locked_ptr_array)->lock)
+
+
+/**
  * Release the ptr_array lock.
  *
  * @param [in] _locked_ptr_array  Pointer to a locked ptr array.
@@ -368,6 +401,7 @@ void *ucs_ptr_array_locked_replace(ucs_ptr_array_locked_t *locked_ptr_array,
  *
  * @param [in]  locked_ptr_array   Pointer to a locked ptr array.
  * @param [in]  element_index      Index to retrieve the value from.
+ * @param [in]  flags              From @ref enum ucs_ptr_array_locked_flags .
  * @param [out] var                Filled with the value.
  *
  * @return Whether the value is present and valid.
@@ -376,13 +410,30 @@ void *ucs_ptr_array_locked_replace(ucs_ptr_array_locked_t *locked_ptr_array,
  */
 static UCS_F_ALWAYS_INLINE int
 ucs_ptr_array_locked_lookup(ucs_ptr_array_locked_t *locked_ptr_array,
-                            unsigned element_index, void **var)
+                            unsigned element_index, unsigned flags, void **var)
 {
     int present;
+
+    if (flags & UCS_PTR_ARRAY_LOCKED_FLAG_TRY_LOCK) {
+        if (!ucs_ptr_array_locked_try_lock(locked_ptr_array)) {
+            return -1;
+        }
+    } else {
+        ucs_ptr_array_locked_acquire_lock(locked_ptr_array);
+    }
 
     ucs_ptr_array_locked_acquire_lock(locked_ptr_array);
     present = ucs_ptr_array_lookup(&locked_ptr_array->super, element_index,
                                    *var);
+
+    if ((flags & UCS_PTR_ARRAY_LOCKED_FLAG_KEEP_LOCK_IF_FOUND) && present) {
+        return present;
+    }
+
+    if ((flags & UCS_PTR_ARRAY_LOCKED_FLAG_KEEP_LOCK_IF_NOT_FOUND) && !present) {
+        return present;
+    }
+
     ucs_ptr_array_locked_release_lock(locked_ptr_array);
 
     return present;

@@ -339,6 +339,18 @@ void ucs_ptr_array_locked_set(ucs_ptr_array_locked_t *locked_ptr_array,
     ucs_recursive_spin_unlock(&locked_ptr_array->lock);
 }
 
+void ucs_ptr_array_locked_set_first(ucs_ptr_array_locked_t *locked_ptr_array,
+                                    unsigned element_index, void *new_val,
+                                    void **set_val)
+{
+    ucs_recursive_spin_lock(&locked_ptr_array->lock);
+    if (!ucs_ptr_array_lookup(&locked_ptr_array->super, element_index, *set_val)) {
+        ucs_ptr_array_set(&locked_ptr_array->super, element_index, new_val);
+        *set_val = new_val;
+    }
+    ucs_recursive_spin_unlock(&locked_ptr_array->lock);
+}
+
 void ucs_ptr_array_locked_remove(ucs_ptr_array_locked_t *locked_ptr_array,
                                  unsigned element_index)
 {
