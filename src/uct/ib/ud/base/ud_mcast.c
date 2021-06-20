@@ -160,6 +160,7 @@ ucs_status_t uct_ud_mcast_iface_attach(uct_ud_iface_t *iface,
     }
 
     // TODO: find a way to detect when the attach has completed...
+sleep(1);
 
     ucs_debug("multicast attachment on qp 0x%x, mgid %s", iface->qp->qp_num,
               uct_ib_gid_str(&addr->mgid, ib_gid_str, sizeof(ib_gid_str)));

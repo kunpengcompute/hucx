@@ -395,6 +395,7 @@ UCS_CLASS_INIT_FUNC(uct_ud_ep_t, uct_ud_iface_t *iface,
     if ((iface->mcast_ctx != NULL) && (iface->mcast_ctx->coll_id == 0)) {
         self->rx_crep_count = iface->mcast_ctx->coll_cnt;
         // TODO: find a way to detect readiness...
+sleep(1);
     }
 
     UCT_UD_EP_HOOK_INIT(self);
@@ -743,7 +744,7 @@ static void uct_ud_ep_rx_creq(uct_ud_iface_t *iface, uct_ud_neth_t *neth)
                                  &ctl->conn_req.ep_addr.iface_addr,
                                  ctl->conn_req.path_index,
                                  ctl->conn_req.conn_sn, 0);
-    if (ep == NULL) {
+    if ((ep == NULL) || (iface->mcast_ctx)) {
         ep = uct_ud_ep_create_passive(iface, ctl);
         ucs_assert_always(ep != NULL);
         ep->rx.ooo_pkts.head_sn = neth->psn;
@@ -810,7 +811,7 @@ static void uct_ud_ep_rx_ctl(uct_ud_iface_t *iface, uct_ud_ep_t *ep,
     ucs_trace_func("");
     ucs_assert_always(ctl->type == UCT_UD_PACKET_CREP);
 
-    if (uct_ud_ep_is_connected(ep) && (ep->rx_crep_count == 0)) {
+    if (uct_ud_ep_is_connected(ep) && (ep->rx_crep_count == 0) && (!iface->mcast_ctx)) {
         ucs_assertv_always(ep->dest_ep_id == ctl->conn_rep.src_ep_id,
                            "ep=%p [id=%d dest_ep_id=%d flags=0x%x] "
                            "crep [neth->dest=%d dst_ep_id=%d src_ep_id=%d]",
