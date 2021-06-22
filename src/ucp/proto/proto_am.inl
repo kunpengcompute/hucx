@@ -203,6 +203,7 @@ void ucp_dt_iov_copy_uct(ucp_context_h context, uct_iov_t *iov, size_t *iovcnt,
 
     switch (datatype & UCP_DATATYPE_CLASS_MASK) {
     case UCP_DATATYPE_CONTIG:
+    case UCP_DATATYPE_STRIDED:
         if (md_flags & UCT_MD_FLAG_NEED_MEMH) {
             if (mdesc) {
                 memh_index  = ucs_bitmap2idx(mdesc->memh->md_map, md_index);

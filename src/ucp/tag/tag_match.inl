@@ -265,6 +265,10 @@ ucp_request_recv_offload_data(ucp_request_t *req, const void *data,
         ucp_request_unpack_contig(req,
                                   UCS_PTR_BYTE_OFFSET(req->recv.buffer, offset),
                                   data, length);
+    } else if (UCP_DT_IS_STRIDED(req->recv.datatype)) {
+        ucp_request_unpack_strided(req, req->recv.datatype,
+                                   UCS_PTR_BYTE_OFFSET(req->recv.buffer, offset),
+                                   data, length);
     } else {
         /* For non-contig data need to assemble the whole message
          * before calling unpack. */

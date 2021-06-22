@@ -411,6 +411,7 @@ UCS_PROFILE_FUNC(ucs_status_t, ucp_request_memory_reg,
     flags  = UCT_MD_MEM_ACCESS_RMA | uct_flags;
     switch (datatype & UCP_DATATYPE_CLASS_MASK) {
     case UCP_DATATYPE_CONTIG:
+    case UCP_DATATYPE_STRIDED:
         ucs_assert(ucs_popcount(md_map) <= UCP_MAX_OP_MDS);
         status = ucp_mem_rereg_mds(context, md_map, buffer, length, flags,
                                    NULL, mem_type, NULL, state->dt.contig.memh,
@@ -473,6 +474,7 @@ UCS_PROFILE_FUNC_VOID(ucp_request_memory_dereg, (context, datatype, state, req_d
 
     switch (datatype & UCP_DATATYPE_CLASS_MASK) {
     case UCP_DATATYPE_CONTIG:
+    case UCP_DATATYPE_STRIDED:
         ucp_request_dt_dereg(context, &state->dt.contig, 1, req_dbg);
         break;
     case UCP_DATATYPE_IOV:

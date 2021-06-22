@@ -4529,6 +4529,30 @@ void *ucp_request_alloc(ucp_worker_h worker);
 
 /**
  * @ingroup UCP_DATATYPE
+ * @brief Generate an identifier for a strided data type.
+ *
+ * This function creates an identifier for a strided datatype, that is where
+ * contiguous chunks of fixed size are separated by another (different) fixed
+ * size. Since the function uses the 64-bit datatype to store the arguments, it
+ * may fail if one of them is exceptionally large.
+ *
+ * @param [in]  count      Number of basic elements in the strided type.
+ * @param [in]  length     Length of the basic element of the strided type.
+ * @param [in]  stride     Distance between starts of two consecutive elements.
+ * @param [in]  prefix     Unused size before the first element.
+ * @param [out] datatype_p Pointer to write the resulting datatype.
+ *
+ * @note Unlike with @ref ucp_dt_create_generic , the resulting datatype does
+ *       not require deallocation.
+ *
+ * @return Error code as defined by @ref ucs_status_t
+ */
+ucs_status_t ucp_dt_make_strided(unsigned count, size_t length, size_t stride,
+                                 size_t prefix, ucp_datatype_t *datatype_p);
+
+
+/**
+ * @ingroup UCP_DATATYPE
  * @brief Create a generic datatype.
  *
  * This routine create a generic datatype object.

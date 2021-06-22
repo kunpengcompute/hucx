@@ -32,9 +32,9 @@ typedef struct ucp_dt_reg {
  * State of progressing sent/receive operation on a datatype.
  */
 typedef struct ucp_dt_state {
-    size_t                        offset;  /* Total offset in overall payload. */
+    size_t                        offset;         /* Total offset in overall payload. */
     union {
-        ucp_dt_reg_t              contig;
+        ucp_dt_reg_t              contig;         /* Also used for strided */
         struct {
             size_t                iov_offset;     /* Offset in the IOV item */
             size_t                iovcnt_offset;  /* The IOV item to start copy */

@@ -366,6 +366,7 @@ ucp_request_send_state_init(ucp_request_t *req, ucp_datatype_t datatype,
 
     switch (datatype & UCP_DATATYPE_CLASS_MASK) {
     case UCP_DATATYPE_CONTIG:
+    case UCP_DATATYPE_STRIDED:
         req->send.state.dt.dt.contig.md_map     = 0;
         return;
     case UCP_DATATYPE_IOV:
@@ -575,13 +576,15 @@ static UCS_F_ALWAYS_INLINE void
 ucp_request_unpack_contig(ucp_request_t *req, void *buf, const void *data,
                           size_t length)
 {
-    if (ucs_likely(UCP_MEM_IS_ACCESSIBLE_FROM_CPU(req->recv.mem_type))) {
-        UCS_PROFILE_NAMED_CALL("memcpy_recv", ucs_memcpy_relaxed, buf,
-                               data, length);
-    } else {
-        ucp_mem_type_unpack(req->recv.worker, buf, data, length,
-                            req->recv.mem_type);
-    }
+    ucp_dt_contig_unpack(req->recv.worker, buf, data, length, req->recv.mem_type);
+}
+
+static UCS_F_ALWAYS_INLINE void
+ucp_request_unpack_strided(ucp_request_t *req, ucp_datatype_t datatype,
+                           void *buf, const void *data, size_t length)
+{
+    ucp_dt_strided_unpack(datatype, req->recv.worker, buf, data, length,
+                          req->recv.mem_type);
 }
 
 /**
@@ -616,6 +619,12 @@ ucp_request_recv_data_unpack(ucp_request_t *req, const void *data,
         ucp_request_unpack_contig(req,
                                   UCS_PTR_BYTE_OFFSET(req->recv.buffer, offset),
                                   data, length);
+        return UCS_OK;
+
+    case UCP_DATATYPE_STRIDED:
+        ucp_request_unpack_strided(req, req->recv.datatype,
+                                   UCS_PTR_BYTE_OFFSET(req->recv.buffer, offset),
+                                   data, length);
         return UCS_OK;
 
     case UCP_DATATYPE_IOV:

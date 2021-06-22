@@ -8,8 +8,8 @@
 #  include "config.h"
 #endif
 
-#include "dt.h"
 #include "dt_iov.h"
+#include "dt_strided.h"
 
 #include <ucp/core/ucp_ep.inl>
 #include <ucp/core/ucp_request.h>
@@ -116,14 +116,16 @@ size_t ucp_dt_pack(ucp_worker_h worker, ucp_datatype_t datatype,
 
     switch (datatype & UCP_DATATYPE_CLASS_MASK) {
     case UCP_DATATYPE_CONTIG:
-        if (UCP_MEM_IS_ACCESSIBLE_FROM_CPU(mem_type)) {
-            UCS_PROFILE_CALL(ucs_memcpy_relaxed, dest,
-                             UCS_PTR_BYTE_OFFSET(src, state->offset), length);
-        } else {
-            ucp_mem_type_pack(worker, dest,
-                              UCS_PTR_BYTE_OFFSET(src, state->offset),
-                              length, mem_type);
-        }
+        ucp_dt_contig_pack(worker, dest,
+                           UCS_PTR_BYTE_OFFSET(src, state->offset),
+                           length, mem_type);
+        result_len = length;
+        break;
+
+    case UCP_DATATYPE_STRIDED:
+        ucp_dt_strided_pack(datatype, worker, dest,
+                            UCS_PTR_BYTE_OFFSET(src, state->offset),
+                            length, mem_type);
         result_len = length;
         break;
 

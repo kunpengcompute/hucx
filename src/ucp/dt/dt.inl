@@ -8,7 +8,7 @@
 #define UCP_DT_INL_
 
 #include "dt.h"
-#include "dt_contig.h"
+#include "dt_strided.h"
 #include "dt_generic.h"
 #include "dt_iov.h"
 
@@ -42,6 +42,9 @@ size_t ucp_dt_length(ucp_datatype_t datatype, size_t count,
     switch (datatype & UCP_DATATYPE_CLASS_MASK) {
     case UCP_DATATYPE_CONTIG:
         return ucp_contig_dt_length(datatype, count);
+
+    case UCP_DATATYPE_STRIDED:
+        return ucp_strided_dt_length(datatype, count);
 
     case UCP_DATATYPE_IOV:
         ucs_assert(NULL != iov);
@@ -77,11 +80,15 @@ ucp_dt_unpack_only(ucp_worker_h worker, void *buffer, size_t count,
             ucs_unlikely(length > (buffer_size = ucp_contig_dt_length(datatype, count)))) {
             goto err_truncated;
         }
-        if (ucs_likely(UCP_MEM_IS_ACCESSIBLE_FROM_CPU(mem_type))) {
-            UCS_PROFILE_NAMED_CALL("memcpy_recv", ucs_memcpy_relaxed, buffer, data, length);
-        } else {
-            ucp_mem_type_unpack(worker, buffer, data, length, mem_type);
+        ucp_dt_contig_unpack(worker, buffer, data, length, mem_type);
+        return UCS_OK;
+
+    case UCP_DATATYPE_STRIDED:
+        if (truncation &&
+            ucs_unlikely(length > (buffer_size = ucp_strided_dt_length(datatype, count)))) {
+            goto err_truncated;
         }
+        ucp_dt_strided_unpack(datatype, worker, buffer, data, length, mem_type);
         return UCS_OK;
 
     case UCP_DATATYPE_IOV:
@@ -128,6 +135,7 @@ ucp_dt_recv_state_init(ucp_dt_state_t *dt_state, void *buffer,
 
     switch (dt & UCP_DATATYPE_CLASS_MASK) {
     case UCP_DATATYPE_CONTIG:
+    case UCP_DATATYPE_STRIDED:
         dt_state->dt.contig.md_map     = 0;
         break;
    case UCP_DATATYPE_IOV:
