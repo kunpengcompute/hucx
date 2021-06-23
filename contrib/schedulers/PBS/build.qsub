@@ -1,0 +1,12 @@
+#PBS -N UCX-build
+#PBS -o ucx_build.log
+#PBS -e ucx_build.err
+#PBS -q skl
+#PBS -l nodes=1
+#PBS -S /bin/sh
+#PBS -l walltime=02:00:00 
+
+echo "PBS Build started on " `hostname`
+
+. $PBS_O_WORKDIR/ucx/contrib/schedulers/common/info.sh
+. $PBS_O_WORKDIR/ucx/contrib/schedulers/common/build.sh
