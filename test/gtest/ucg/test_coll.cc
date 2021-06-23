@@ -17,6 +17,8 @@ public:
     int *m_send_buffer;
     int *m_recv_buffer;
 
+    test_ucg_coll() : test_ucg_group_base (10, 1, 0) {}
+
     virtual void create_comms(ucg_group_member_index_t group_size) {
         m_send_buffer = new int[group_size];
         m_recv_buffer = new int[group_size];
@@ -93,7 +95,7 @@ void test_ucg_coll::wait(std::vector<ucg_request_t> reqs) {
     }
 }
 
-UCS_TEST_P(test_ucg_coll, reduce)
+UCS_TEST_F(test_ucg_coll, reduce)
 {
     ucg_collective_type_t type = {0};
     type.modifiers             = UCG_GROUP_COLLECTIVE_MODIFIER_AGGREGATE |
@@ -102,7 +104,7 @@ UCS_TEST_P(test_ucg_coll, reduce)
     do_blocking_collective(&type);
 }
 
-UCS_TEST_P(test_ucg_coll, reduce_nonzero_root)
+UCS_TEST_F(test_ucg_coll, reduce_nonzero_root)
 {
     ucg_collective_type_t type;
 

@@ -16,7 +16,9 @@
 #include <string>
 #include <vector>
 
+extern "C" {
 #include <uct/base/uct_md.h> /* for uct_md_h */
+}
 
 /**
  * Wrapper and utility functions for memory type buffers, e.g buffers which are

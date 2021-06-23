@@ -406,9 +406,9 @@ test_ucg_group_base::test_ucg_group_base(unsigned nodes,
     // TODO: generate info by <nodes, ppn> to pass during worker creation!
     create_comms(nodes * ppn);
 
-    ucg_test_base::rank *me = get_rank(my_rank);
-    m_worker = me->worker();
-    m_group  = me->group();
+    ucg_test_base::rank& me = get_rank(my_rank);
+    m_worker = me.worker();
+    m_group  = me.group();
 
     m_group_params = get_group_params(my_rank);
 
@@ -429,7 +429,7 @@ test_ucg_group_base::~test_ucg_group_base() {
 
 }
 
-virtual void test_ucg_group::create_comms(ucg_group_member_index_t group_size) {
+void test_ucg_group_base::create_comms(ucg_group_member_index_t group_size) {
     ucg_group_member_index_t member_idx;
     for (member_idx = 0; member_idx < group_size; member_idx++) {
         get_rank(member_idx).groupify(comm(), get_group_params(member_idx));

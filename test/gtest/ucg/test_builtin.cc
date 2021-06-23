@@ -4,11 +4,12 @@
  * See file LICENSE for terms.
  */
 
+#include "ucg_test.h"
+
 extern "C" {
 #include <ucg/builtin/plan/builtin_plan.h>
+#include <ucg/builtin/ops/builtin_comp_step.inl>
 }
-
-#include "ucg_test.h"
 
 class test_ucg_builtin_4_8_0 : public test_ucg_group_base {
 public:
@@ -105,14 +106,12 @@ UCS_TEST_P(test_ucg_builtin_4_8_0, topo_level)
 
 UCS_TEST_P(test_ucg_builtin_4_8_0, check_continus_number)
 {
-    ucg_params_t job_params;
-
     //group_params.member_count = 4;
-    job_params.job_info.info_type = UCG_TOPO_INFO_PLACEMENT_TABLE;
-    job_params.job_info.placement[0] = new uint16_t[4] {UCG_GROUP_MEMBER_DISTANCE_NONE, UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_UNKNOWN, UCG_GROUP_MEMBER_DISTANCE_UNKNOWN};
-    job_params.job_info.placement[1] = new uint16_t[4] {UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_NONE, UCG_GROUP_MEMBER_DISTANCE_UNKNOWN, UCG_GROUP_MEMBER_DISTANCE_UNKNOWN};
-    job_params.job_info.placement[2] = new uint16_t[4] {UCG_GROUP_MEMBER_DISTANCE_UNKNOWN, UCG_GROUP_MEMBER_DISTANCE_UNKNOWN, UCG_GROUP_MEMBER_DISTANCE_NONE, UCG_GROUP_MEMBER_DISTANCE_HOST};
-    job_params.job_info.placement[3] = new uint16_t[4] {UCG_GROUP_MEMBER_DISTANCE_UNKNOWN, UCG_GROUP_MEMBER_DISTANCE_UNKNOWN, UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_NONE};
+    m_group_params.distance_type = UCG_GROUP_DISTANCE_TYPE_PLACEMENT;
+    m_group_params.placement[0] = new uint16_t[4] {UCG_GROUP_MEMBER_DISTANCE_NONE, UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_UNKNOWN, UCG_GROUP_MEMBER_DISTANCE_UNKNOWN};
+    m_group_params.placement[1] = new uint16_t[4] {UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_NONE, UCG_GROUP_MEMBER_DISTANCE_UNKNOWN, UCG_GROUP_MEMBER_DISTANCE_UNKNOWN};
+    m_group_params.placement[2] = new uint16_t[4] {UCG_GROUP_MEMBER_DISTANCE_UNKNOWN, UCG_GROUP_MEMBER_DISTANCE_UNKNOWN, UCG_GROUP_MEMBER_DISTANCE_NONE, UCG_GROUP_MEMBER_DISTANCE_HOST};
+    m_group_params.placement[3] = new uint16_t[4] {UCG_GROUP_MEMBER_DISTANCE_UNKNOWN, UCG_GROUP_MEMBER_DISTANCE_UNKNOWN, UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_NONE};
     // TODO: apply these params to the job...
 
     unsigned discount = 0;
@@ -120,18 +119,16 @@ UCS_TEST_P(test_ucg_builtin_4_8_0, check_continus_number)
     ASSERT_EQ(UCS_OK, status);
     ASSERT_EQ(0u, discount);
 
-    job_params.job_info.placement[0] = new uint16_t[4] {UCG_GROUP_MEMBER_DISTANCE_NONE, UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_SOCKET};
-    job_params.job_info.placement[1] = new uint16_t[4] {UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_NONE, UCG_GROUP_MEMBER_DISTANCE_SOCKET, UCG_GROUP_MEMBER_DISTANCE_HOST};
-    job_params.job_info.placement[2] = new uint16_t[4] {UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_SOCKET, UCG_GROUP_MEMBER_DISTANCE_NONE, UCG_GROUP_MEMBER_DISTANCE_HOST};
-    job_params.job_info.placement[3] = new uint16_t[4] {UCG_GROUP_MEMBER_DISTANCE_SOCKET, UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_NONE};
+    m_group_params.placement[0] = new uint16_t[4] {UCG_GROUP_MEMBER_DISTANCE_NONE, UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_SOCKET};
+    m_group_params.placement[1] = new uint16_t[4] {UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_NONE, UCG_GROUP_MEMBER_DISTANCE_SOCKET, UCG_GROUP_MEMBER_DISTANCE_HOST};
+    m_group_params.placement[2] = new uint16_t[4] {UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_SOCKET, UCG_GROUP_MEMBER_DISTANCE_NONE, UCG_GROUP_MEMBER_DISTANCE_HOST};
+    m_group_params.placement[3] = new uint16_t[4] {UCG_GROUP_MEMBER_DISTANCE_SOCKET, UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_NONE};
     // TODO: apply these params to the job...
 
     discount = 0;
     status = ucg_builtin_check_continuous_number(&m_group_params, UCG_GROUP_MEMBER_DISTANCE_SOCKET, &discount);
     ASSERT_EQ(UCS_OK, status);
     ASSERT_EQ(1u, discount);
-
-    ASSERT_EQ(job_params.job_info.info_type, UCG_TOPO_INFO_PLACEMENT_TABLE); // TODO: remove
 }
 
 UCS_TEST_P(test_ucg_builtin_4_8_0, choose_type)
@@ -257,3 +254,231 @@ UCS_TEST_P(test_ucg_builtin_2_2_0, test_algorithm_decision)
 
 UCG_INSTANTIATE_TEST_CASE(test_ucg_builtin_4_8_0)
 UCG_INSTANTIATE_TEST_CASE(test_ucg_builtin_2_2_0)
+
+#define RANKS (10)
+#define DT_COUNT (5)
+#define VECTOR_SLOTS (3)
+#define ALIGNED_STRIDE (8)
+#define UNALIGNED_STRIDE (9)
+
+class test_ucg_builtin_cb : public ucg_test {
+public:
+    enum test_datatype {
+        DATATYPE_INT = 0,
+
+        DATATYPE_CONTIG_VECTOR,
+        DATATYPE_STRIDED_VECTOR_ALIGNED,
+        DATATYPE_STRIDED_VECTOR_UNALIGNED,
+
+        DATATYPE_CUSTOM_STRUCT,
+        DATATYPE_CUSTOM_STRUCT_VECTOR_ALIGNED,
+        DATATYPE_CUSTOM_STRUCT_VECTOR_UNALIGNED,
+
+        DATATYPE_LAST
+    };
+
+    enum test_operator {
+        OPERATOR_SUM = 0,
+        OPERATOR_MAX,
+
+        OPERATOR_LAST
+    };
+
+    struct custom {
+        char first;
+        int second;
+        void *third;
+        int fourth;
+        void *fifth;
+    };
+
+    void iterate_by_datatype(int *buf, enum test_datatype datatype, int value, int is_set) {
+        unsigned idx;
+
+        switch (datatype) {
+        case DATATYPE_INT:
+            if (is_set) {
+                *buf = value;
+            } else {
+                EXPECT_EQ(*buf, value);
+            }
+            break;
+
+        case DATATYPE_CONTIG_VECTOR:
+            for (idx = 0; idx < VECTOR_SLOTS; idx++) {
+                iterate_by_datatype(buf + idx, DATATYPE_INT, value + idx, is_set);
+            }
+            break;
+
+        case DATATYPE_STRIDED_VECTOR_ALIGNED:
+            for (idx = 0; idx < VECTOR_SLOTS; idx++) {
+                iterate_by_datatype(buf, DATATYPE_INT, value + idx, is_set);
+                buf = (int*)UCS_PTR_BYTE_OFFSET(buf, ALIGNED_STRIDE);
+            }
+            break;
+
+        case DATATYPE_STRIDED_VECTOR_UNALIGNED:
+            for (idx = 0; idx < VECTOR_SLOTS; idx++) {
+                iterate_by_datatype(buf, DATATYPE_INT, value + idx, is_set);
+                buf = (int*)UCS_PTR_BYTE_OFFSET(buf, DATATYPE_STRIDED_VECTOR_UNALIGNED);
+            }
+            break;
+
+        case DATATYPE_CUSTOM_STRUCT:
+            iterate_by_datatype(&((struct custom*)buf)->second, DATATYPE_INT, value, is_set);
+            iterate_by_datatype(&((struct custom*)buf)->fourth, DATATYPE_INT, value + 1, is_set);
+            break;
+
+        case DATATYPE_CUSTOM_STRUCT_VECTOR_ALIGNED:
+            for (idx = 0; idx < VECTOR_SLOTS; idx++) {
+                iterate_by_datatype(buf, DATATYPE_CUSTOM_STRUCT, value + idx, is_set);
+                buf = (int*)UCS_PTR_BYTE_OFFSET(buf, sizeof(struct custom));
+            }
+            break;
+
+        case DATATYPE_CUSTOM_STRUCT_VECTOR_UNALIGNED:
+            for (idx = 0; idx < VECTOR_SLOTS; idx++) {
+                iterate_by_datatype(buf, DATATYPE_CUSTOM_STRUCT, value + idx, is_set);
+                buf = (int*)UCS_PTR_BYTE_OFFSET(buf, sizeof(struct custom) + 1);
+            }
+            break;
+
+        case DATATYPE_LAST:
+            break;
+        }
+    }
+
+    int calc_value(enum test_operator op, unsigned ranks)
+    {
+        int idx, agg = 0;
+
+        /* calculate the expected value */
+        for (idx = 0; idx < ranks; idx++) {
+            switch (op) {
+            case OPERATOR_SUM:
+                agg += idx + 1;
+                break;
+            case OPERATOR_MAX:
+                agg = ucs_max(agg, idx + 1);
+                break;
+            case OPERATOR_LAST:
+                break;
+            }
+        }
+
+        return agg;
+    }
+
+    void test_all_datatypes(ucg_builtin_op_step_t *step) {
+        unsigned dt, rank;
+        ucg_builtin_header_t header = {0};
+        ucg_builtin_request_t req   = {0};
+
+        /* calculate the length used by DATATYPE_CUSTOM_STRUCT_VECTOR_UNALIGNED */
+        int cb_ret = 0;
+        size_t max_length = (DT_COUNT * (sizeof(struct custom) + 1)) / sizeof(int);
+        int agg           = calc_value(OPERATOR_SUM, RANKS);
+        int *src          = new int[max_length];
+        int *dst          = new int[max_length];
+        req.step          = step;
+
+        for (dt = 0; dt < (int)DATATYPE_LAST; dt++) {
+            memset(dst, 0, max_length);
+            iterate_by_datatype(src, (enum test_datatype)dt, agg, 1);
+
+            for (rank = 0; rank < RANKS; rank++) {
+                EXPECT_EQ(cb_ret, 0); /* operation still incomplete */
+                cb_ret = ucg_builtin_step_recv_cb(&req, header, (uint8_t*)src, max_length, 0);
+            }
+
+            EXPECT_EQ(cb_ret, 1); /* operation is now complete! */
+
+            iterate_by_datatype(dst, (enum test_datatype)dt, agg, 0);
+        }
+    }
+};
+
+UCS_TEST_F(test_ucg_builtin_cb, test_method_reduce)
+{
+    ucg_builtin_op_step_t step = {
+        .flags            = (enum ucg_builtin_op_step_flags)0,
+        .comp_flags       = (enum ucg_builtin_op_step_comp_flags)0,
+        .comp_aggregation = UCG_BUILTIN_OP_STEP_COMP_AGGREGATE_REDUCE,
+        .comp_criteria    = UCG_BUILTIN_OP_STEP_COMP_CRITERIA_MULTIPLE_MESSAGES
+    };
+
+    test_all_datatypes(&step);
+}
+
+UCS_TEST_F(test_ucg_builtin_cb, test_method_gather)
+{
+    ucg_builtin_op_step_t step = {
+        .flags            = (enum ucg_builtin_op_step_flags)0,
+        .comp_flags       = (enum ucg_builtin_op_step_comp_flags)0,
+        .comp_aggregation = UCG_BUILTIN_OP_STEP_COMP_AGGREGATE_GATHER,
+        .comp_criteria    = UCG_BUILTIN_OP_STEP_COMP_CRITERIA_MULTIPLE_MESSAGES
+    };
+
+    test_all_datatypes(&step);
+}
+
+#define PLAN_FOR_RANKS (10)
+class test_ucg_builtin_planning : public ucg_test {
+public:
+    ucg_group_member_index_t m_rank, m_size;
+
+    test_ucg_builtin_planning() : ucg_test(), m_size(PLAN_FOR_RANKS) {
+        /* create context */
+    }
+
+    void set_my_rank(ucg_group_member_index_t rank) {
+        m_rank = rank;
+    }
+
+    void create_op(void *planner, ucg_builtin_plan_t **plans, ucg_builtin_op_t **ops) {
+        ucg_group_member_index_t idx;
+        ucg_collective_params_t params = {0};
+
+        *plans = (ucg_builtin_plan_t*)malloc(m_size * sizeof(ucg_builtin_plan_t*));
+        *ops   = (ucg_builtin_op_t*)malloc(m_size * sizeof(ucg_builtin_op_t*));
+
+        for (idx = 0; idx < m_size; idx++) {
+            set_my_rank(idx);
+            //ASSERT_UCS_OK(planner(m_ctx, &plans[idx]))
+            ASSERT_UCS_OK(ucg_builtin_op_create(&(*plans)[idx].super, &params,
+                                                (ucg_op_t**)(*ops + idx)));
+        }
+    }
+};
+
+UCS_TEST_F(test_ucg_builtin_planning, test_tree_planner)
+{
+    ucg_builtin_plan_t *plans;
+    ucg_builtin_op_t *ops;
+
+    create_op((void*)ucg_builtin_recursive_create, &plans, &ops);
+}
+
+UCS_TEST_F(test_ucg_builtin_planning, test_ring_planner)
+{
+    ucg_builtin_plan_t *plans;
+    ucg_builtin_op_t *ops;
+
+    create_op((void*)ucg_builtin_ring_create, &plans, &ops);
+}
+
+UCS_TEST_F(test_ucg_builtin_planning, test_binomial_tree_planner)
+{
+    ucg_builtin_plan_t *plans;
+    ucg_builtin_op_t *ops;
+
+    create_op((void*)ucg_builtin_binomial_tree_create, &plans, &ops);
+}
+
+UCS_TEST_F(test_ucg_builtin_planning, test_recursive_planner)
+{
+    ucg_builtin_plan_t *plans;
+    ucg_builtin_op_t *ops;
+
+    create_op((void*)ucg_builtin_recursive_create, &plans, &ops);
+}

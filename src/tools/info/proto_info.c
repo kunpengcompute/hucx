@@ -288,6 +288,7 @@ out:
     return status;
 }
 
+#if ENABLE_UCG
 static int datatype_test_converter(void *datatype, ucp_datatype_t *ucp_datatype)
 {
     *ucp_datatype = ucp_dt_make_contig((uintptr_t)datatype);
@@ -323,6 +324,7 @@ static int datatype_test_op_is_com(void *reduce_op)
 {
     return 1;
 }
+#endif
 
 ucs_status_t
 print_ucp_info(int print_opts, ucs_config_print_flags_t print_flags,
@@ -342,17 +344,17 @@ print_ucp_info(int print_opts, ucs_config_print_flags_t print_flags,
 {
     ucp_worker_h peer_worker = NULL;
     ucp_config_t *ucp_config;
-    ucg_config_t *ucg_config;
     ucs_status_t status;
     ucp_context_h context;
     ucp_worker_h worker;
     ucp_params_t ucp_params;
-    ucg_params_t ucg_params;
     ucp_worker_params_t worker_params;
     resource_usage_t usage;
 
 
 #if ENABLE_UCG
+    ucg_params_t ucg_params;
+    ucg_config_t *ucg_config;
     status     = ucg_config_read(NULL, NULL, &ucg_config);
     ucp_config = (ucp_config_t*)ucg_config;
 #else
