@@ -6,11 +6,11 @@
 #include "test_op.h"
 
 using namespace std;
-
+static void release_desc(void *t){}
 class ucg_step_test : public ucg_op_test {
 public:
     ucg_step_test() {
-        num_procs = 4;
+        ucg_builtin_num_procs = 4;
         //ucs_global_opts.log_level = UCS_LOG_LEVEL_DEBUG;
     }
 
@@ -22,7 +22,7 @@ public:
 };
 
 ucg_builtin_comp_slot_t *ucg_step_test::create_slot(ucg_builtin_op_step_t *step) {
-    ucg_builtin_comp_slot_t *slot = new ucg_builtin_comp_slot_t;
+    ucg_builtin_comp_slot_t *slot = new ucg_builtin_comp_slot_t();
     slot->cb = NULL;
     slot->step_idx = 0;
     slot->coll_id = 0;
@@ -40,10 +40,16 @@ ucg_builtin_comp_slot_t *ucg_step_test::create_slot(ucg_builtin_op_step_t *step)
     op->final_cb = NULL;
     req->op = op;
 
-    ucg_plan_t *plan = new ucg_plan_t;
-    plan->planner = &ucg_builtin_component;
+    ucg_planner_h planner = NULL;
+    ucg_planner_ctx_h planner_ctx;
+    ucg_group_h group = create_group();
+    ucg_collective_params_t *params = create_allreduce_params();
+    ucg_group_select_planner(group, NULL, params, &planner, &planner_ctx);
+    ucg_builtin_component.query(&planner);
+    ucg_plan_t *plan = NULL;
+    planner->plan(planner_ctx, params, &plan);
+    plan->planner = planner;
     req->op->super.plan = plan;
-
     return slot;
 }
 
@@ -104,7 +110,9 @@ TEST_F(ucg_step_test, test_step_create_method) {
         } else {
             ASSERT_EQ(UCS_OK, ret);
         }
+        destroy_collective_params(params);
     }
+
 }
 
 TEST_F(ucg_step_test, test_step_create_short) {
@@ -244,7 +252,6 @@ TEST_F(ucg_step_test, test_msg_process) {
     ASSERT_EQ(UCS_OK, ret);
 
     ucg_builtin_comp_slot_t *slot = create_slot(step);
-
     ret = ucg_builtin_msg_process(slot, &slot->req);
     ASSERT_EQ(UCS_INPROGRESS, ret);
 
@@ -255,12 +262,14 @@ TEST_F(ucg_step_test, test_msg_process) {
     }
     size_t length = sizeof(int) * count;
     int *recv = (int *) step->recv_buffer;
-    slot->mp = &m_ucg_worker->am_mp;
+    slot->mp = &m_ucp_worker->am_mp;
+
 
     ucg_builtin_comp_desc_t *desc = (ucg_builtin_comp_desc_t *) ucs_mpool_get_inline(slot->mp);
     memcpy(&desc->data[0], (void *) data, length);
     desc->super.flags = 0;
     desc->super.length = length;
+    desc->release_desc = release_desc;
     ucs_list_add_tail(&slot->msg_head, &desc->super.tag_list[0]);
 
     ret = ucg_builtin_msg_process(slot, &slot->req);
@@ -276,12 +285,14 @@ TEST_F(ucg_step_test, test_msg_process) {
     memcpy(&desc->data[0], (void *) data, length);
     desc->super.flags = 0;
     desc->super.length = length;
+    desc->release_desc = release_desc;
     ucs_list_add_tail(&slot->msg_head, &desc->super.tag_list[0]);
     ret = ucg_builtin_msg_process(slot, &slot->req);
     ASSERT_EQ(UCS_OK, ret);
     for (int i = 0; i < count; i++) {
         ASSERT_EQ(-2, recv[i]);
     }
+    destroy_collective_params(params);
 }
 
 TEST_F(ucg_step_test, test_step_execute_short) {
@@ -314,6 +325,7 @@ TEST_F(ucg_step_test, test_step_execute_short) {
     delete iface;
     step->uct_iface = NULL;
     ASSERT_EQ(UCS_OK, ret);
+    destroy_collective_params(params);
 }
 
 TEST_F(ucg_step_test, test_step_execute_bcopy) {
@@ -348,8 +360,9 @@ TEST_F(ucg_step_test, test_step_execute_bcopy) {
     delete iface;
     step->uct_iface = NULL;
     ASSERT_EQ(UCS_OK, ret);
-    m_ucg_worker = NULL;
-    m_ucg_context = NULL;
+    destroy_collective_params(params);
+    m_ucp_worker = NULL;
+    m_ucp_context = NULL;
 }
 
 TEST_F(ucg_step_test, test_step_execute_zcopy) {
@@ -387,9 +400,10 @@ TEST_F(ucg_step_test, test_step_execute_zcopy) {
     ret = ucg_builtin_step_execute(&slot->req, NULL);
     ASSERT_EQ(UCS_INPROGRESS, ret);
 
-    slot->mp = &m_ucg_worker->am_mp;
+    slot->mp = &m_ucp_worker->am_mp;
     ucg_builtin_comp_desc_t *desc = (ucg_builtin_comp_desc_t *) ucs_mpool_get_inline(slot->mp);
     ucs_list_add_tail(&slot->msg_head, &desc->super.tag_list[0]);
+    desc->release_desc = release_desc;
     step->zcopy.num_store = 0;
 
     ret = ucg_builtin_step_execute(&slot->req, NULL);
@@ -397,6 +411,7 @@ TEST_F(ucg_step_test, test_step_execute_zcopy) {
     step->uct_iface = NULL;
     ASSERT_EQ(UCS_OK, ret);
     ASSERT_EQ((unsigned)0, step->zcopy.num_store);
-    m_ucg_worker = NULL;
-    m_ucg_context = NULL;
+    destroy_collective_params(params);
+    m_ucp_worker = NULL;
+    m_ucp_context = NULL;
 }

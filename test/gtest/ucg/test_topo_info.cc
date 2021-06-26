@@ -21,7 +21,9 @@ TEST_F(ucg_test, test_topo_info) {
     all_rank_infos.push_back(my_rank_info);
     all_rank_infos.push_back(other_rank_info);
 
-    ucg_group_params_t *group_params = m_resource_factory->create_group_params(my_rank_info, all_rank_infos);
+    ucg_group_params_t *group_params = m_resource_factory->create_group_params(my_rank_info,
+                                                                               all_rank_infos,
+                                                                               m_ucp_worker);
 
     ucg_builtin_topology_info_params_t *topo_params = (ucg_builtin_topology_info_params_t *) malloc(
             sizeof(ucg_builtin_topology_info_params_t));

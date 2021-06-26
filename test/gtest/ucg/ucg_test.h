@@ -9,10 +9,11 @@
 #include <common/test.h>
 #include <vector>
 #include <memory>
+#include "ucg/builtin/builtin.h"
 #include "ucg/builtin/plan/builtin_plan.h"
 #include "ucg/builtin/ops/builtin_ops.h"
+#include "ucg/base/ucg_component.h"
 #include "ucg/base/ucg_group.h"
-#include "ucg/api/ucg_plan_component.h"
 #include "ucg/api/ucg.h"
 
 #if HAVE_CUDA
@@ -32,8 +33,9 @@ public:
 
     virtual ~ucg_test();
 
+    ucp_context_h m_ucp_context;
     ucg_context_h m_ucg_context;
-    ucg_worker_h m_ucg_worker;
+    ucp_worker_h m_ucp_worker;
 
 protected:
     void SetUp() override {
@@ -42,6 +44,9 @@ protected:
     void TearDown() override {
     }
 
+    void init_ucp();
+    void init_ucg();
+    void init_worker();
     void init_ucg_component();
 
     ucg_collective_type_t create_allreduce_coll_type() const;
@@ -51,6 +56,8 @@ protected:
     ucg_collective_type_t create_barrier_coll_type() const;
 
     ucg_collective_params_t *create_allreduce_params() const;
+
+    void destroy_collective_params(ucg_collective_params_t *&params) const;
 
     ucg_collective_params_t *create_bcast_params() const;
 
@@ -73,9 +80,11 @@ class ucg_resource_factory {
 public:
     ucg_builtin_config_t *create_config(unsigned bcast_alg, unsigned allreduce_alg, unsigned barrier_alg);
 
-    ucg_group_h create_group(const ucg_group_params_t *params, ucg_worker_h ucg_worker);
+    ucs_status_t create_group(const ucg_group_params_t *params, ucg_context_h context, ucg_group_h *group);
 
-    ucg_group_params_t *create_group_params(ucg_rank_info my_rank_info, const std::vector<ucg_rank_info> &rank_infos);
+    ucg_group_params_t *create_group_params(ucg_rank_info my_rank_info,
+                                            const std::vector<ucg_rank_info> &rank_infos,
+                                            ucp_worker_h worker);
 
     ucg_collective_params_t *create_collective_params(ucg_collective_modifiers modifiers,
                                                       ucg_group_member_index_t root,

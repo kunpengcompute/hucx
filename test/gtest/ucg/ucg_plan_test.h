@@ -25,12 +25,12 @@ public:
 
 public:
     vector<ucg_rank_info> m_all_rank_infos;
-    ucg_builtin_group_ctx_t *m_builtin_ctx;
-    ucg_plan_component_t *m_planc;
+    ucg_builtin_planner_ctx_t *m_builtin_ctx;
     ucg_group_params_t *m_group_params;
     ucg_collective_type_t m_coll_type;
     ucg_collective_params_t *m_coll_params;
     ucg_group_h m_group;
+    ucg_planner_h m_planner_p;
 };
 
 
