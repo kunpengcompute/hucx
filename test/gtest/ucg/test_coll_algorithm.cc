@@ -8,7 +8,6 @@
 extern "C" {
 #include <ucg/builtin/plan/builtin_plan.h>
 #include <ucg/builtin/ops/builtin_ops.h>
-#include <ucg/api/ucg_plan_component.h>
 }
 
 #include "ucg_test.h"
@@ -27,7 +26,7 @@ TEST(ucg_plan_test, test_ring) {
     for (unsigned i = 0; i < sizeof(data) / sizeof(data[0]); i++) {
         obj = new ucg_plan_test(data[i].node_cnt, data[i].ppn, data[i].myrank);
         ret = ucg_builtin_ring_create(obj->m_builtin_ctx, UCG_PLAN_RING,
-                                      (ucg_builtin_config_t *)obj->m_planc->plan_config,
+                                      (ucg_builtin_config_t *)obj->m_builtin_ctx->config,
                                       obj->m_group_params, &obj->m_coll_type, &plan);
         delete obj;
 
@@ -47,7 +46,7 @@ TEST(ucg_plan_test, test_recursive) {
     for (unsigned i = 0; i < sizeof(data) / sizeof(data[0]); i++) {
         obj = new ucg_plan_test(data[i].node_cnt, data[i].ppn, data[i].myrank);
         ret = ucg_builtin_recursive_create(obj->m_builtin_ctx, UCG_PLAN_RECURSIVE,
-                                           (ucg_builtin_config_t *)obj->m_planc->plan_config,
+                                           (ucg_builtin_config_t *)obj->m_builtin_ctx->config,
                                            obj->m_group_params, &obj->m_coll_type, &plan);
         delete obj;
 
@@ -59,81 +58,81 @@ static void ucg_algo_set(int option)
 {
     switch (option) {
     case 0:
-        ucg_algo.topo = 1;
-        ucg_algo.bmtree = 1;
-        ucg_algo.recursive = 0;
-        ucg_algo.kmtree_intra = 1;
-        ucg_algo.kmtree = 1;
+        ucg_builtin_algo_config.topo = 1;
+        ucg_builtin_algo_config.bmtree = 1;
+        ucg_builtin_algo_config.recursive = 0;
+        ucg_builtin_algo_config.kmtree_intra = 1;
+        ucg_builtin_algo_config.kmtree = 1;
         return;
 
     case 1:
-        ucg_algo.topo = 1;
-        ucg_algo.bmtree = 1;
-        ucg_algo.recursive = 0;
-        ucg_algo.kmtree_intra = 0;
-        ucg_algo.kmtree = 1;
+        ucg_builtin_algo_config.topo = 1;
+        ucg_builtin_algo_config.bmtree = 1;
+        ucg_builtin_algo_config.recursive = 0;
+        ucg_builtin_algo_config.kmtree_intra = 0;
+        ucg_builtin_algo_config.kmtree = 1;
         return;
 
     case 2:
-        ucg_algo.topo = 1;
-        ucg_algo.bmtree = 1;
-        ucg_algo.recursive = 0;
-        ucg_algo.kmtree_intra = 0;
-        ucg_algo.kmtree = 0;
-        ucg_algo.topo_level = UCG_GROUP_HIERARCHY_LEVEL_NODE;
+        ucg_builtin_algo_config.topo = 1;
+        ucg_builtin_algo_config.bmtree = 1;
+        ucg_builtin_algo_config.recursive = 0;
+        ucg_builtin_algo_config.kmtree_intra = 0;
+        ucg_builtin_algo_config.kmtree = 0;
+        ucg_builtin_algo_config.topo_level = UCG_GROUP_HIERARCHY_LEVEL_NODE;
         return;
 
     case 3:
-        ucg_algo.topo = 1;
-        ucg_algo.bmtree = 1;
-        ucg_algo.recursive = 0;
-        ucg_algo.kmtree_intra = 0;
-        ucg_algo.kmtree = 0;
+        ucg_builtin_algo_config.topo = 1;
+        ucg_builtin_algo_config.bmtree = 1;
+        ucg_builtin_algo_config.recursive = 0;
+        ucg_builtin_algo_config.kmtree_intra = 0;
+        ucg_builtin_algo_config.kmtree = 0;
         return;
 
     case 4:
-        ucg_algo.topo = 1;
-        ucg_algo.bmtree = 1;
-        ucg_algo.recursive = 0;
-        ucg_algo.kmtree_intra = 0;
-        ucg_algo.kmtree = 0;
-        ucg_algo.topo_level = UCG_GROUP_HIERARCHY_LEVEL_SOCKET;
+        ucg_builtin_algo_config.topo = 1;
+        ucg_builtin_algo_config.bmtree = 1;
+        ucg_builtin_algo_config.recursive = 0;
+        ucg_builtin_algo_config.kmtree_intra = 0;
+        ucg_builtin_algo_config.kmtree = 0;
+        ucg_builtin_algo_config.topo_level = UCG_GROUP_HIERARCHY_LEVEL_SOCKET;
         return;
 
     case 5:
-        ucg_algo.topo = 1;
-        ucg_algo.bmtree = 1;
-        ucg_algo.recursive = 0;
-        ucg_algo.kmtree_intra = 1;
-        ucg_algo.topo_level = UCG_GROUP_HIERARCHY_LEVEL_SOCKET;
+        ucg_builtin_algo_config.topo = 1;
+        ucg_builtin_algo_config.bmtree = 1;
+        ucg_builtin_algo_config.recursive = 0;
+        ucg_builtin_algo_config.kmtree_intra = 1;
+        ucg_builtin_algo_config.topo_level = UCG_GROUP_HIERARCHY_LEVEL_SOCKET;
         return;
 
     case 6:
-        ucg_algo.topo = 1;
-        ucg_algo.bmtree = 1;
-        ucg_algo.recursive = 0;
-        ucg_algo.kmtree_intra = 1;
-        ucg_algo.kmtree = 1;
-        ucg_algo.topo_level = UCG_GROUP_HIERARCHY_LEVEL_SOCKET;
+        ucg_builtin_algo_config.topo = 1;
+        ucg_builtin_algo_config.bmtree = 1;
+        ucg_builtin_algo_config.recursive = 0;
+        ucg_builtin_algo_config.kmtree_intra = 1;
+        ucg_builtin_algo_config.kmtree = 1;
+        ucg_builtin_algo_config.topo_level = UCG_GROUP_HIERARCHY_LEVEL_SOCKET;
         return;
 
     case 7:
-        ucg_algo.topo = 1;
+        ucg_builtin_algo_config.topo = 1;
         return;
 
     case 8:
-        ucg_algo.topo = 1;
-        ucg_algo.bmtree = 1;
-        ucg_algo.recursive = 0;
-        ucg_algo.kmtree_intra = 1;
+        ucg_builtin_algo_config.topo = 1;
+        ucg_builtin_algo_config.bmtree = 1;
+        ucg_builtin_algo_config.recursive = 0;
+        ucg_builtin_algo_config.kmtree_intra = 1;
         return;
 
     case 9:
-        ucg_algo.topo = 1;
-        ucg_algo.bmtree = 1;
-        ucg_algo.recursive = 0;
-        ucg_algo.kmtree_intra = 1;
-        ucg_algo.kmtree = 1;
+        ucg_builtin_algo_config.topo = 1;
+        ucg_builtin_algo_config.bmtree = 1;
+        ucg_builtin_algo_config.recursive = 0;
+        ucg_builtin_algo_config.kmtree_intra = 1;
+        ucg_builtin_algo_config.kmtree = 1;
         return;
 
     default:
@@ -169,7 +168,7 @@ TEST(ucg_plan_test, test_binomial_tree) {
         obj = new ucg_plan_test(fanout[i].data.node_cnt, fanout[i].data.ppn, fanout[i].data.myrank);
         ucg_algo_set(fanout[i].algo_id);
         ret = ucg_builtin_binomial_tree_create(obj->m_builtin_ctx, UCG_PLAN_TREE_FANOUT,
-                                               (ucg_builtin_config_t *)obj->m_planc->plan_config,
+                                               (ucg_builtin_config_t *)obj->m_builtin_ctx->config,
                                                obj->m_group_params, &obj->m_coll_type, &plan);
         delete obj;
 
@@ -180,7 +179,7 @@ TEST(ucg_plan_test, test_binomial_tree) {
         obj = new ucg_plan_test(fanin_out[i].data.node_cnt, fanin_out[i].data.ppn, fanin_out[i].data.myrank);
         ucg_algo_set(fanin_out[i].algo_id);
         ret = ucg_builtin_binomial_tree_create(obj->m_builtin_ctx, UCG_PLAN_TREE_FANIN_FANOUT,
-                                               (ucg_builtin_config_t *)obj->m_planc->plan_config,
+                                               (ucg_builtin_config_t *)obj->m_builtin_ctx->config,
                                                obj->m_group_params, &obj->m_coll_type, &plan);
         delete obj;
 

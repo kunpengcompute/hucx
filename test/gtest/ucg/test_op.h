@@ -25,6 +25,8 @@ protected:
 
     ucg_group_h create_group();
 
+    void destroy_group(ucg_group_h &group);
+
     ucg_plan_t *create_plan(unsigned phs_cnt, ucg_collective_params_t *params, ucg_group_h group);
 
     ucg_builtin_plan_t *create_method_plan(ucg_builtin_plan_method_type method);

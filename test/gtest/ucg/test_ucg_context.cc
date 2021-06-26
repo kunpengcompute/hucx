@@ -9,15 +9,15 @@ using namespace std;
 
 class ucg_context_test : public ucg_test {
 public:
-    static ucg_params_t get_ctx_params() {
-        ucg_params_t params = get_ctx_params_inner();
+    static ucp_params_t get_ctx_params() {
+        ucp_params_t params = get_ctx_params_inner();
         params.features |= UCS_BIT(0) | UCS_BIT(4);
         return params;
     }
 
 protected:
-    static ucg_params_t get_ctx_params_inner() {
-        ucg_params_t params;
+    static ucp_params_t get_ctx_params_inner() {
+        ucp_params_t params;
         memset(&params, 0, sizeof(params));
         params.field_mask |= UCS_BIT(0);
         return params;
@@ -25,32 +25,32 @@ protected:
 };
 
 TEST(ucg_context_test, minimal_field_mask) {
-    ucs::handle<ucg_config_t *> config;
-    UCS_TEST_CREATE_HANDLE(ucg_config_t *, config, ucg_config_release,
-                           ucg_config_read, NULL, NULL);
+    ucs::handle<ucp_config_t *> config;
+    UCS_TEST_CREATE_HANDLE(ucp_config_t *, config, ucp_config_release,
+                           ucp_config_read, NULL, NULL);
 
-    ucs::handle<ucg_context_h> ucgh;
-    ucs::handle<ucg_worker_h> worker;
+    ucs::handle<ucp_context_h> ucgh;
+    ucs::handle<ucp_worker_h> worker;
 
     {
         /* Features ONLY */
-        ucg_params_t params;
+        ucp_params_t params;
         VALGRIND_MAKE_MEM_UNDEFINED(&params, sizeof(params));
         params.field_mask = UCS_BIT(0);
         params.features = ucg_context_test::get_ctx_params().features;
 
-        UCS_TEST_CREATE_HANDLE(ucg_context_h, ucgh, ucg_cleanup,
-                               ucg_init, &params, config.get());
+        UCS_TEST_CREATE_HANDLE(ucp_context_h, ucgh, ucp_cleanup,
+                               ucp_init, &params, config.get());
     }
 
     {
         /* Empty set */
-        ucg_worker_params_t params;
+        ucp_worker_params_t params;
         VALGRIND_MAKE_MEM_UNDEFINED(&params, sizeof(params));
         params.field_mask = 0;
 
-        UCS_TEST_CREATE_HANDLE(ucg_worker_h, worker, ucg_worker_destroy,
-                               ucg_worker_create, ucgh.get(), &params);
+        UCS_TEST_CREATE_HANDLE(ucp_worker_h, worker, ucp_worker_destroy,
+                               ucp_worker_create, ucgh.get(), &params);
     }
 }
 
@@ -59,15 +59,15 @@ class ucg_version_test : public ucg_context_test {
 };
 
 TEST_F(ucg_version_test, test_wrong_api_version) {
-    ucs::handle<ucg_config_t *> config;
-    UCS_TEST_CREATE_HANDLE(ucg_config_t *, config, ucg_config_release,
-                           ucg_config_read, NULL, NULL);
+    ucs::handle<ucp_config_t *> config;
+    UCS_TEST_CREATE_HANDLE(ucp_config_t *, config, ucp_config_release,
+                           ucp_config_read, NULL, NULL);
 
-    ucg_params_t params = get_ctx_params();
-    ucg_context_h ucgh;
+    ucp_params_t params = get_ctx_params();
+    ucp_context_h ucgh;
     ucs_status_t status;
 
-    status = ucg_init_version(99, 99, &params, config.get(), &ucgh);
+    status = ucp_init_version(99, 99, &params, config.get(), &ucgh);
 
     // TODO
     if (status != UCS_OK) {

@@ -140,11 +140,12 @@ static void ucp_worker_set_am_handlers(ucp_worker_iface_t *wiface, int is_proxy)
     ucp_context_h context = worker->context;
     ucs_status_t status;
     unsigned am_id;
+    void *cb_arg;
 
     ucs_trace_func("iface=%p is_proxy=%d", wiface->iface, is_proxy);
 
     for (am_id = 0; am_id < UCP_AM_ID_MAX; ++am_id) {
-        if (!ucp_am_handlers[am_id].cb) {
+        if (!is_proxy && ucp_am_handlers[am_id].cb == NULL) {
             continue;
         }
 
@@ -178,9 +179,14 @@ static void ucp_worker_set_am_handlers(ucp_worker_iface_t *wiface, int is_proxy)
                                               wiface,
                                               ucp_am_handlers[am_id].flags);
         } else {
+            if (ucp_am_handlers[am_id].alt_arg != NULL) {
+                cb_arg = ucp_am_handlers[am_id].alt_arg;
+            } else {
+                cb_arg = worker;
+            }
             status = uct_iface_set_am_handler(wiface->iface, am_id,
                                               ucp_am_handlers[am_id].cb,
-                                              worker,
+                                              cb_arg,
                                               ucp_am_handlers[am_id].flags);
         }
         if (status != UCS_OK) {

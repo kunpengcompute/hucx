@@ -97,7 +97,7 @@ enum {
     UCP_AM_ID_SINGLE_REPLY      =  26, /* Single fragment user defined AM
                                           carrying remote ep for reply */
     UCP_AM_ID_LAST,
-    UCP_AM_ID_MAX               =  32  /* Total IDs available for pre-registration */
+    UCP_AM_ID_MAX               =  UCT_AM_ID_MAX  /* Total IDs available for pre-registration */
 };
 
 

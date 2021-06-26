@@ -11,8 +11,8 @@ class ucg_group_test : public ucg_test {
 public:
     ucg_group_test() {
         m_all_rank_infos.clear();
-        m_resource_factory->create_balanced_rank_info(m_all_rank_infos, 2, 2);
-        m_params = m_resource_factory->create_group_params(m_all_rank_infos[0], m_all_rank_infos);
+        m_resource_factory->create_balanced_rank_info(m_all_rank_infos, 2, 2, m_ucp_worker);
+        m_params = m_resource_factory->create_group_params(m_all_rank_infos[0], m_all_rank_infos, m_ucp_worker);
     }
 
     ~ucg_group_test() {
@@ -30,7 +30,7 @@ protected:
 
 TEST_F(ucg_group_test, test_group_create) {
     ucg_group_h group;
-    ucs_status_t ret = ucg_group_create(m_ucg_worker, m_params, &group);
+    ucs_status_t ret = ucg_group_create(m_ucg_context, m_params, &group);
     ucg_group_destroy(group);
 
     ASSERT_EQ(UCS_OK, ret);
@@ -38,7 +38,7 @@ TEST_F(ucg_group_test, test_group_create) {
 
 TEST_F(ucg_group_test, test_group_destroy) {
     ucg_group_h group;
-    ucs_status_t ret = ucg_group_create(m_ucg_worker, m_params, &group);
+    ucs_status_t ret = ucg_group_create(m_ucg_context, m_params, &group);
     EXPECT_EQ(UCS_OK, ret);
 
     ucg_group_destroy(group);
@@ -48,7 +48,7 @@ TEST_F(ucg_group_test, test_group_destroy) {
 
 TEST_F(ucg_group_test, test_group_progress) {
     ucg_group_h group;
-    ucs_status_t retS = ucg_group_create(m_ucg_worker, m_params, &group);
+    ucs_status_t retS = ucg_group_create(m_ucg_context, m_params, &group);
     EXPECT_EQ(UCS_OK, retS);
 
     unsigned retU = ucg_group_progress(group);

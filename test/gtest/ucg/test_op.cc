@@ -9,7 +9,7 @@ using namespace std;
 
 ucg_op_test::ucg_op_test()
 {
-    num_procs = 4;
+    ucg_builtin_num_procs = 4;
 };
 
 ucg_op_test::~ucg_op_test()
@@ -62,7 +62,6 @@ void ucg_op_test::destroy_phase(ucg_builtin_plan_phase_t *phase)
             delete phase->md_attr;
             phase->md_attr = NULL;
         }
-
         delete phase;
     }
 }
@@ -72,17 +71,18 @@ ucg_plan_t *ucg_op_test::create_plan(unsigned phs_cnt, ucg_collective_params_t *
     ucg_builtin_plan_t *builtin_plan = (ucg_builtin_plan_t *)malloc(sizeof(ucg_builtin_plan_t) +
                                                                     phs_cnt * sizeof(ucg_builtin_plan_phase_t));
     ucg_plan_t *plan = &builtin_plan->super;
-    ucg_plan_component_t *planc = NULL;
-
+    ucg_planner_h planner = NULL;
+    ucg_planner_ctx_h planner_ctx;
     plan->group_id = 1;
     plan->my_index = 0;
     plan->group = group;
-    ucg_plan_select(group, NULL, params, &planc);
-    plan->planner = planc;
+    ucg_group_select_planner(group, NULL, params, &planner, &planner_ctx);
+    plan->planner = planner;
     builtin_plan->am_id = 1;
     builtin_plan->resend = NULL;
     builtin_plan->slots = NULL;
     builtin_plan->phs_cnt = phs_cnt;
+    builtin_plan->context = (ucg_builtin_planner_ctx_t *)planner_ctx;
     builtin_plan->convert_f = mca_coll_ucg_datatype_convert_for_ut;
 
     ucs_mpool_ops_t ops = {
@@ -122,9 +122,20 @@ ucg_group_h ucg_op_test::create_group()
     vector<ucg_rank_info> all_rank_infos;
     all_rank_infos.push_back(my_rank_info);
     all_rank_infos.push_back(other_rank_info);
-    ucg_group_params_t *group_params = m_resource_factory->create_group_params(my_rank_info, all_rank_infos);
+    ucg_group_params_t *group_params = m_resource_factory->create_group_params(my_rank_info,
+                                                                               all_rank_infos,
+                                                                               m_ucp_worker);
+    ucg_group_h ucg_group = NULL;
+    m_resource_factory->create_group(group_params, m_ucg_context, &ucg_group);
+    return ucg_group;
+}
 
-    return m_resource_factory->create_group(group_params, m_ucg_worker);
+void ucg_op_test::destroy_group(ucg_group_h &group)
+{
+    if (group != NULL) {
+        ucg_group_destroy(group);
+        group = NULL;
+    }
 }
 
 ucs_status_t mem_reg_mock(uct_md_h md, void *address, size_t length, unsigned flags, uct_mem_h *memh_p)
@@ -151,13 +162,13 @@ TEST_F(ucg_op_test, test_op_create_phase_1) {
     ucg_group_h group = create_group();
     ucg_collective_params_t *params = create_bcast_params();
     ucg_plan_t *plan = create_plan(1, params, group);
-
     ucg_op_t *op = new ucg_op_t();
 
     ucs_status_t ret = ucg_builtin_op_create(plan, params, &op);
 
     ASSERT_EQ(UCS_OK, ret);
-    ucg_builtin_component.destroy(group);
+    destroy_collective_params(params);
+    destroy_group(group);
 }
 
 TEST_F(ucg_op_test, test_op_create_phase_2) {
@@ -170,7 +181,8 @@ TEST_F(ucg_op_test, test_op_create_phase_2) {
     ucs_status_t ret = ucg_builtin_op_create(plan, params, &op);
 
     ASSERT_EQ(UCS_OK, ret);
-    ucg_builtin_component.destroy(group);
+    destroy_collective_params(params);
+    destroy_group(group);
 }
 
 /**
@@ -194,7 +206,8 @@ TEST_F(ucg_op_test, test_op_discard) {
     step->flags |= UCG_BUILTIN_OP_STEP_FLAG_PIPELINED;
 
     ucg_builtin_op_discard(op);
-    ucg_builtin_component.destroy(group);
+    destroy_collective_params(params);
+    destroy_group(group);
 }
 
 /**
@@ -224,7 +237,8 @@ TEST_F(ucg_op_test, test_op_trigger) {
 
     ret = ucg_builtin_op_trigger(op, 0, &request);
     ASSERT_EQ(UCS_INPROGRESS, ret);
-    ucg_builtin_component.destroy(group);
-    m_ucg_worker = NULL;
-    m_ucg_context = NULL;
+    destroy_collective_params(params);
+    group->planners_context = NULL;
+    m_ucp_worker = NULL;
+    m_ucp_context = NULL;
 }
