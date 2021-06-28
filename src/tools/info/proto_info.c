@@ -446,13 +446,14 @@ print_ucp_info(int print_opts, ucs_config_print_flags_t print_flags,
         /* create a group with the generated parameters */
         enum ucg_group_member_distance distance = UCG_GROUP_MEMBER_DISTANCE_NONE;
         ucg_group_params_t group_params = {
-                .field_mask        = UCG_GROUP_PARAM_FIELD_MEMBER_COUNT |
-                                     UCG_GROUP_PARAM_FIELD_MEMBER_INDEX |
-                                     UCG_GROUP_PARAM_FIELD_CB_CONTEXT   |
-                                     UCG_GROUP_PARAM_FIELD_DISTANCES,
-                .distance = &distance,
-                .member_count = 1,
-                .cb_context = NULL
+                .field_mask     = UCG_GROUP_PARAM_FIELD_MEMBER_COUNT |
+                                  UCG_GROUP_PARAM_FIELD_MEMBER_INDEX |
+                                  UCG_GROUP_PARAM_FIELD_CB_CONTEXT   |
+                                  UCG_GROUP_PARAM_FIELD_DISTANCES,
+                .distance_type  = UCG_GROUP_DISTANCE_TYPE_PLACEMENT,
+                .distance_array = &distance,
+                .member_count   = 1,
+                .cb_context     = NULL
         };
 
         ucg_group_h group;

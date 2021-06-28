@@ -180,7 +180,8 @@ void print_ucg_topology(const char *req_planner_name, ucp_worker_h worker,
                                  UCG_GROUP_PARAM_FIELD_DISTANCES,
             .member_index      = me,
             .member_count      = member_count,
-            .distance          = distance_array,
+            .distance_type     = UCG_GROUP_DISTANCE_TYPE_PLACEMENT,
+            .distance_array    = distance_array,
             .cb_context        = NULL /* dummy */
     };
     size_t worker_address_length;
