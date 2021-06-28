@@ -11,77 +11,37 @@ using namespace std;
 class ucg_cb_test : public ucg_op_test {
 public:
     ucg_cb_test() {
-        ucg_builtin_num_procs = 2;
+        num_procs = 2;
     }
 
     ~ ucg_cb_test() = default;
 
 public:
-    void create_slot(ucg_builtin_comp_slot_t *&slot);
-    ucg_builtin_request_t* create_request(ucg_builtin_op_step_t *step, ucg_builtin_comp_slot_t *slot);
-    void destroy_request(ucg_builtin_request_t *&req);
-    void destroy_slot(ucg_builtin_comp_slot_t *&slot);
+    ucg_builtin_request_t* create_request(ucg_builtin_op_step_t *step);
 };
 
-void ucg_cb_test::create_slot(ucg_builtin_comp_slot_t *&slot)
-{
-    slot = new ucg_builtin_comp_slot_t();
+ucg_builtin_request_t* ucg_cb_test::create_request(ucg_builtin_op_step_t *step) {
+    ucg_builtin_comp_slot_t *slot = new ucg_builtin_comp_slot_t;
     slot->cb = NULL;
     slot->step_idx = 1;
     ucs_list_head_init(&slot->msg_head);
-}
 
-ucg_builtin_request_t* ucg_cb_test::create_request(ucg_builtin_op_step_t *step, ucg_builtin_comp_slot_t *slot)
-{
     ucg_builtin_request_t *req = &slot->req;
     req->step = step;
-    ucg_request_t *comp_req = new ucg_request_t();
+    ucg_request_t *comp_req = new ucg_request_t;
     comp_req->flags = 0;
     comp_req->status = UCS_OK;
     req->comp_req = comp_req;
-    ucg_builtin_op_t *op = new ucg_builtin_op_t();
+    ucg_builtin_op_t *op = new ucg_builtin_op_t;
     op->send_dt = NULL;
     op->recv_dt = NULL;
     op->final_cb = NULL;
     req->op = op;
 
-    ucg_planner_h planner = NULL;
-    ucg_planner_ctx_h planner_ctx;
-    ucg_group_h group = create_group();
-    ucg_collective_params_t *params = create_allreduce_params();
-    ucg_group_select_planner(group, NULL, params, &planner, &planner_ctx);
-    ucg_builtin_component.query(&planner);
-    ucg_plan_t *plan = NULL;
-    planner->plan(planner_ctx, params, &plan);
-    plan->planner = planner;
-    req->op->super.plan = plan;
-    group->planners_context = NULL;
     return req;
 }
 
-void ucg_cb_test::destroy_request(ucg_builtin_request_t *&req)
-{
-    if (req != NULL) {
-        if (req->op != NULL) {
-            delete(req->op);
-            req->op = NULL;
-        }
-        if (req->comp_req != NULL) {
-            delete(req->comp_req);
-            req->comp_req = NULL;
-        }
-    }
-}
-
-void ucg_cb_test::destroy_slot(ucg_builtin_comp_slot_t *&slot)
-{
-    if (slot != NULL) {
-        delete(slot);
-        slot = NULL;
-    }
-}
-
-static void reduce_mock(void *mpi_op, void *src_buffer, void *dst_buffer, int dcount, void *mpi_datatype)
+static void reduce_mock(void *mpi_op, char *src_buffer, char *dst_buffer, unsigned dcount, void *mpi_datatype)
 {
     // do nothing
 }
@@ -112,11 +72,10 @@ static ucs_status_t coll_ucx_generic_datatype_unpack(void *state, size_t offset,
     return UCS_OK;
 }
 
-TEST_F(ucg_cb_test, test_op_no_optimization)
-{
-    ucg_builtin_op_t *op = new ucg_builtin_op_t();
+TEST_F(ucg_cb_test, test_op_no_optimization) {
+    ucg_builtin_op_t *op = new ucg_builtin_op_t;
     ucs_status_t ret = ucg_builtin_no_optimization(op);
-    delete op;
+
     ASSERT_EQ(UCS_OK, ret);
 }
 
@@ -124,7 +83,7 @@ TEST_F(ucg_cb_test, test_op_cb_init) {
     ucg_group_h group = create_group();
     ucg_collective_params_t *params = create_allreduce_params();
     ucg_plan_t *plan = create_plan(1, params, group);
-    ucp_dt_generic_t *dt_gen = new ucp_dt_generic_t();
+    ucp_dt_generic_t *dt_gen = new ucp_dt_generic_t;
     ucg_op_t *op = new ucg_op_t();
 
     ucs_status_t ret = ucg_builtin_op_create(plan, params, &op);
@@ -139,7 +98,7 @@ TEST_F(ucg_cb_test, test_op_cb_init) {
     step->non_contig.unpack_state = (void *)step->recv_buffer;
     int *send_buf = (int *)params->send.buf;
     int *recv_buf = (int *)params->recv.buf;
-    ucg_builtin_request_t *req = new ucg_builtin_request_t();
+    ucg_builtin_request_t *req = new ucg_builtin_request_t;
     req->op = (ucg_builtin_op_t *)op;
     req->step = step;
     dt_gen->context = (void *)step->recv_buffer;
@@ -199,13 +158,12 @@ TEST_F(ucg_cb_test, test_op_cb_init) {
     ucg_builtin_init_reduce_and_unpack((ucg_builtin_op_t *)op);
     ASSERT_EQ(send_buf[0], recv_buf[0]);
 
+    params->send.buf = MPI_IN_PLACE;
     ucg_builtin_init_reduce((ucg_builtin_op_t *)op);
     ASSERT_EQ(recv_buf[0], recv_buf[0]);
 
     delete req;
     delete dt_gen;
-    destroy_collective_params(params);
-    destroy_group(group);
 }
 
 TEST_F(ucg_cb_test, test_op_cb_final) {
@@ -214,8 +172,11 @@ TEST_F(ucg_cb_test, test_op_cb_final) {
     ucg_plan_t *plan = create_plan(1, params, group);
 
     ucg_op_t *op = new ucg_op_t();
+
     ucs_status_t ret = ucg_builtin_op_create(plan, params, &op);
     ASSERT_EQ(UCS_OK, ret);
+
+    op->params = *params;
     op->plan = plan;
     plan->my_index = 1;
     ucg_builtin_op_step_t *step = &((ucg_builtin_op_t *)op)->steps[0];
@@ -281,7 +242,6 @@ TEST_F(ucg_cb_test, test_op_cb_final) {
 
     delete req;
     delete dt_gen;
-    destroy_group(group);
 }
 
 TEST_F(ucg_cb_test, test_send_cb) {
@@ -310,7 +270,6 @@ TEST_F(ucg_cb_test, test_send_cb) {
 
     ucg_builtin_send_alltoall(req);
     ASSERT_EQ(recv_buf[1], send_buf[0]);
-    destroy_collective_params(params);
 }
 
 TEST_F(ucg_cb_test, test_recv_cb_recv_one) {
@@ -328,9 +287,7 @@ TEST_F(ucg_cb_test, test_recv_cb_recv_one) {
                                                params, &current_data_buffer, step);
     ASSERT_EQ(UCS_OK, ret);
 
-    ucg_builtin_comp_slot_t *slot = NULL;
-    create_slot(slot);
-    ucg_builtin_request_t *req = create_request(step, slot);
+    ucg_builtin_request_t *req = create_request(step);
     req->step->non_contig.unpack_state = (void *)step->recv_buffer;
     req->op->recv_dt = dt_gen;
     req->op->recv_dt->ops.unpack = coll_ucx_generic_datatype_unpack;
@@ -373,9 +330,7 @@ TEST_F(ucg_cb_test, test_recv_cb_recv_one) {
     for (int i = 0; i < count; i++) {
         ASSERT_EQ(i, recv_buf[i]);
     }
-    destroy_request(req);
-    destroy_slot(slot);
-    destroy_collective_params(params);
+
     delete dt_gen;
 }
 
@@ -394,9 +349,7 @@ TEST_F(ucg_cb_test, test_recv_cb_recv_many) {
                                                params, &current_data_buffer, step);
     ASSERT_EQ(UCS_OK, ret);
 
-    ucg_builtin_comp_slot_t *slot = NULL;
-    create_slot(slot);
-    ucg_builtin_request_t *req = create_request(step, slot);
+    ucg_builtin_request_t *req = create_request(step);
     req->step->non_contig.unpack_state = (void *)step->recv_buffer;
     req->op->recv_dt = dt_gen;
     req->op->recv_dt->ops.unpack = coll_ucx_generic_datatype_unpack;
@@ -466,9 +419,6 @@ TEST_F(ucg_cb_test, test_recv_cb_recv_many) {
     ret_int = ucg_builtin_comp_recv_noncontig_many_then_send_pipe_cb(req, offset, (void *)data, length);
     ASSERT_EQ(1, ret_int);
 
-    destroy_request(req);
-    destroy_slot(slot);
-    destroy_collective_params(params);
     delete dt_gen;
 }
 
@@ -486,9 +436,7 @@ TEST_F(ucg_cb_test, test_recv_cb_reduce_one) {
                                                params, &current_data_buffer, step);
     ASSERT_EQ(UCS_OK, ret);
 
-    ucg_builtin_comp_slot_t *slot = NULL;
-    create_slot(slot);
-    ucg_builtin_request_t *req = create_request(step, slot);
+    ucg_builtin_request_t *req = create_request(step);
 
     uint64_t offset = 0;
     int count = 2;
@@ -509,9 +457,6 @@ TEST_F(ucg_cb_test, test_recv_cb_reduce_one) {
     req->comp_req->flags = 0;
     ret_int = ucg_builtin_comp_reduce_one_then_send_cb(req, offset, (void *)data, length);
     ASSERT_EQ(1, ret_int);
-    destroy_request(req);
-    destroy_slot(slot);
-    destroy_collective_params(params);
 }
 
 TEST_F(ucg_cb_test, test_recv_cb_reduce_many) {
@@ -528,9 +473,7 @@ TEST_F(ucg_cb_test, test_recv_cb_reduce_many) {
                                                params, &current_data_buffer, step);
     ASSERT_EQ(UCS_OK, ret);
 
-    ucg_builtin_comp_slot_t *slot = NULL;
-    create_slot(slot);
-    ucg_builtin_request_t *req = create_request(step, slot);
+    ucg_builtin_request_t *req = create_request(step);
 
     uint64_t offset = 0;
     int count = 2;
@@ -566,9 +509,6 @@ TEST_F(ucg_cb_test, test_recv_cb_reduce_many) {
     step->iter_offset = UCG_BUILTIN_OFFSET_PIPELINE_PENDING;
     ret_int = ucg_builtin_comp_reduce_many_then_send_pipe_cb(req, offset, (void *)data, length);
     ASSERT_EQ(1, ret_int);
-    destroy_request(req);
-    destroy_slot(slot);
-    destroy_collective_params(params);
 }
 
 TEST_F(ucg_cb_test, test_recv_cb_reduce_full) {
@@ -585,9 +525,7 @@ TEST_F(ucg_cb_test, test_recv_cb_reduce_full) {
                                                params, &current_data_buffer, step);
     ASSERT_EQ(UCS_OK, ret);
 
-    ucg_builtin_comp_slot_t *slot = NULL;
-    create_slot(slot);
-    ucg_builtin_request_t *req = create_request(step, slot);
+    ucg_builtin_request_t *req = create_request(step);
 
     uint64_t offset = 0;
     int count = 2;
@@ -617,9 +555,6 @@ TEST_F(ucg_cb_test, test_recv_cb_reduce_full) {
     for (int i = 0; i < count; i++) {
         ASSERT_EQ(i, cache[i]);
     }
-    destroy_request(req);
-    destroy_slot(slot);
-    destroy_collective_params(params);
 }
 
 TEST_F(ucg_cb_test, test_recv_cb_wait) {
@@ -636,9 +571,7 @@ TEST_F(ucg_cb_test, test_recv_cb_wait) {
                                                params, &current_data_buffer, step);
     ASSERT_EQ(UCS_OK, ret);
 
-    ucg_builtin_comp_slot_t *slot = NULL;
-    create_slot(slot);
-    ucg_builtin_request_t *req = create_request(step, slot);
+    ucg_builtin_request_t *req = create_request(step);
 
     uint64_t offset = 0;
     int count = 2;
@@ -659,9 +592,6 @@ TEST_F(ucg_cb_test, test_recv_cb_wait) {
 
     ret_int = ucg_builtin_comp_wait_many_then_send_cb(req, offset, (void *)data, length);
     ASSERT_EQ(1, ret_int);
-    destroy_request(req);
-    destroy_slot(slot);
-    destroy_collective_params(params);
 }
 
 TEST_F(ucg_cb_test, test_recv_cb_last_barrier) {
@@ -678,9 +608,7 @@ TEST_F(ucg_cb_test, test_recv_cb_last_barrier) {
                                                params, &current_data_buffer, step);
     ASSERT_EQ(UCS_OK, ret);
 
-    ucg_builtin_comp_slot_t *slot = NULL;
-    create_slot(slot);
-    ucg_builtin_request_t *req = create_request(step, slot);
+    ucg_builtin_request_t *req = create_request(step);
 
     ucg_group_h group = create_group();
     ucg_plan_t *plan = create_plan(1, params, group);
@@ -702,10 +630,6 @@ TEST_F(ucg_cb_test, test_recv_cb_last_barrier) {
     ASSERT_EQ(0, ret_int);
     ret_int = ucg_builtin_comp_last_barrier_step_many_cb(req, offset, (void *)data, length);
     ASSERT_EQ(1, ret_int);
-    destroy_request(req);
-    destroy_slot(slot);
-    destroy_group(group);
-    destroy_collective_params(params);
 }
 
 TEST_F(ucg_cb_test, test_zcopy_step_check_cb) {
@@ -722,9 +646,7 @@ TEST_F(ucg_cb_test, test_zcopy_step_check_cb) {
                                                params, &current_data_buffer, step);
     ASSERT_EQ(UCS_OK, ret);
 
-    ucg_builtin_comp_slot_t *slot = NULL;
-    create_slot(slot);
-    ucg_builtin_request_t *req = create_request(step, slot);
+    ucg_builtin_request_t *req = create_request(step);
     ucg_builtin_zcomp_t *zcomp = new ucg_builtin_zcomp_t;
     zcomp->req = req;
     uct_completion_t *self = &zcomp->comp;
@@ -733,24 +655,12 @@ TEST_F(ucg_cb_test, test_zcopy_step_check_cb) {
     step->zcopy.num_store = 0;
     ucg_builtin_step_am_zcopy_comp_step_check_cb(self, UCS_OK);
 
-    ucg_planner_h planner = NULL;
-    ucg_planner_ctx_h planner_ctx;
-    ucg_group_h group = create_group();
-    ucg_group_select_planner(group, NULL, params, &planner, &planner_ctx);
-
     req->pending = 2;
     step->zcopy.num_store = 1;
-    ucg_plan_t *plan = create_plan(1, params, group);
-    plan->planner = planner;
+    ucg_plan_t *plan = new ucg_plan_t;
+    plan->planner = &ucg_builtin_component;
     req->op->super.plan = plan;
-
     ucg_builtin_step_am_zcopy_comp_step_check_cb(self, UCS_OK);
-    destroy_request(req);
-    destroy_slot(slot);
-    destroy_collective_params(params);
-    group->planners_context = NULL;
-    m_ucp_worker = NULL;
-    m_ucp_context = NULL;
 }
 
 TEST_F(ucg_cb_test, test_zcopy_prep) {
@@ -772,7 +682,6 @@ TEST_F(ucg_cb_test, test_zcopy_prep) {
 
     ret = ucg_builtin_step_zcopy_prep(step);
     ASSERT_EQ(UCS_OK, ret);
-    destroy_collective_params(params);
 }
 
 TEST_F(ucg_cb_test, test_bcopy_to_zcopy) {
@@ -793,14 +702,11 @@ TEST_F(ucg_cb_test, test_bcopy_to_zcopy) {
     step->uct_md = md;
     step->recv_cb = ucg_builtin_comp_reduce_one_cb;
 
-    ucg_builtin_op_t *op = (ucg_builtin_op_t *)malloc(sizeof(ucg_builtin_op_t) + sizeof(ucg_builtin_op_step_t));
+    ucg_builtin_op_t *op = new ucg_builtin_op_t + sizeof(ucg_builtin_op_step_t);
     op->steps[0] = *step;
 
     ret = ucg_builtin_optimize_bcopy_to_zcopy(op);
     ASSERT_EQ(UCS_OK, ret);
-    destroy_collective_params(params);
-    delete step;
-    free(op);
 }
 
 /**
@@ -936,14 +842,12 @@ TEST_F(ucg_cb_test, test_op_consider_optimization) {
     ucg_collective_params_t *params = create_bcast_params();
     ucg_plan_t *plan = create_plan(1, params, group);
 
-    ucg_op_t *op = NULL;
+    ucg_op_t *op = new ucg_op_t();
 
     ucs_status_t ret = ucg_builtin_op_create(plan, params, &op);
     ASSERT_EQ(UCS_OK, ret);
 
     ret = ucg_builtin_op_consider_optimization((ucg_builtin_op_t*)op,
-                                               ((ucg_builtin_plan_t *)plan)->context->config);
+                                               (ucg_builtin_config_t*)plan->planner->plan_config);
     ASSERT_EQ(UCS_OK, ret);
-    destroy_collective_params(params);
-    destroy_group(group);
 }
