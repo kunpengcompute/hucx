@@ -257,6 +257,9 @@ typedef struct ucp_context {
 
         /* MD to compare for transport selection scores */
         char                      *selection_cmp;
+
+        /* Flags provided via the initialization parameters */
+        uint64_t                  flags;
     } config;
 
     /* Configuration of multi-threading support */

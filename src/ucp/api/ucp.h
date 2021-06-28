@@ -126,8 +126,21 @@ enum ucp_params_field {
     UCP_PARAM_FIELD_ESTIMATED_NUM_EPS = UCS_BIT(6), /**< estimated_num_eps */
     UCP_PARAM_FIELD_ESTIMATED_NUM_PPN = UCS_BIT(7), /**< estimated_num_ppn */
     UCP_PARAM_FIELD_NAME              = UCS_BIT(8), /**< name */
-    UCP_PARAM_FIELD_CONTEXT_HEADROOM  = UCS_BIT(9)  /**< context_headroom */
+    UCP_PARAM_FIELD_CONTEXT_HEADROOM  = UCS_BIT(9), /**< context_headroom */
+    UCP_PARAM_FIELD_FLAGS             = UCS_BIT(10) /**< flags */
 };
+
+
+/**
+ * @ingroup UCP_CONTEXT
+ * @brief UCP context flags
+ *
+ * This enumeration allows specifying flags for @ref ucp_params_t.flags,
+ * which is used as parameter for @ref ucp_init or @ref ucp_init_version.
+ */
+typedef enum {
+    UCP_FLAG_LOCAL_TLS_ONLY = UCS_BIT(0) /**< Do no initialize network TLs */
+} ucp_flags_t;
 
 
 /**
@@ -1054,6 +1067,14 @@ typedef struct ucp_params {
 
     /** Head-room before the allocated context pointer, for extensions */
     size_t                             context_headroom;
+
+    /**
+     * Context flags.
+     * This value is optional.
+     * If @ref UCP_PARAM_FIELD_FLAGS is not set in the field_mask, the
+     * value of this field will default to 0.
+     */
+    uint64_t                flags;
 } ucp_params_t;
 
 

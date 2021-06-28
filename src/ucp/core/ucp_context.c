@@ -639,9 +639,10 @@ tl_found_in_list:
 
 static int ucp_is_resource_enabled(const uct_tl_resource_desc_t *resource,
                                    const ucp_config_t *config, uint8_t *rsc_flags,
-                                   uint64_t dev_cfg_masks[], uint64_t *tl_cfg_mask)
+                                   uint64_t dev_cfg_masks[], uint64_t *tl_cfg_mask,
+                                   int local_only)
 {
-    int device_enabled, tl_enabled;
+    int device_enabled, tl_enabled, net_enabled;
 
     /* Find the enabled devices */
     device_enabled = (*rsc_flags & UCP_TL_RSC_FLAG_SOCKADDR) ||
@@ -655,10 +656,13 @@ static int ucp_is_resource_enabled(const uct_tl_resource_desc_t *resource,
                                                     &config->tls, rsc_flags,
                                                     tl_cfg_mask);
 
+    /* Check if worker flag UCP_WORKER_FLAG_LOCAL_TLS_ONLY flag is present */
+    net_enabled = (!local_only) || (resource->dev_type != UCT_DEVICE_TYPE_NET);
+
     ucs_trace(UCT_TL_RESOURCE_DESC_FMT " is %sabled",
               UCT_TL_RESOURCE_DESC_ARG(resource),
-              (device_enabled && tl_enabled) ? "en" : "dis");
-    return device_enabled && tl_enabled;
+              (device_enabled && tl_enabled && net_enabled) ? "en" : "dis");
+    return device_enabled && tl_enabled && net_enabled;
 }
 
 static void ucp_add_tl_resource_if_enabled(ucp_context_h context, ucp_tl_md_t *md,
@@ -670,9 +674,10 @@ static void ucp_add_tl_resource_if_enabled(ucp_context_h context, ucp_tl_md_t *m
                                            uint64_t *tl_cfg_mask)
 {
     ucp_rsc_index_t dev_index, i;
+    int local_only = context->config.flags & UCP_FLAG_LOCAL_TLS_ONLY;
 
     if (ucp_is_resource_enabled(resource, config, &rsc_flags, dev_cfg_masks,
-                                tl_cfg_mask)) {
+                                tl_cfg_mask, local_only)) {
         context->tl_rscs[context->num_tls].tl_rsc       = *resource;
         context->tl_rscs[context->num_tls].md_index     = md_index;
         context->tl_rscs[context->num_tls].tl_name_csum =
@@ -1336,6 +1341,8 @@ static void ucp_apply_params(ucp_context_h context, const ucp_params_t *params,
     context->config.est_num_ppn = UCP_PARAM_FIELD_VALUE(params,
                                                         estimated_num_ppn,
                                                         ESTIMATED_NUM_PPN, 1);
+
+    context->config.flags = UCP_PARAM_FIELD_VALUE(params, flags, FLAGS, 0);
 
     if ((params->field_mask & UCP_PARAM_FIELD_MT_WORKERS_SHARED) &&
         params->mt_workers_shared) {
