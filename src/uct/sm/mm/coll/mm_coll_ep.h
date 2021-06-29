@@ -52,7 +52,7 @@ ucs_status_t uct_mm_bcast_ep_am_short_batched(uct_ep_h ep,
                                               uint64_t header,
                                               const void *payload,
                                               unsigned length);
-ucs_status_t uct_mm_bcast_ep_am_short_centralized(uct_ep_h ep,
+ucs_status_t uct_mm_bcast_ep_am_short_imbalanced(uct_ep_h ep,
                                                   uint8_t id,
                                                   uint64_t header,
                                                   const void *payload,
@@ -62,12 +62,17 @@ ucs_status_t uct_mm_incast_ep_am_short_batched(uct_ep_h ep,
                                                uint64_t header,
                                                const void *payload,
                                                unsigned length);
-ucs_status_t uct_mm_incast_ep_am_short_centralized(uct_ep_h ep,
+ucs_status_t uct_mm_incast_ep_am_short_imbalanced(uct_ep_h ep,
                                                    uint8_t id,
                                                    uint64_t header,
                                                    const void *payload,
                                                    unsigned length);
-ucs_status_t uct_mm_incast_ep_am_short_centralized_ep_cb(uct_ep_h ep,
+ucs_status_t uct_mm_incast_ep_am_short_batched_ep_cb(uct_ep_h ep,
+                                                     uint8_t id,
+                                                     uint64_t header,
+                                                     const void *payload,
+                                                     unsigned length);
+ucs_status_t uct_mm_incast_ep_am_short_imbalanced_ep_cb(uct_ep_h ep,
                                                          uint8_t id,
                                                          uint64_t header,
                                                          const void *payload,
@@ -76,16 +81,19 @@ ucs_status_t uct_mm_incast_ep_am_short_centralized_ep_cb(uct_ep_h ep,
 ssize_t uct_mm_bcast_ep_am_bcopy_batched(uct_ep_h ep, uint8_t id,
                                          uct_pack_callback_t pack_cb,
                                          void *arg, unsigned flags);
-ssize_t uct_mm_bcast_ep_am_bcopy_centralized(uct_ep_h ep, uint8_t id,
+ssize_t uct_mm_bcast_ep_am_bcopy_imbalanced(uct_ep_h ep, uint8_t id,
                                              uct_pack_callback_t pack_cb,
                                              void *arg, unsigned flags);
 ssize_t uct_mm_incast_ep_am_bcopy_batched(uct_ep_h ep, uint8_t id,
                                           uct_pack_callback_t pack_cb,
                                           void *arg, unsigned flags);
-ssize_t uct_mm_incast_ep_am_bcopy_centralized(uct_ep_h ep, uint8_t id,
+ssize_t uct_mm_incast_ep_am_bcopy_imbalanced(uct_ep_h ep, uint8_t id,
                                               uct_pack_callback_t pack_cb,
                                               void *arg, unsigned flags);
-ssize_t uct_mm_incast_ep_am_bcopy_centralized_ep_cb(uct_ep_h ep, uint8_t id,
+ssize_t uct_mm_incast_ep_am_bcopy_batched_ep_cb(uct_ep_h ep, uint8_t id,
+                                                uct_pack_callback_t pack_cb,
+                                                void *arg, unsigned flags);
+ssize_t uct_mm_incast_ep_am_bcopy_imbalanced_ep_cb(uct_ep_h ep, uint8_t id,
                                                     uct_pack_callback_t pack_cb,
                                                     void *arg, unsigned flags);
 

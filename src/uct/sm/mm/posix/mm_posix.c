@@ -689,11 +689,4 @@ static uct_mm_md_mapper_ops_t uct_posix_md_ops = {
 };
 
 UCT_MM_TL_DEFINE(posix, &uct_posix_md_ops, uct_posix_rkey_unpack,
-                 uct_posix_rkey_release, "POSIX_",
-                 uct_posix_iface_config_table, _)
-UCT_MM_TL_DEFINE(posix, &uct_posix_md_ops, uct_posix_rkey_unpack,
-                 uct_posix_rkey_release, "POSIX_BCAST_",
-                 uct_posix_iface_config_table, _bcast_)
-UCT_MM_TL_DEFINE(posix, &uct_posix_md_ops, uct_posix_rkey_unpack,
-                 uct_posix_rkey_release, "POSIX_INCAST_",
-                 uct_posix_iface_config_table, _incast_)
+                 uct_posix_rkey_release, "POSIX_", uct_posix_iface_config_table)

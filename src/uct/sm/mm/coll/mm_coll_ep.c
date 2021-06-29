@@ -56,7 +56,7 @@ uct_mm_coll_get_base_address(int is_short, int is_batch,
 }
 
 static UCS_F_ALWAYS_INLINE uint8_t
-uct_mm_coll_ep_centralized_check_buffer(uint8_t *slot_ptr, unsigned slot_size)
+uct_mm_coll_ep_imbalanced_check_buffer(uint8_t *slot_ptr, unsigned slot_size)
 {
     uint8_t pending_counter;
     volatile uint8_t *slot_iter_ptr = slot_ptr + slot_size - 1;
@@ -83,7 +83,7 @@ uct_mm_coll_ep_centralized_check_buffer(uint8_t *slot_ptr, unsigned slot_size)
 }
 
 static UCS_F_ALWAYS_INLINE void
-uct_mm_coll_iface_centralized_set_slot_counter(uint8_t *slot_ptr,
+uct_mm_coll_iface_imbalanced_set_slot_counter(uint8_t *slot_ptr,
                                                unsigned slot_size,
                                                uint8_t new_counter_value,
                                                int is_init)
@@ -100,7 +100,7 @@ uct_mm_coll_iface_centralized_set_slot_counter(uint8_t *slot_ptr,
 }
 
 static UCS_F_ALWAYS_INLINE size_t
-uct_mm_coll_iface_centralized_get_slot_size(uct_mm_coll_ep_t *ep,
+uct_mm_coll_iface_imbalanced_get_slot_size(uct_mm_coll_ep_t *ep,
                                             size_t data_length,
                                             int is_short)
 {
@@ -110,7 +110,7 @@ uct_mm_coll_iface_centralized_get_slot_size(uct_mm_coll_ep_t *ep,
 }
 
 static UCS_F_ALWAYS_INLINE size_t
-uct_mm_coll_iface_centralized_get_slot_offset(uct_mm_coll_ep_t *ep,
+uct_mm_coll_iface_imbalanced_get_slot_offset(uct_mm_coll_ep_t *ep,
                                               int is_incast,
                                               int is_short,
                                               size_t slot_size,
@@ -127,7 +127,7 @@ uct_mm_coll_iface_centralized_get_slot_offset(uct_mm_coll_ep_t *ep,
 }
 
 static UCS_F_ALWAYS_INLINE ucs_status_t
-uct_mm_coll_iface_centralized_get_ptr(uct_mm_coll_fifo_element_t *elem,
+uct_mm_coll_iface_imbalanced_get_ptr(uct_mm_coll_fifo_element_t *elem,
                                       uct_mm_coll_ep_t *ep,
                                       int is_incast,
                                       int is_short,
@@ -140,7 +140,7 @@ uct_mm_coll_iface_centralized_get_ptr(uct_mm_coll_fifo_element_t *elem,
 }
 
 static UCS_F_ALWAYS_INLINE uint8_t*
-uct_mm_coll_iface_centralized_get_slot(uct_mm_coll_fifo_element_t *elem,
+uct_mm_coll_iface_imbalanced_get_slot(uct_mm_coll_fifo_element_t *elem,
                                        uct_mm_coll_ep_t *ep,
                                        int is_incast,
                                        int is_short,
@@ -150,15 +150,15 @@ uct_mm_coll_iface_centralized_get_slot(uct_mm_coll_fifo_element_t *elem,
 {
     uint8_t *base_address = NULL;
 
-    (void) uct_mm_coll_iface_centralized_get_ptr(elem, ep,
+    (void) uct_mm_coll_iface_imbalanced_get_ptr(elem, ep,
             is_incast, is_short, is_loopback, &base_address);
 
-    return base_address + uct_mm_coll_iface_centralized_get_slot_offset(ep,
+    return base_address + uct_mm_coll_iface_imbalanced_get_slot_offset(ep,
             is_incast, is_short, slot_size, slot_index);
 }
 
 static UCS_F_ALWAYS_INLINE void
-uct_mm_coll_ep_centralized_mark_done(uct_mm_coll_fifo_element_t *elem,
+uct_mm_coll_ep_imbalanced_mark_done(uct_mm_coll_fifo_element_t *elem,
                                      uct_mm_coll_ep_t *ep,
                                      uint8_t *slot_ptr,
                                      unsigned slot_size,
@@ -171,7 +171,7 @@ uct_mm_coll_ep_centralized_mark_done(uct_mm_coll_fifo_element_t *elem,
 
     ucs_memory_cpu_load_fence();
 
-    uint8_t cnt = uct_mm_coll_ep_centralized_check_buffer(next_slot, slot_size);
+    uint8_t cnt = uct_mm_coll_ep_imbalanced_check_buffer(next_slot, slot_size);
 
     ucs_assert(elem->pending <= my_offset);
     if (ucs_likely(elem->pending == my_offset)) {
@@ -198,13 +198,13 @@ uct_mm_coll_ep_centralized_mark_done(uct_mm_coll_fifo_element_t *elem,
             memcpy(slot_ptr, payload, length);
         }
 
-        uct_mm_coll_iface_centralized_set_slot_counter(slot_ptr, slot_size,
+        uct_mm_coll_iface_imbalanced_set_slot_counter(slot_ptr, slot_size,
                                                        cnt + 1, 0);
     }
 }
 
 static UCS_F_ALWAYS_INLINE void
-uct_mm_coll_ep_centralized_mark_incast_tx_done(uct_mm_coll_fifo_element_t *elem,
+uct_mm_coll_ep_imbalanced_mark_incast_tx_done(uct_mm_coll_fifo_element_t *elem,
                                                uct_mm_coll_ep_t *ep,
                                                uint8_t *slot_ptr,
                                                unsigned slot_size,
@@ -212,20 +212,20 @@ uct_mm_coll_ep_centralized_mark_incast_tx_done(uct_mm_coll_fifo_element_t *elem,
                                                const void *payload,
                                                size_t length)
 {
-    uct_mm_coll_ep_centralized_mark_done(elem, ep, slot_ptr, slot_size,
+    uct_mm_coll_ep_imbalanced_mark_done(elem, ep, slot_ptr, slot_size,
                                          use_cb, cb, payload, length);
 }
 
 static UCS_F_ALWAYS_INLINE void
-uct_mm_coll_ep_centralized_mark_bcast_rx_done(uct_mm_coll_fifo_element_t *elem,
+uct_mm_coll_ep_imbalanced_mark_bcast_rx_done(uct_mm_coll_fifo_element_t *elem,
                                               uct_mm_coll_ep_t *ep,
                                               int is_short)
 {
-    uint8_t *slot_ptr = uct_mm_coll_iface_centralized_get_slot(elem, ep, 0,
+    uint8_t *slot_ptr = uct_mm_coll_iface_imbalanced_get_slot(elem, ep, 0,
                                                                is_short, 0, 0,
                                                                ep->my_offset);
 
-    uct_mm_coll_ep_centralized_mark_done(elem, ep, slot_ptr,
+    uct_mm_coll_ep_imbalanced_mark_done(elem, ep, slot_ptr,
                                          UCS_SYS_CACHE_LINE_SIZE,
                                          0, NULL, NULL, 0);
 
@@ -236,7 +236,7 @@ uct_mm_coll_ep_centralized_mark_bcast_rx_done(uct_mm_coll_fifo_element_t *elem,
 }
 
 static UCS_F_ALWAYS_INLINE int
-uct_mm_coll_ep_centralized_is_elem_ready(uct_mm_coll_fifo_element_t *elem,
+uct_mm_coll_ep_imbalanced_is_elem_ready(uct_mm_coll_fifo_element_t *elem,
                                          uct_mm_coll_ep_t *ep, int is_incast,
                                          int is_short, int is_loopback,
                                          int use_cb, uct_incast_cb_t cb)
@@ -250,14 +250,14 @@ uct_mm_coll_ep_centralized_is_elem_ready(uct_mm_coll_fifo_element_t *elem,
     size_t slot_size = is_incast ? elem->super.length : UCS_SYS_CACHE_LINE_SIZE;
     ucs_assert((!is_short) || ((slot_size % UCS_SYS_CACHE_LINE_SIZE) == 0));
 
-    uint8_t *slot_ptr = uct_mm_coll_iface_centralized_get_slot(elem, ep,
+    uint8_t *slot_ptr = uct_mm_coll_iface_imbalanced_get_slot(elem, ep,
                                                                is_incast,
                                                                is_short,
                                                                is_loopback,
                                                                slot_size,
                                                                pending);
 
-    uint8_t cnt = uct_mm_coll_ep_centralized_check_buffer(slot_ptr, slot_size);
+    uint8_t cnt = uct_mm_coll_ep_imbalanced_check_buffer(slot_ptr, slot_size);
 
     while (ucs_likely(cnt > 0)) {
         /* if enabled - reduce my data into the next data available */
@@ -276,7 +276,7 @@ uct_mm_coll_ep_centralized_is_elem_ready(uct_mm_coll_fifo_element_t *elem,
 
         slot_ptr = UCS_PTR_BYTE_OFFSET(slot_ptr, cnt * slot_size);
 
-        cnt = uct_mm_coll_ep_centralized_check_buffer(slot_ptr, slot_size);
+        cnt = uct_mm_coll_ep_imbalanced_check_buffer(slot_ptr, slot_size);
     }
 
     return 0;
@@ -286,21 +286,21 @@ is_ready:
     return 1;
 }
 
-void uct_mm_coll_ep_centralized_reset_elem(uct_mm_coll_fifo_element_t* elem,
+void uct_mm_coll_ep_imbalanced_reset_elem(uct_mm_coll_fifo_element_t* elem,
                                            uct_mm_coll_ep_t *ep,
                                            int is_short, int is_incast)
 {
     uint8_t  slot_idx;
     uint8_t  slot_cnt = ep->proc_cnt;
-    size_t   slot_len = uct_mm_coll_iface_centralized_get_slot_size(ep, 0,
+    size_t   slot_len = uct_mm_coll_iface_imbalanced_get_slot_size(ep, 0,
                                                                     is_short);
-    uint8_t *slot_ptr = uct_mm_coll_iface_centralized_get_slot(elem, ep,
+    uint8_t *slot_ptr = uct_mm_coll_iface_imbalanced_get_slot(elem, ep,
                                                                is_incast,
                                                                is_short,
                                                                1, 0, 0);
 
     for (slot_idx = 0; slot_idx < slot_cnt; slot_idx++, slot_ptr += slot_len) {
-        uct_mm_coll_iface_centralized_set_slot_counter(slot_ptr, slot_len, 0, 1);
+        uct_mm_coll_iface_imbalanced_set_slot_counter(slot_ptr, slot_len, 0, 1);
     }
 }
 
@@ -411,7 +411,7 @@ uct_mm_coll_ep_am_common_send(uct_coll_dtype_mode_t op_mode, int is_bcast,
                               int is_short, uct_ep_h tl_ep, uint8_t am_id,
                               size_t length, uint64_t header,
                               const void *payload, uct_pack_callback_t pack_cb,
-                              void *arg, unsigned flags, int is_centralized,
+                              void *arg, unsigned flags, int is_imbalanced,
                               int use_cb, uct_incast_cb_t cb)
 {
     uct_mm_coll_iface_t *iface = ucs_derived_of(tl_ep->iface, uct_mm_coll_iface_t);
@@ -452,7 +452,7 @@ uct_mm_coll_ep_am_common_send(uct_coll_dtype_mode_t op_mode, int is_bcast,
     int is_zero_offset = (ep->my_offset == 0);
     uint8_t proc_cnt   = ep->proc_cnt;
     uint16_t stride    = is_tight ? length :
-            uct_mm_coll_iface_centralized_get_slot_size(ep, length, is_short);
+            uct_mm_coll_iface_imbalanced_get_slot_size(ep, length, is_short);
 
     ucs_assert(!is_tight || (length > 0));
 
@@ -478,7 +478,7 @@ uct_mm_coll_ep_am_common_send(uct_coll_dtype_mode_t op_mode, int is_bcast,
         if (!use_cb) {
             memcpy(base_address, payload, length);
         } else {
-            ucs_assert(is_batched && is_centralized);
+            ucs_assert(is_batched && is_imbalanced);
         }
     } else {
         /* For some reduce operations - ask the callback to do the reduction */
@@ -508,13 +508,13 @@ uct_mm_coll_ep_am_common_send(uct_coll_dtype_mode_t op_mode, int is_bcast,
 
     if (is_batched) {
         /* BATCHED or CENTRALIZED modes only: mark my slot as "written" */
-        if (is_centralized) {
-            uct_mm_coll_ep_centralized_mark_incast_tx_done(elem, ep,
+        if (is_imbalanced) {
+            uct_mm_coll_ep_imbalanced_mark_incast_tx_done(elem, ep,
                                                            base_address,
                                                            stride, use_cb, cb,
                                                            payload, length);
         } else {
-            uct_mm_coll_iface_centralized_set_slot_counter(base_address, stride,
+            uct_mm_coll_iface_imbalanced_set_slot_counter(base_address, stride,
                                                            1, 0);
         }
 
@@ -612,7 +612,7 @@ trace_send:
 static UCS_F_ALWAYS_INLINE ucs_status_t
 uct_mm_coll_ep_am_short(uct_ep_h ep, uint8_t id, uint64_t header,
                         const void *payload, unsigned length, int is_bcast,
-                        int is_centralized, int use_cb, uct_incast_cb_t cb)
+                        int is_imbalanced, int use_cb, uct_incast_cb_t cb)
 {
     unsigned orig_length          = UCT_COLL_DTYPE_MODE_UNPACK_VALUE(length);
     uct_coll_dtype_mode_t op_mode = UCT_COLL_DTYPE_MODE_UNPACK_MODE(length);
@@ -621,7 +621,7 @@ uct_mm_coll_ep_am_short(uct_ep_h ep, uint8_t id, uint64_t header,
                (op_mode == UCT_COLL_DTYPE_MODE_PACKED));
 
     ssize_t ret = uct_mm_coll_ep_am_common_send(op_mode, is_bcast, 1, ep, id,
-        orig_length, header, payload, NULL, NULL, 0, is_centralized, use_cb, cb);
+        orig_length, header, payload, NULL, NULL, 0, is_imbalanced, use_cb, cb);
 
     return (ret > 0) ? UCS_OK : (ucs_status_t)ret;
 }
@@ -635,7 +635,7 @@ ucs_status_t uct_mm_bcast_ep_am_short_batched(uct_ep_h ep,
     return uct_mm_coll_ep_am_short(ep, id, header, payload, length, 1, 0, 0, NULL);
 }
 
-ucs_status_t uct_mm_bcast_ep_am_short_centralized(uct_ep_h ep,
+ucs_status_t uct_mm_bcast_ep_am_short_imbalanced(uct_ep_h ep,
                                                   uint8_t id,
                                                   uint64_t header,
                                                   const void *payload,
@@ -653,7 +653,7 @@ ucs_status_t uct_mm_incast_ep_am_short_batched(uct_ep_h ep,
     return uct_mm_coll_ep_am_short(ep, id, header, payload, length, 0, 0, 0, NULL);
 }
 
-ucs_status_t uct_mm_incast_ep_am_short_centralized(uct_ep_h ep,
+ucs_status_t uct_mm_incast_ep_am_short_imbalanced(uct_ep_h ep,
                                                    uint8_t id,
                                                    uint64_t header,
                                                    const void *payload,
@@ -663,7 +663,18 @@ ucs_status_t uct_mm_incast_ep_am_short_centralized(uct_ep_h ep,
 }
 
 static UCS_F_ALWAYS_INLINE
-ucs_status_t uct_mm_incast_ep_am_short_centralized_cb(uct_ep_h ep,
+ucs_status_t uct_mm_incast_ep_am_short_batched_cb(uct_ep_h ep,
+                                                  uint8_t id,
+                                                  uint64_t header,
+                                                  const void *payload,
+                                                  unsigned length,
+                                                  uct_incast_cb_t cb)
+{
+    return uct_mm_coll_ep_am_short(ep, id, header, payload, length, 0, 0, 1, cb);
+}
+
+static UCS_F_ALWAYS_INLINE
+ucs_status_t uct_mm_incast_ep_am_short_imbalanced_cb(uct_ep_h ep,
                                                       uint8_t id,
                                                       uint64_t header,
                                                       const void *payload,
@@ -673,7 +684,19 @@ ucs_status_t uct_mm_incast_ep_am_short_centralized_cb(uct_ep_h ep,
     return uct_mm_coll_ep_am_short(ep, id, header, payload, length, 0, 1, 1, cb);
 }
 
-ucs_status_t uct_mm_incast_ep_am_short_centralized_ep_cb(uct_ep_h ep,
+ucs_status_t uct_mm_incast_ep_am_short_batched_ep_cb(uct_ep_h ep,
+                                                     uint8_t id,
+                                                     uint64_t header,
+                                                     const void *payload,
+                                                     unsigned length)
+{
+    uct_incast_cb_t cb = ucs_derived_of(ep, uct_mm_incast_ep_t)->cb;
+
+    /* Note: in this case - cb would be checked to be non-zero during runtime */
+    return uct_mm_coll_ep_am_short(ep, id, header, payload, length, 0, 0, 1, cb);
+}
+
+ucs_status_t uct_mm_incast_ep_am_short_imbalanced_ep_cb(uct_ep_h ep,
                                                          uint8_t id,
                                                          uint64_t header,
                                                          const void *payload,
@@ -688,7 +711,7 @@ ucs_status_t uct_mm_incast_ep_am_short_centralized_ep_cb(uct_ep_h ep,
 static UCS_F_ALWAYS_INLINE ssize_t
 uct_mm_coll_ep_am_bcopy(uct_ep_h ep, uint8_t id, uct_pack_callback_t pack_cb,
                         void *arg, unsigned flags, int is_bcast,
-                        int is_centralized, int use_cb, uct_incast_cb_t cb)
+                        int is_imbalanced, int use_cb, uct_incast_cb_t cb)
 {
     unsigned orig_flags           = UCT_COLL_DTYPE_MODE_UNPACK_VALUE(flags);
     uct_coll_dtype_mode_t op_mode = UCT_COLL_DTYPE_MODE_UNPACK_MODE(flags);
@@ -697,7 +720,7 @@ uct_mm_coll_ep_am_bcopy(uct_ep_h ep, uint8_t id, uct_pack_callback_t pack_cb,
 
     ssize_t ret = uct_mm_coll_ep_am_common_send(op_mode, is_bcast, 0, ep, id, 0,
                                                 0, NULL, pack_cb, arg, orig_flags,
-                                                is_centralized, use_cb, cb);
+                                                is_imbalanced, use_cb, cb);
 
     return ret;
 }
@@ -709,7 +732,7 @@ ssize_t uct_mm_bcast_ep_am_bcopy_batched(uct_ep_h ep, uint8_t id,
     return uct_mm_coll_ep_am_bcopy(ep, id, pack_cb, arg, flags, 1, 0, 0, NULL);
 }
 
-ssize_t uct_mm_bcast_ep_am_bcopy_centralized(uct_ep_h ep, uint8_t id,
+ssize_t uct_mm_bcast_ep_am_bcopy_imbalanced(uct_ep_h ep, uint8_t id,
                                              uct_pack_callback_t pack_cb,
                                              void *arg, unsigned flags)
 {
@@ -723,7 +746,7 @@ ssize_t uct_mm_incast_ep_am_bcopy_batched(uct_ep_h ep, uint8_t id,
     return uct_mm_coll_ep_am_bcopy(ep, id, pack_cb, arg, flags, 0, 0, 0, NULL);
 }
 
-ssize_t uct_mm_incast_ep_am_bcopy_centralized(uct_ep_h ep, uint8_t id,
+ssize_t uct_mm_incast_ep_am_bcopy_imbalanced(uct_ep_h ep, uint8_t id,
                                               uct_pack_callback_t pack_cb,
                                               void *arg, unsigned flags)
 {
@@ -731,7 +754,16 @@ ssize_t uct_mm_incast_ep_am_bcopy_centralized(uct_ep_h ep, uint8_t id,
 }
 
 static UCS_F_ALWAYS_INLINE
-ssize_t uct_mm_incast_ep_am_bcopy_centralized_cb(uct_ep_h ep, uint8_t id,
+ssize_t uct_mm_incast_ep_am_bcopy_batched_cb(uct_ep_h ep, uint8_t id,
+                                                 uct_pack_callback_t pack_cb,
+                                                 void *arg, unsigned flags,
+                                                 uct_incast_cb_t cb)
+{
+    return uct_mm_coll_ep_am_bcopy(ep, id, pack_cb, arg, flags, 0, 0, 1, cb);
+}
+
+static UCS_F_ALWAYS_INLINE
+ssize_t uct_mm_incast_ep_am_bcopy_imbalanced_cb(uct_ep_h ep, uint8_t id,
                                                  uct_pack_callback_t pack_cb,
                                                  void *arg, unsigned flags,
                                                  uct_incast_cb_t cb)
@@ -739,7 +771,17 @@ ssize_t uct_mm_incast_ep_am_bcopy_centralized_cb(uct_ep_h ep, uint8_t id,
     return uct_mm_coll_ep_am_bcopy(ep, id, pack_cb, arg, flags, 0, 1, 1, cb);
 }
 
-ssize_t uct_mm_incast_ep_am_bcopy_centralized_ep_cb(uct_ep_h ep, uint8_t id,
+ssize_t uct_mm_incast_ep_am_bcopy_batched_ep_cb(uct_ep_h ep, uint8_t id,
+                                                    uct_pack_callback_t pack_cb,
+                                                    void *arg, unsigned flags)
+{
+    uct_incast_cb_t cb = ucs_derived_of(ep, uct_mm_incast_ep_t)->cb;
+
+    /* Note: in this case - cb would be checked to be non-zero during runtime */
+    return uct_mm_coll_ep_am_bcopy(ep, id, pack_cb, arg, flags, 0, 0, 1, cb);
+}
+
+ssize_t uct_mm_incast_ep_am_bcopy_imbalanced_ep_cb(uct_ep_h ep, uint8_t id,
                                                     uct_pack_callback_t pack_cb,
                                                     void *arg, unsigned flags)
 {
@@ -796,9 +838,10 @@ ucs_status_t uct_mm_incast_ep_am_zcopy(uct_ep_h ep, uint8_t id, const void *head
 
 #define UCT_MM_INCAST_IFACE_CB_INST_BY_OPERAND_DECL(_operator, _caps1, \
                                                     _operand, _caps2, \
-                                                    _cnt) \
+                                                    _cnt, _is_imbalanced) \
     static UCS_F_ALWAYS_INLINE \
-    void UCT_MM_INCAST_IFACE_CB_NAME(inl, _operator, _operand, _cnt) \
+    void UCT_MM_INCAST_IFACE_CB_NAME(inl, _operator, _operand, _cnt, \
+                                     _is_imbalanced) \
         (void *dst, const void *src) { \
         unsigned cnt; \
         for (cnt = 0; cnt < (_cnt); cnt++) { \
@@ -809,57 +852,77 @@ ucs_status_t uct_mm_incast_ep_am_zcopy(uct_ep_h ep, uint8_t id, const void *head
         } \
     } \
     \
-    void UCT_MM_INCAST_IFACE_CB_NAME(global, _operator, _operand, _cnt) \
+    void UCT_MM_INCAST_IFACE_CB_NAME(global, _operator, _operand, _cnt, \
+                                     _is_imbalanced) \
         (void *dst, const void *src) { \
-        UCT_MM_INCAST_IFACE_CB_NAME(inl, _operator, _operand, _cnt) \
-            (dst, src); \
+        UCT_MM_INCAST_IFACE_CB_NAME(inl, _operator, _operand, _cnt, \
+                                    _is_imbalanced) (dst, src); \
     } \
     \
-    ucs_status_t UCT_MM_INCAST_IFACE_CB_NAME(short, _operator, _operand, _cnt) \
+    ucs_status_t UCT_MM_INCAST_IFACE_CB_NAME(short, _operator, _operand, _cnt, \
+                                             _is_imbalanced) \
         (uct_ep_h ep, uint8_t id, uint64_t h, const void *p, unsigned l) { \
-        return uct_mm_incast_ep_am_short_centralized_cb(ep, id, h, p, l, \
-            UCT_MM_INCAST_IFACE_CB_NAME(inl, _operator, _operand, _cnt)); \
+        return (_is_imbalanced ? \
+                uct_mm_incast_ep_am_short_imbalanced_cb(ep, id, h, p, l, \
+                    UCT_MM_INCAST_IFACE_CB_NAME(inl, _operator, _operand, _cnt,\
+                                                _is_imbalanced)) : \
+                uct_mm_incast_ep_am_short_batched_cb(ep, id, h, p, l, \
+                    UCT_MM_INCAST_IFACE_CB_NAME(inl, _operator, _operand, _cnt,\
+                                                _is_imbalanced))); \
     } \
     \
-    ssize_t UCT_MM_INCAST_IFACE_CB_NAME(bcopy, _operator, _operand, _cnt) \
+    ssize_t UCT_MM_INCAST_IFACE_CB_NAME(bcopy, _operator, _operand, _cnt, \
+                                        _is_imbalanced) \
         (uct_ep_h ep, uint8_t id, uct_pack_callback_t cb, void *a, unsigned f) { \
         ucs_assert(_cnt != 1); \
-        return uct_mm_incast_ep_am_bcopy_centralized_cb(ep, id, cb, a, f, \
-            UCT_MM_INCAST_IFACE_CB_NAME(inl, _operator, _operand, _cnt)); \
+        return _is_imbalanced ? \
+                uct_mm_incast_ep_am_bcopy_imbalanced_cb(ep, id, cb, a, f, \
+                        UCT_MM_INCAST_IFACE_CB_NAME(inl, _operator, _operand, \
+                                                    _cnt, _is_imbalanced)) : \
+                uct_mm_incast_ep_am_bcopy_batched_cb(ep, id, cb, a, f, \
+                        UCT_MM_INCAST_IFACE_CB_NAME(inl, _operator, _operand, \
+                                                    _cnt, _is_imbalanced)); \
     }
 
 #define UCT_MM_INCAST_IFACE_CB_INST_BY_OPERAND_INST(_operator, _caps1, \
                                                     _operand, _caps2, \
-                                                    _cnt) \
+                                                    _cnt, _is_imbalanced) \
     uct_mm_incast_ep_callback_func_arr[UCT_INCAST_OPERATOR_##_caps1] \
                                       [UCT_INCAST_OPERAND_##_caps2] \
-                                      [_cnt] = \
-        UCT_MM_INCAST_IFACE_CB_NAME(global, _operator, _operand, _cnt); \
+                                      [_cnt][_is_imbalanced] = \
+        UCT_MM_INCAST_IFACE_CB_NAME(global, _operator, _operand, _cnt, \
+                                    _is_imbalanced); \
     uct_mm_incast_ep_am_short_func_arr[UCT_INCAST_OPERATOR_##_caps1] \
                                       [UCT_INCAST_OPERAND_##_caps2] \
-                                      [_cnt] = \
-        UCT_MM_INCAST_IFACE_CB_NAME(short, _operator, _operand, _cnt); \
+                                      [_cnt][_is_imbalanced] = \
+        UCT_MM_INCAST_IFACE_CB_NAME(short, _operator, _operand, _cnt, \
+                                    _is_imbalanced); \
     uct_mm_incast_ep_am_bcopy_func_arr[UCT_INCAST_OPERATOR_##_caps1] \
                                       [UCT_INCAST_OPERAND_##_caps2] \
-                                      [_cnt] = \
-        UCT_MM_INCAST_IFACE_CB_NAME(bcopy, _operator, _operand, _cnt);
+                                      [_cnt][_is_imbalanced] = \
+        UCT_MM_INCAST_IFACE_CB_NAME(bcopy, _operator, _operand, _cnt, \
+                                    _is_imbalanced);
 
-#define UCT_MM_INCAST_IFACE_CB_INST_BY_OPERATOR(_do, _operator, _caps, _cnt) \
-    UCT_MM_INCAST_IFACE_CB_INST_BY_OPERAND_##_do(_operator, _caps, float,    FLOAT,     _cnt) \
-    UCT_MM_INCAST_IFACE_CB_INST_BY_OPERAND_##_do(_operator, _caps, double,   DOUBLE,    _cnt) \
-    UCT_MM_INCAST_IFACE_CB_INST_BY_OPERAND_##_do(_operator, _caps, int8_t,   INT8_T,    _cnt) \
-    UCT_MM_INCAST_IFACE_CB_INST_BY_OPERAND_##_do(_operator, _caps, int16_t,  INT16_T,   _cnt) \
-    UCT_MM_INCAST_IFACE_CB_INST_BY_OPERAND_##_do(_operator, _caps, int32_t,  INT32_T,   _cnt) \
-    UCT_MM_INCAST_IFACE_CB_INST_BY_OPERAND_##_do(_operator, _caps, int64_t,  INT64_T,   _cnt) \
-    UCT_MM_INCAST_IFACE_CB_INST_BY_OPERAND_##_do(_operator, _caps, uint8_t,  UINT8_T,   _cnt) \
-    UCT_MM_INCAST_IFACE_CB_INST_BY_OPERAND_##_do(_operator, _caps, uint16_t, UINT16_T,  _cnt) \
-    UCT_MM_INCAST_IFACE_CB_INST_BY_OPERAND_##_do(_operator, _caps, uint32_t, UINT32_T,  _cnt) \
-    UCT_MM_INCAST_IFACE_CB_INST_BY_OPERAND_##_do(_operator, _caps, uint64_t, UINT64_T,  _cnt)
+#define UCT_MM_INCAST_IFACE_CB_INST_BY_OPERATOR(_do, _operator, _caps, _cnt, _is_imbalanced) \
+    UCT_MM_INCAST_IFACE_CB_INST_BY_OPERAND_##_do(_operator, _caps, float,    FLOAT,     _cnt, _is_imbalanced) \
+    UCT_MM_INCAST_IFACE_CB_INST_BY_OPERAND_##_do(_operator, _caps, double,   DOUBLE,    _cnt, _is_imbalanced) \
+    UCT_MM_INCAST_IFACE_CB_INST_BY_OPERAND_##_do(_operator, _caps, int8_t,   INT8_T,    _cnt, _is_imbalanced) \
+    UCT_MM_INCAST_IFACE_CB_INST_BY_OPERAND_##_do(_operator, _caps, int16_t,  INT16_T,   _cnt, _is_imbalanced) \
+    UCT_MM_INCAST_IFACE_CB_INST_BY_OPERAND_##_do(_operator, _caps, int32_t,  INT32_T,   _cnt, _is_imbalanced) \
+    UCT_MM_INCAST_IFACE_CB_INST_BY_OPERAND_##_do(_operator, _caps, int64_t,  INT64_T,   _cnt, _is_imbalanced) \
+    UCT_MM_INCAST_IFACE_CB_INST_BY_OPERAND_##_do(_operator, _caps, uint8_t,  UINT8_T,   _cnt, _is_imbalanced) \
+    UCT_MM_INCAST_IFACE_CB_INST_BY_OPERAND_##_do(_operator, _caps, uint16_t, UINT16_T,  _cnt, _is_imbalanced) \
+    UCT_MM_INCAST_IFACE_CB_INST_BY_OPERAND_##_do(_operator, _caps, uint32_t, UINT32_T,  _cnt, _is_imbalanced) \
+    UCT_MM_INCAST_IFACE_CB_INST_BY_OPERAND_##_do(_operator, _caps, uint64_t, UINT64_T,  _cnt, _is_imbalanced)
+
+#define UCT_MM_INCAST_IFACE_CB_INST_BY_CENTRALIZATION(_do, _operator, _caps, _cnt) \
+    UCT_MM_INCAST_IFACE_CB_INST_BY_OPERATOR(_do, _operator, _caps, _cnt, 1) \
+    UCT_MM_INCAST_IFACE_CB_INST_BY_OPERATOR(_do, _operator, _caps, _cnt, 0)
 
 #define UCT_MM_INCAST_IFACE_CB_INST_BY_CNT(_do, _cnt) \
-    UCT_MM_INCAST_IFACE_CB_INST_BY_OPERATOR(_do, sum, SUM, _cnt) \
-    UCT_MM_INCAST_IFACE_CB_INST_BY_OPERATOR(_do, min, MIN, _cnt) \
-    UCT_MM_INCAST_IFACE_CB_INST_BY_OPERATOR(_do, max, MAX, _cnt)
+    UCT_MM_INCAST_IFACE_CB_INST_BY_CENTRALIZATION(_do, sum, SUM, _cnt) \
+    UCT_MM_INCAST_IFACE_CB_INST_BY_CENTRALIZATION(_do, min, MIN, _cnt) \
+    UCT_MM_INCAST_IFACE_CB_INST_BY_CENTRALIZATION(_do, max, MAX, _cnt)
 
 UCT_MM_INCAST_IFACE_CB_INST_BY_CNT(DECL, 1)
 UCT_MM_INCAST_IFACE_CB_INST_BY_CNT(DECL, 2)
@@ -871,15 +934,18 @@ static int uct_mm_incast_ep_am_func_arr_initialized = 0;
 uct_incast_cb_t uct_mm_incast_ep_callback_func_arr
     [UCT_INCAST_OPERATOR_LAST]
     [UCT_INCAST_OPERAND_LAST]
-    [UCT_INCAST_MAX_COUNT_SUPPORTED] = {0};
+    [UCT_INCAST_MAX_COUNT_SUPPORTED]
+    [2] = {0};
 typeof(uct_ep_am_short_func_t) uct_mm_incast_ep_am_short_func_arr
     [UCT_INCAST_OPERATOR_LAST]
     [UCT_INCAST_OPERAND_LAST]
-    [UCT_INCAST_MAX_COUNT_SUPPORTED] = {0};
+    [UCT_INCAST_MAX_COUNT_SUPPORTED]
+    [2] = {0};
 typeof(uct_ep_am_bcopy_func_t) uct_mm_incast_ep_am_bcopy_func_arr
     [UCT_INCAST_OPERATOR_LAST]
     [UCT_INCAST_OPERAND_LAST]
-    [UCT_INCAST_MAX_COUNT_SUPPORTED] = {0};
+    [UCT_INCAST_MAX_COUNT_SUPPORTED]
+    [2] = {0};
 
 void uct_mm_coll_ep_init_incast_cb_arrays() {
     if (uct_mm_incast_ep_am_func_arr_initialized) {
@@ -983,7 +1049,7 @@ UCS_CLASS_INIT_FUNC(uct_mm_incast_ep_t, const uct_ep_params_t *params)
 
     UCS_CLASS_CALL_SUPER_INIT(uct_mm_coll_ep_t, params);
 
-    self->cb = ucs_derived_of(params->iface, uct_mm_incast_iface_t)->cb;
+    self->cb = ucs_derived_of(params->iface, uct_mm_base_incast_iface_t)->cb;
 
     ucs_debug("mm_incast: ep connected: %p, src_coll_id: %u, dst_coll_id: %u",
               self, iface->my_coll_id, self->super.remote_id);
@@ -1115,7 +1181,7 @@ uct_mm_coll_ep_process_recv(uct_mm_coll_ep_t *ep, uct_mm_coll_iface_t *iface,
 
     /* CENTRALIZED mode only - check if this is the last writer */
     if (ucs_likely(is_pending_batched) && is_incast) {
-        if (!uct_mm_coll_ep_centralized_is_elem_ready(elem, ep, 1, is_short,
+        if (!uct_mm_coll_ep_imbalanced_is_elem_ready(elem, ep, 1, is_short,
                                                       is_loopback, use_cb, cb)) {
             iface->super.recv_check.flags_state = UCT_MM_FIFO_FLAG_STATE_CACHED_READY;
             return 0; /* incast started, but not all peers have written yet */
@@ -1131,7 +1197,7 @@ uct_mm_coll_ep_process_recv(uct_mm_coll_ep_t *ep, uct_mm_coll_iface_t *iface,
     }
 
     if (use_cb) {
-        size_t shift  = uct_mm_coll_iface_centralized_get_slot_offset(ep,
+        size_t shift  = uct_mm_coll_iface_imbalanced_get_slot_offset(ep,
                             is_incast, is_short, stride, ep->proc_cnt - 1);
         base_address += shift - sizeof(uint64_t);
         if (is_short) {
@@ -1196,10 +1262,10 @@ uct_mm_coll_ep_process_recv(uct_mm_coll_ep_t *ep, uct_mm_coll_iface_t *iface,
             uct_recv_desc(desc) = (uct_recv_desc_t*)&iface->super.release_desc;
 
             /* mark all the counters in the descriptor as "not ready" */
-            uct_mm_coll_ep_centralized_reset_elem(elem, ep, 0, 1);
+            uct_mm_coll_ep_imbalanced_reset_elem(elem, ep, 0, 1);
         } else {
             /* set information for @ref uct_mm_bcast_iface_release_shared_desc_func */
-            uint8_t* slot_ptr = uct_mm_coll_iface_centralized_get_slot(elem, ep, 0,
+            uint8_t* slot_ptr = uct_mm_coll_iface_imbalanced_get_slot(elem, ep, 0,
                                                                        is_short, 0, 0,
                                                                        ep->my_offset);
             /* each receiver has its own slot, No conflict. */
@@ -1207,20 +1273,20 @@ uct_mm_coll_ep_process_recv(uct_mm_coll_ep_t *ep, uct_mm_coll_iface_t *iface,
 
             ucs_assert(slot_ptr[UCS_SYS_CACHE_LINE_SIZE-1] == 0);
             /* all bcast receivers have the same slot start offset, overwirte is ok */
-            size_t slot_offset = uct_mm_coll_iface_centralized_get_slot_offset(ep, 0, 
+            size_t slot_offset = uct_mm_coll_iface_imbalanced_get_slot_offset(ep, 0, 
                                                                                is_short, 0, 0);
             uct_recv_desc(desc) = (void*)slot_offset;
         }
     } else if (is_pending_batched && !is_incast) {
         /* I finished reading the broadcast - let the sender know */
-        uct_mm_coll_ep_centralized_mark_bcast_rx_done(elem, ep, is_short);
+        uct_mm_coll_ep_imbalanced_mark_bcast_rx_done(elem, ep, is_short);
     }
 
     return 1;
 }
 
 static UCS_F_ALWAYS_INLINE unsigned
-uct_mm_incast_iface_poll_fifo(uct_mm_incast_iface_t *iface, int use_cb,
+uct_mm_incast_iface_poll_fifo(uct_mm_base_incast_iface_t *iface, int use_cb,
                               uct_incast_cb_t cb)
 {
     uct_mm_base_iface_t *mm_iface   = &iface->super.super;
@@ -1269,16 +1335,16 @@ uct_mm_incast_iface_poll_fifo(uct_mm_incast_iface_t *iface, int use_cb,
 
 unsigned uct_mm_incast_iface_progress_cb(uct_iface_h tl_iface)
 {
-    uct_mm_incast_iface_t *iface = ucs_derived_of(tl_iface,
-                                                  uct_mm_incast_iface_t);
+    uct_mm_base_incast_iface_t *iface = ucs_derived_of(tl_iface,
+                                                       uct_mm_base_incast_iface_t);
 
     return uct_mm_incast_iface_poll_fifo(iface, 1, iface->cb);
 }
 
 unsigned uct_mm_incast_iface_progress(uct_iface_h tl_iface)
 {
-    uct_mm_incast_iface_t *iface = ucs_derived_of(tl_iface,
-                                                  uct_mm_incast_iface_t);
+    uct_mm_base_incast_iface_t *iface = ucs_derived_of(tl_iface,
+                                                       uct_mm_base_incast_iface_t);
 
     return uct_mm_incast_iface_poll_fifo(iface, 0, NULL);
 }
@@ -1384,7 +1450,7 @@ void uct_mm_coll_ep_destroy(uct_ep_h tl_ep)
 
 void uct_mm_bcast_ep_destroy(uct_ep_h tl_ep)
 {
-    uct_mm_bcast_iface_t *iface = ucs_derived_of(tl_ep->iface, uct_mm_bcast_iface_t);
+    uct_mm_base_bcast_iface_t *iface = ucs_derived_of(tl_ep->iface, uct_mm_base_bcast_iface_t);
     if (iface->last_nonzero_ep == ucs_derived_of(tl_ep, uct_mm_bcast_ep_t)) {
         iface->last_nonzero_ep = NULL;
     }
@@ -1393,7 +1459,7 @@ void uct_mm_bcast_ep_destroy(uct_ep_h tl_ep)
 }
 
 static UCS_F_ALWAYS_INLINE void
-uct_mm_bcast_ep_poll_tail(uct_mm_bcast_iface_t *iface)
+uct_mm_bcast_ep_poll_tail(uct_mm_base_bcast_iface_t *iface)
 {
     uct_mm_base_iface_t *mm_iface    = &iface->super.super;
     uct_mm_fifo_check_t *recv_check  = &mm_iface->recv_check;
@@ -1409,7 +1475,7 @@ uct_mm_bcast_ep_poll_tail(uct_mm_bcast_iface_t *iface)
     while ((ucs_unlikely(read_index < read_limit)) &&
            (!uct_mm_iface_fifo_flag_no_new_data(elem->super.flags, read_index,
                                                 mm_iface->recv_check.fifo_shift)) &&
-           (ucs_unlikely(uct_mm_coll_ep_centralized_is_elem_ready(elem, &dummy,
+           (ucs_unlikely(uct_mm_coll_ep_imbalanced_is_elem_ready(elem, &dummy,
                    0, elem->super.flags & UCT_MM_FIFO_ELEM_FLAG_INLINE, 1, 0, NULL)))) {
         progress = 1;
 
@@ -1426,7 +1492,7 @@ uct_mm_bcast_ep_poll_tail(uct_mm_bcast_iface_t *iface)
 }
 
 static UCS_F_ALWAYS_INLINE unsigned
-uct_mm_bcast_ep_poll_fifo(uct_mm_bcast_iface_t *iface, uct_mm_bcast_ep_t *ep)
+uct_mm_bcast_ep_poll_fifo(uct_mm_base_bcast_iface_t *iface, uct_mm_bcast_ep_t *ep)
 {
     uct_mm_fifo_check_t *recv_check  = &ep->recv_check;
     uct_mm_coll_fifo_element_t *elem = ucs_container_of(ep->recv_check.read_elem,
@@ -1450,14 +1516,14 @@ uct_mm_bcast_ep_poll_fifo(uct_mm_bcast_iface_t *iface, uct_mm_bcast_ep_t *ep)
      * Note: cannot call uct_mm_progress_fifo_tail() here, because I might have
      *       finished reading an element another peer hasn't (so it can't be
      *       marked as ready for re-use by incrementing the FIFO tail). This is
-     *       what uct_mm_coll_ep_centralized_mark_bcast_rx_done() is for.
+     *       what uct_mm_coll_ep_imbalanced_mark_bcast_rx_done() is for.
      */
 
     return 1;
 }
 
 static UCS_F_ALWAYS_INLINE unsigned
-uct_mm_bcast_iface_progress_ep(uct_mm_bcast_iface_t *iface,
+uct_mm_bcast_iface_progress_ep(uct_mm_base_bcast_iface_t *iface,
                                uct_mm_bcast_ep_t *ep,
                                unsigned count_limit)
 {
@@ -1473,10 +1539,12 @@ uct_mm_bcast_iface_progress_ep(uct_mm_bcast_iface_t *iface,
 
 unsigned uct_mm_bcast_iface_progress(uct_iface_h tl_iface)
 {
-    uct_mm_bcast_iface_t *iface   = ucs_derived_of(tl_iface, uct_mm_bcast_iface_t);
-    uct_mm_base_iface_t *mm_iface = ucs_derived_of(tl_iface, uct_mm_base_iface_t);
-    uct_mm_bcast_ep_t *ep         = iface->last_nonzero_ep;
-    unsigned count, count_limit   = mm_iface->fifo_poll_count;
+    uct_mm_base_bcast_iface_t *iface = ucs_derived_of(tl_iface,
+                                                      uct_mm_base_bcast_iface_t);
+    uct_mm_base_iface_t *mm_iface    = ucs_derived_of(tl_iface,
+                                                      uct_mm_base_iface_t);
+    uct_mm_bcast_ep_t *ep            = iface->last_nonzero_ep;
+    unsigned count, count_limit      = mm_iface->fifo_poll_count;
 
     UCT_BASE_IFACE_LOCK(iface);
 

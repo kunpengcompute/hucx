@@ -149,7 +149,7 @@ void mem_buffer::set_device_context()
 void *mem_buffer::allocate(size_t size, ucs_memory_type_t mem_type, uct_md_h md)
 {
     void *ptr;
-    uct_mem_h memh;
+    uct_mem_h UCS_V_UNUSED memh;
 
     if (size == 0) {
         return NULL;

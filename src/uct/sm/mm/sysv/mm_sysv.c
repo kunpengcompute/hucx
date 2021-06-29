@@ -28,7 +28,6 @@ typedef struct uct_sysv_md_config {
     uct_mm_md_config_t      super;
 } uct_sysv_md_config_t;
 
-
 static ucs_config_field_t uct_sysv_md_config_table[] = {
   {"MM_", "", NULL,
    ucs_offsetof(uct_sysv_md_config_t, super), UCS_CONFIG_TYPE_TABLE(uct_mm_md_config_table)},
@@ -211,11 +210,4 @@ static uct_mm_md_mapper_ops_t uct_sysv_md_ops = {
 };
 
 UCT_MM_TL_DEFINE(sysv, &uct_sysv_md_ops, uct_sysv_rkey_unpack,
-                 uct_sysv_rkey_release, "SYSV_",
-                 uct_sysv_iface_config_table, _)
-UCT_MM_TL_DEFINE(sysv, &uct_sysv_md_ops, uct_sysv_rkey_unpack,
-                 uct_sysv_rkey_release, "SYSV_BCAST_",
-                 uct_sysv_iface_config_table, _bcast_)
-UCT_MM_TL_DEFINE(sysv, &uct_sysv_md_ops, uct_sysv_rkey_unpack,
-                 uct_sysv_rkey_release, "SYSV_INCAST_",
-                 uct_sysv_iface_config_table, _incast_)
+                 uct_sysv_rkey_release, "SYSV_", uct_sysv_iface_config_table)

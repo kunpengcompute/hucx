@@ -251,8 +251,8 @@ typedef struct uct_mm_iface {
  * @param _cfg_prefix   Prefix for configuration variables
  * @param _cfg_table    Configuration table
  */
-#define UCT_MM_TL_DEFINE(_name, _md_ops, _rkey_unpack, _rkey_release, \
-                         _cfg_prefix, _cfg_table, _tl_suffix) \
+#define UCT_MM_BASE_TL_DEFINE(_name, _md_ops, _rkey_unpack, _rkey_release, \
+                              _cfg_prefix, _cfg_table, _tl_suffix) \
     \
     UCT_MM_COMPONENT_DEFINE(uct_##_name##_tl_suffix##_component, \
             _name, _tl_suffix, _md_ops, _rkey_unpack, _rkey_release, _cfg_prefix) \
@@ -270,6 +270,19 @@ typedef struct uct_mm_iface {
                   "MM_" _cfg_prefix, \
                   _cfg_table##_tl_suffix, \
                   uct_mm##_tl_suffix##iface_config_t);
+
+#define UCT_MM_TL_DEFINE(_name, _md_ops, _rkey_unpack, _rkey_release, \
+                         _cfg_prefix, _cfg_table) \
+    UCT_MM_BASE_TL_DEFINE(_name, _md_ops, _rkey_unpack, _rkey_release, \
+                          _cfg_prefix, _cfg_table, _) \
+    UCT_MM_BASE_TL_DEFINE(_name, _md_ops, _rkey_unpack, _rkey_release, \
+                          _cfg_prefix "BCAST_", _cfg_table, _batched_bcast_) \
+    UCT_MM_BASE_TL_DEFINE(_name, _md_ops, _rkey_unpack, _rkey_release, \
+                          _cfg_prefix "INCAST_", _cfg_table, _batched_incast_) \
+    UCT_MM_BASE_TL_DEFINE(_name, _md_ops, _rkey_unpack, _rkey_release, \
+                          _cfg_prefix "IM_BCAST_", _cfg_table, _imbalanced_bcast_) \
+    UCT_MM_BASE_TL_DEFINE(_name, _md_ops, _rkey_unpack, _rkey_release, \
+                          _cfg_prefix "IM_INCAST_", _cfg_table, _imbalanced_incast_)
 
 
 extern ucs_config_field_t uct_mm_iface_config_table[];

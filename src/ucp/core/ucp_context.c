@@ -358,9 +358,12 @@ static ucp_tl_alias_t ucp_tl_aliases[] = {
   { "ugni",  { "ugni_smsg", "ugni_udt:aux", "ugni_rdma", NULL } },
   { "cuda",  { "cuda_copy", "cuda_ipc", "gdr_copy", NULL } },
   { "rocm",  { "rocm_copy", "rocm_ipc", "rocm_gdr", NULL } },
-  { "sysv",  { "sysv_",  "sysv_bcast_",  "sysv_incast_" } },
-  { "posix", { "posix_", "posix_bcast_", "posix_incast_" } },
-  { "xpmem", { "xpmem_", "xpmem_bcast_", "xpmem_incast_" } },
+  { "sysv",  { "sysv_",  "sysv_batched_bcast_", "sysv_batched_incast_",
+               "sysv_imbalanced_bcast_", "sysv_imbalanced_incast_" } },
+  { "posix", { "posix_", "posix_batched_bcast_", "posix_batched_incast_",
+               "posix_imbalanced_bcast_", "posix_imbalanced_incast_" } },
+  { "xpmem", { "xpmem_", "xpmem_batched_bcast_", "xpmem_batched_incast_",
+               "xpmem_imbalanced_bcast_", "xpmem_imbalanced_incast_" } },
   { NULL }
 };
 

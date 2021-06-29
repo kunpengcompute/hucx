@@ -8,7 +8,7 @@
 
 ucs_config_field_t uct_mm_incast_iface_config_table[] = {
     {"COLL_", "", NULL,
-     ucs_offsetof(uct_mm_incast_iface_config_t, super),
+     ucs_offsetof(uct_mm_base_incast_iface_config_t, super),
      UCS_CONFIG_TYPE_TABLE(uct_mm_coll_iface_config_table)},
 
     {NULL}
@@ -71,8 +71,9 @@ static int uct_mm_incast_iface_release_shared_desc(uct_iface_h tl_iface,
 {
     unsigned index;
     uct_mm_coll_ep_t *ep;
-    uintptr_t src_coll_id        = (uintptr_t)self;
-    uct_mm_incast_iface_t *iface = ucs_derived_of(tl_iface, uct_mm_incast_iface_t);
+    uintptr_t src_coll_id             = (uintptr_t)self;
+    uct_mm_base_incast_iface_t *iface = ucs_derived_of(tl_iface,
+                                                       uct_mm_base_incast_iface_t);
 
     /* Find the endpoint - based on the ID of the sender of this descriptor */
     ucs_ptr_array_for_each(ep, index, &iface->super.ep_ptrs) {
@@ -87,12 +88,12 @@ static int uct_mm_incast_iface_release_shared_desc(uct_iface_h tl_iface,
     return 0;
 }
 
-static UCS_CLASS_DECLARE_DELETE_FUNC(uct_mm_incast_iface_t, uct_iface_t);
+static UCS_CLASS_DECLARE_DELETE_FUNC(uct_mm_base_incast_iface_t, uct_iface_t);
 
 static uct_iface_ops_t uct_mm_incast_iface_ops = {
 /*
- *  .ep_am_short               = uct_mm_incast_ep_am_short_batched/centralized,
- *  .ep_am_bcopy               = uct_mm_incast_ep_am_bcopy_batched/centralized,
+ *  .ep_am_short               = uct_mm_incast_ep_am_short_batched/imbalanced,
+ *  .ep_am_bcopy               = uct_mm_incast_ep_am_bcopy_batched/imbalanced,
  */
     .ep_am_zcopy               = uct_mm_incast_ep_am_zcopy,
     .ep_pending_add            = uct_mm_ep_pending_add,
@@ -108,7 +109,7 @@ static uct_iface_ops_t uct_mm_incast_iface_ops = {
  *  .iface_progress_enable     = uct_base_iface_progress_enable,
  *  .iface_progress_disable    = uct_base_iface_progress_disable,
  */
-    .iface_close               = UCS_CLASS_DELETE_FUNC_NAME(uct_mm_incast_iface_t),
+    .iface_close               = UCS_CLASS_DELETE_FUNC_NAME(uct_mm_base_incast_iface_t),
     .iface_query               = uct_mm_incast_iface_query,
     .iface_get_device_address  = uct_sm_iface_get_device_address,
     .iface_get_address         = uct_mm_coll_iface_get_address,
@@ -117,7 +118,7 @@ static uct_iface_ops_t uct_mm_incast_iface_ops = {
 };
 
 static ucs_status_t
-uct_mm_incast_iface_choose_am_send(uct_incast_cb_t *cb,
+uct_mm_incast_iface_choose_am_send(uct_incast_cb_t *cb, int is_imbalanced,
                                    uct_ep_am_short_func_t *ep_am_short_p,
                                    uct_ep_am_bcopy_func_t *ep_am_bcopy_p)
 {
@@ -126,10 +127,12 @@ uct_mm_incast_iface_choose_am_send(uct_incast_cb_t *cb,
     uct_mm_coll_ep_init_incast_cb_arrays();
 
     if (operator == UCT_INCAST_OPERATOR_CB) {
-        uct_mm_incast_iface_ops.ep_am_short =
-                uct_mm_incast_ep_am_short_centralized_ep_cb;
-        uct_mm_incast_iface_ops.ep_am_bcopy =
-                uct_mm_incast_ep_am_bcopy_centralized_ep_cb;
+        uct_mm_incast_iface_ops.ep_am_short = is_imbalanced ?
+                uct_mm_incast_ep_am_short_imbalanced_ep_cb :
+                uct_mm_incast_ep_am_short_batched_ep_cb;
+        uct_mm_incast_iface_ops.ep_am_bcopy = is_imbalanced ?
+                uct_mm_incast_ep_am_bcopy_imbalanced_ep_cb :
+                uct_mm_incast_ep_am_bcopy_batched_ep_cb;
         *cb = (uct_incast_cb_t)UCT_INCAST_CALLBACK_UNPACK_CB(*cb);
         return UCS_OK;
     }
@@ -150,11 +153,11 @@ uct_mm_incast_iface_choose_am_send(uct_incast_cb_t *cb,
         return UCS_ERR_UNSUPPORTED;
     }
 
-    *cb = uct_mm_incast_ep_callback_func_arr[operator][operand][count];
+    *cb = uct_mm_incast_ep_callback_func_arr[operator][operand][count][is_imbalanced];
     uct_mm_incast_iface_ops.ep_am_short = \
-            uct_mm_incast_ep_am_short_func_arr[operator][operand][count];
+            uct_mm_incast_ep_am_short_func_arr[operator][operand][count][is_imbalanced];
     uct_mm_incast_iface_ops.ep_am_bcopy = \
-            uct_mm_incast_ep_am_bcopy_func_arr[operator][operand][count];
+            uct_mm_incast_ep_am_bcopy_func_arr[operator][operand][count][is_imbalanced];
 
     if ((uct_mm_incast_iface_ops.ep_am_short == NULL) ||
         (uct_mm_incast_iface_ops.ep_am_bcopy == NULL)) {
@@ -164,33 +167,33 @@ uct_mm_incast_iface_choose_am_send(uct_incast_cb_t *cb,
     return UCS_OK;
 }
 
-UCS_CLASS_INIT_FUNC(uct_mm_incast_iface_t, uct_md_h md, uct_worker_h worker,
-                    const uct_iface_params_t *params,
+UCS_CLASS_INIT_FUNC(uct_mm_base_incast_iface_t, uct_md_h md, uct_worker_h worker,
+                    int is_imbalanced, const uct_iface_params_t *params,
                     const uct_iface_config_t *tl_config)
 {
-    uint32_t procs = (params->field_mask & UCT_IFACE_PARAM_FIELD_COLL_INFO) ?
-                     params->host_info.proc_cnt : 1;
+    int is_collective = (params->field_mask & UCT_IFACE_PARAM_FIELD_COLL_INFO);
+    uint32_t procs    = is_collective ? params->host_info.proc_cnt : 1;
 
-    uct_mm_incast_iface_config_t *cfg = ucs_derived_of(tl_config,
-                                                       uct_mm_incast_iface_config_t);
-    int is_centralized                = procs > cfg->super.batched_thresh;
-    unsigned orig_fifo_elem_size      = cfg->super.super.fifo_elem_size;
-    size_t short_stride               = ucs_align_up(orig_fifo_elem_size -
-                                                     sizeof(uct_mm_coll_fifo_element_t),
-                                                     UCS_SYS_CACHE_LINE_SIZE);
-    cfg->super.super.fifo_elem_size   = sizeof(uct_mm_coll_fifo_element_t) +
-                                        (procs * short_stride);
+    uct_mm_base_incast_iface_config_t *cfg = ucs_derived_of(tl_config,
+                                                            uct_mm_base_incast_iface_config_t);
+    unsigned orig_fifo_elem_size           = cfg->super.super.fifo_elem_size;
+    size_t short_stride                    = ucs_align_up(orig_fifo_elem_size -
+                                                          sizeof(uct_mm_coll_fifo_element_t),
+                                                          UCS_SYS_CACHE_LINE_SIZE);
+    cfg->super.super.fifo_elem_size        = sizeof(uct_mm_coll_fifo_element_t) +
+                                             (procs * short_stride);
 
-    if (procs == 1) {
+    if (!is_collective) {
         worker                                         = NULL;
         uct_mm_incast_iface_ops.iface_progress         = uct_mm_iface_progress_dummy;
         uct_mm_incast_iface_ops.iface_progress_enable  = uct_mm_iface_progress_enable_dummy;
         uct_mm_incast_iface_ops.iface_progress_disable = uct_mm_iface_progress_disable_dummy;
-    } else if (is_centralized) {
+    } else if (is_imbalanced) {
         if (params->field_mask & UCT_IFACE_PARAM_FIELD_INCAST_CB) {
             self->cb = params->incast_cb;
 
             ucs_status_t status = uct_mm_incast_iface_choose_am_send(&self->cb,
+                                is_imbalanced,
                                 &uct_mm_incast_iface_ops.ep_am_short,
                                 &uct_mm_incast_iface_ops.ep_am_bcopy);
             if (status == UCS_ERR_UNSUPPORTED) {
@@ -205,8 +208,8 @@ UCS_CLASS_INIT_FUNC(uct_mm_incast_iface_t, uct_md_h md, uct_worker_h worker,
         if (self->cb != NULL) {
             uct_mm_incast_iface_ops.iface_progress     = uct_mm_incast_iface_progress_cb;
         } else {
-            uct_mm_incast_iface_ops.ep_am_short        = uct_mm_incast_ep_am_short_centralized;
-            uct_mm_incast_iface_ops.ep_am_bcopy        = uct_mm_incast_ep_am_bcopy_centralized;
+            uct_mm_incast_iface_ops.ep_am_short        = uct_mm_incast_ep_am_short_imbalanced;
+            uct_mm_incast_iface_ops.ep_am_bcopy        = uct_mm_incast_ep_am_bcopy_imbalanced;
             uct_mm_incast_iface_ops.iface_progress     = uct_mm_incast_iface_progress;
         }
         uct_mm_incast_iface_ops.iface_progress_enable  = uct_base_iface_progress_enable;
@@ -236,8 +239,8 @@ UCS_CLASS_INIT_FUNC(uct_mm_incast_iface_t, uct_md_h md, uct_worker_h worker,
     int i;
     ucs_status_t status;
     for (i = 0; i < self->super.super.config.fifo_size; i++) {
-        uct_mm_coll_ep_centralized_reset_elem(elem, &dummy, 0, 1);
-        uct_mm_coll_ep_centralized_reset_elem(elem, &dummy, 1, 1);
+        uct_mm_coll_ep_imbalanced_reset_elem(elem, &dummy, 0, 1);
+        uct_mm_coll_ep_imbalanced_reset_elem(elem, &dummy, 1, 1);
 
         elem->pending = 0;
 
@@ -262,7 +265,27 @@ destory_elements:
     return status;
 }
 
-UCS_CLASS_CLEANUP_FUNC(uct_mm_incast_iface_t)
+UCS_CLASS_INIT_FUNC(uct_mm_batched_incast_iface_t, uct_md_h md,
+                    uct_worker_h worker, const uct_iface_params_t *params,
+                    const uct_iface_config_t *tl_config)
+{
+    UCS_CLASS_CALL_SUPER_INIT(uct_mm_base_incast_iface_t,
+                              md, worker, 0, params, tl_config);
+
+    return UCS_OK;
+}
+
+UCS_CLASS_INIT_FUNC(uct_mm_imbalanced_incast_iface_t, uct_md_h md,
+                    uct_worker_h worker, const uct_iface_params_t *params,
+                    const uct_iface_config_t *tl_config)
+{
+    UCS_CLASS_CALL_SUPER_INIT(uct_mm_base_incast_iface_t,
+                              md, worker, 1, params, tl_config);
+
+    return UCS_OK;
+}
+
+UCS_CLASS_CLEANUP_FUNC(uct_mm_base_incast_iface_t)
 {
     int i;
 
@@ -277,10 +300,21 @@ UCS_CLASS_CLEANUP_FUNC(uct_mm_incast_iface_t)
     }
 }
 
-UCS_CLASS_DEFINE(uct_mm_incast_iface_t, uct_mm_coll_iface_t);
+UCS_CLASS_CLEANUP_FUNC(uct_mm_batched_incast_iface_t) {}
+UCS_CLASS_CLEANUP_FUNC(uct_mm_imbalanced_incast_iface_t) {}
 
-UCS_CLASS_DEFINE_NEW_FUNC(uct_mm_incast_iface_t, uct_iface_t, uct_md_h,
+UCS_CLASS_DEFINE(uct_mm_base_incast_iface_t, uct_mm_coll_iface_t);
+UCS_CLASS_DEFINE(uct_mm_batched_incast_iface_t, uct_mm_base_incast_iface_t);
+UCS_CLASS_DEFINE(uct_mm_imbalanced_incast_iface_t, uct_mm_base_incast_iface_t);
+
+UCS_CLASS_DEFINE_NEW_FUNC(uct_mm_base_incast_iface_t, uct_iface_t, uct_md_h,
+                          uct_worker_h, int, const uct_iface_params_t*,
+                          const uct_iface_config_t*);
+UCS_CLASS_DEFINE_NEW_FUNC(uct_mm_batched_incast_iface_t, uct_iface_t, uct_md_h,
+                          uct_worker_h, const uct_iface_params_t*,
+                          const uct_iface_config_t*);
+UCS_CLASS_DEFINE_NEW_FUNC(uct_mm_imbalanced_incast_iface_t, uct_iface_t, uct_md_h,
                           uct_worker_h, const uct_iface_params_t*,
                           const uct_iface_config_t*);
 
-static UCS_CLASS_DEFINE_DELETE_FUNC(uct_mm_incast_iface_t, uct_iface_t);
+static UCS_CLASS_DEFINE_DELETE_FUNC(uct_mm_base_incast_iface_t, uct_iface_t);

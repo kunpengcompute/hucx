@@ -129,7 +129,7 @@ ucp_proto_common_find_lanes_internal(const ucp_proto_init_params_t *params,
     ucp_rsc_index_t rsc_index;
     ucp_md_index_t md_index;
     ucp_lane_map_t lane_map;
-    char lane_desc[64];
+    char lane_desc[100];
 
     num_lanes = 0;
 
