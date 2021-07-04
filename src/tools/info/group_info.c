@@ -8,8 +8,8 @@
 
 #include <ucg/api/ucg_mpi.h>
 #include <ucg/api/ucg_plan_component.h>
+#include <ucs/debug/memtrack_int.h>
 #include <ucg/api/ucg_mpi.h>
-#include <ucs/debug/memtrack.h>
 
 /* In accordance with @ref enum ucg_predefined */
 const char *ucg_predefined_collective_names[] = {

@@ -1032,6 +1032,7 @@ ucp_wireup_is_am_required(const ucp_wireup_select_params_t *select_params,
     }
 
     for (lane = 0; lane < select_ctx->num_lanes; ++lane) {
+        ucs_assert(select_ctx->lane_descs[lane].rsc_index != UCP_NULL_RESOURCE);
         if (!ucp_worker_is_tl_2iface(ep->worker,
                                      select_ctx->lane_descs[lane].rsc_index)) {
             return 1;
