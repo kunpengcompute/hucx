@@ -97,7 +97,7 @@ ucp_params_t ucg_test::get_ucp_ctx_params() {
     ucp_params_t params = {0};
 
     params.field_mask = UCP_PARAM_FIELD_FEATURES;
-    params.features   = UCP_FEATURE_GROUPS;
+    params.features   = UCP_FEATURE_GROUPS | UCP_FEATURE_AM;
 
     return params;
 }
@@ -151,6 +151,7 @@ ucg_test::enum_test_params(const ucg_params_t& ucg_params,
 
     test_param.ctx_params.ucg       = ucg_params;
     test_param.ctx_params.ucp       = ucp_params;
+    test_param.ctx_params.ucg.super = &test_param.ctx_params.ucp;
 
     while (ss.good()) {
         std::string planner_name;
