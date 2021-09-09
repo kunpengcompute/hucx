@@ -9,11 +9,11 @@
 #include <common/test.h>
 #include <vector>
 #include <memory>
-#include "ucg/builtin/plan/builtin_plan.h"
-#include "ucg/builtin/ops/builtin_ops.h"
-#include "ucg/base/ucg_group.h"
-#include "ucg/api/ucg_plan_component.h"
-#include "ucg/api/ucg.h"
+#include <ucg/builtin/plan/builtin_plan.h>
+#include <ucg/builtin/ops/builtin_ops.h>
+#include <ucg/base/ucg_group.h>
+#include <ucg/api/ucg_plan_component.h>
+#include <ucg/api/ucg.h>
 
 #if HAVE_CUDA
 #include <cuda.h>
@@ -46,11 +46,15 @@ protected:
 
     ucg_collective_type_t create_allreduce_coll_type() const;
 
+    ucg_collective_type_t create_alltoallv_coll_type() const;
+
     ucg_collective_type_t create_bcast_coll_type() const;
 
     ucg_collective_type_t create_barrier_coll_type() const;
 
     ucg_collective_params_t *create_allreduce_params() const;
+
+    ucg_collective_params_t *create_alltoallv_params() const;
 
     ucg_collective_params_t *create_bcast_params() const;
 
@@ -83,8 +87,16 @@ public:
                                                       void *recv_buffer, size_t dt_len,
                                                       void *dt_ext, void *op_ext);
 
+    ucg_collective_params_t *create_var_collective_params(ucg_collective_modifiers modifiers,
+                                                          ucg_group_member_index_t root,
+                                                          void *send_buffer, int *send_counts, int *sdispls,
+                                                          void *recv_buffer, int *recv_counts, int *rdispls,
+                                                          size_t dt_len, void *dt_ext);
+
     void create_balanced_rank_info(std::vector<ucg_rank_info> &rank_infos,
                                    size_t nodes, size_t ppn, bool map_by_socket = false);
+
+    coll_type_t ctype;
 };
 
 int ompi_op_is_commute(void *op);

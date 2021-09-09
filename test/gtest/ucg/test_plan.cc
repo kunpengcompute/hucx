@@ -71,6 +71,7 @@ TEST_F(ucg_test, destroy_group) {
     ASSERT_TRUE(true);
 
     ucg_group_destroy(group);
+    ucg_group_destroy(NULL);
     delete group_params;
     all_rank_infos.clear();
 }
@@ -92,11 +93,24 @@ TEST_F(ucg_test, progress_group) {
 }
 
 TEST_F(ucg_test, query_plan) {
-    ucg_plan_desc_t *planners;
+    ucg_plan_desc_t *planners = NULL;
     unsigned num_plans;
     ucs_status_t ret = ucg_builtin_component.query(0, &planners, &num_plans);
 
     ASSERT_EQ(UCS_OK, ret);
     ASSERT_EQ((unsigned) 1, num_plans);
     ASSERT_STREQ("builtin", planners[0].plan_name);
+}
+
+TEST_F(ucg_test, test_get_tree_buffer_pos) {
+    ucg_group_member_index_t myrank     = 6;
+    ucg_group_member_index_t uprank     = 4;
+    ucg_group_member_index_t root       = 0;
+    unsigned size                       = 8;
+    unsigned degree                     = 2;
+
+    ucg_group_member_index_t members[8] = {0, 1, 2, 3, 4, 5, 6, 7};
+
+    int t = ucg_get_tree_buffer_pos(myrank, uprank, root, size, degree, members);
+    ASSERT_EQ(1, t);
 }

@@ -53,6 +53,8 @@ void ucg_op_test::init_phase(ucg_builtin_plan_method_type method, ucg_builtin_pl
     phase->recv_thresh.max_bcopy_max = phase->send_thresh.max_bcopy_max;
     phase->recv_thresh.max_zcopy_one = phase->send_thresh.max_zcopy_one;
     phase->recv_thresh.md_attr_cap_max_reg = 8128;
+
+    phase->ex_attr.num_blocks = 2;
 }
 
 void ucg_op_test::destroy_phase(ucg_builtin_plan_phase_t *phase)
@@ -84,6 +86,10 @@ ucg_plan_t *ucg_op_test::create_plan(unsigned phs_cnt, ucg_collective_params_t *
     builtin_plan->slots = NULL;
     builtin_plan->phs_cnt = phs_cnt;
     builtin_plan->convert_f = mca_coll_ucg_datatype_convert_for_ut;
+
+    for (unsigned i = 0; i < phs_cnt; ++i) {
+        builtin_plan->phss[i].init_phase_cb = NULL;
+    }
 
     ucs_mpool_ops_t ops = {
             ucs_mpool_chunk_malloc,
@@ -224,7 +230,19 @@ TEST_F(ucg_op_test, test_op_trigger) {
 
     ret = ucg_builtin_op_trigger(op, 0, &request);
     ASSERT_EQ(UCS_INPROGRESS, ret);
-    ucg_builtin_component.destroy(group);
     m_ucg_worker = NULL;
     m_ucg_context = NULL;
+}
+
+TEST_F(ucg_op_test, test_request) {
+    ucg_worker_h worker = 0;
+    ucg_request_t *request = new ucg_request_t;
+    request++;
+    (request - 1)->flags &= UCG_REQUEST_COMMON_FLAG_COMPLETED;
+    (request - 1)->flags &= UCG_REQUEST_COMMON_FLAG_COMPLETED;
+
+    ucg_request_check_status(&request);
+
+    ucg_request_cancel(worker, &request);
+    ucg_request_free(&request);
 }

@@ -20,4 +20,5 @@ AC_ARG_ENABLE([gtest],
 AC_MSG_CHECKING([for using Google C++ Testing Framework])
 AC_MSG_RESULT([$enable_gtest])
 AM_CONDITIONAL([HAVE_GTEST],[test "x$enable_gtest" = "xyes"])
+AC_DEFINE([ENABLE_GTEST],[1],[enable gtest])
 ])

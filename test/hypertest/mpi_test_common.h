@@ -16,6 +16,15 @@
 #include <complex.h>
 #include <string.h>
 
+#define CALCULATION_ERROR printf("CALCULATION_ERROR %s: %s: %d\n", __FILE__, __func__, __LINE__);
+#define CALL_FAILED printf("CALL_FAILED  %s: %s: %d\n",  __FILE__, __func__, __LINE__);
+#define RESULT_INFO \
+        double in_r, out_r, sol_r, org_r;         \
+        in_r = in[i];                             \
+        out_r = out[i];                           \
+        sol_r = sol[i];                           \
+        org_r = org[i];                           \
+        printf("out:%lf, sol:%lf, in:%lf, org:%lf \n", out_r, sol_r, in_r, org_r);
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof(arr[0]))
 
@@ -149,10 +158,13 @@
         rc = MPI_Allreduce(in, out, count, mpi_type, mpi_op, MPI_COMM_WORLD); \
         if (rc) {                                                       \
             free(in); free(out); free(sol); free(org);                  \
+            CALL_FAILED                                                 \
             MPI_Abort(MPI_COMM_WORLD, rc);                              \
         } else {                                                        \
             for (i = 0; i < count; i++) {                               \
                 if (out[i] != sol[i] || in[i] != org[i]) {              \
+                    RESULT_INFO                                         \
+                    CALCULATION_ERROR                                   \
                     free(in); free(out); free(sol); free(org);          \
                     MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);            \
                 }                                                       \
@@ -167,11 +179,15 @@
         rc = MPI_Allreduce(in, out, count, mpi_type, mpi_op, MPI_COMM_WORLD); \
         if (rc) {                                                       \
             free(in); free(out); free(sol); free(org);                  \
+            CALL_FAILED                                                 \
             MPI_Abort(MPI_COMM_WORLD, rc);                              \
         } else {                                                        \
             for (i = 0; i < count; i++) {                               \
                 if (fabs(out[i] - sol[i]) > 1e-6 || fabs(in[i] - org[i]) > 1e-6) { \
+                    RESULT_INFO                                         \
+                    CALCULATION_ERROR                                   \
                     free(in); free(out); free(sol); free(org);          \
+                                                                        \
                     MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);            \
                 }                                                       \
             }                                                           \
@@ -185,10 +201,13 @@
         rc = MPI_Allreduce(in, out, count, mpi_type, mpi_op, MPI_COMM_WORLD); \
         if (rc) {                                                       \
             free(in); free(out); free(sol); free(org);                  \
+            CALL_FAILED                                                 \
             MPI_Abort(MPI_COMM_WORLD, rc);                              \
         } else {                                                        \
             for (i = 0; i < count; i++) {                               \
                 if (out[i] != sol[i] || in[i] != org[i]) {              \
+                    RESULT_INFO                                         \
+                    CALCULATION_ERROR                                   \
                     free(in); free(out); free(sol); free(org);          \
                     MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);            \
                 }                                                       \
@@ -202,10 +221,13 @@
         rc = MPI_Allreduce(in, out, count, mpi_type, mpi_op, MPI_COMM_WORLD); \
         if (rc) {                                                       \
             free(in); free(out); free(sol); free(org);                  \
+            CALL_FAILED                                                 \
             MPI_Abort(MPI_COMM_WORLD, rc);                              \
         } else {                                                        \
             for (i = 0; i < count; i++) {                               \
                 if (fabs(out[i] - sol[i]) > 1e-6 || fabs(in[i] - org[i]) > 1e-6) { \
+                    RESULT_INFO                                         \
+                    CALCULATION_ERROR                                   \
                     free(in); free(out); free(sol); free(org);          \
                     MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);            \
                 }                                                       \
@@ -219,10 +241,12 @@
         rc = MPI_Bcast(io, count, mpi_type, root, MPI_COMM_WORLD);      \
         if (rc) {                                                       \
             free(io); free(sol);                                        \
+            CALL_FAILED                                                 \
             MPI_Abort(MPI_COMM_WORLD, rc);                              \
         } else {                                                        \
             for (i = 0; i < count; i++) {                               \
                 if (io[i] != sol[i]) {                                  \
+                    CALCULATION_ERROR                                   \
                     free(io); free(sol);                                \
                     MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);            \
                 }                                                       \
@@ -236,11 +260,13 @@
         rc = MPI_Bcast(io, count, mpi_type, root, MPI_COMM_WORLD);      \
         if (rc) {                                                       \
             free(io); free(sol);                                        \
+            CALL_FAILED                                                 \
             MPI_Abort(MPI_COMM_WORLD, rc);                              \
         } else {                                                        \
             for (i = 0; i < count; i++) {                               \
                 if (io[i] != sol[i]) {                                  \
                     free(io); free(sol);                                \
+                    CALCULATION_ERROR                                   \
                     MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);            \
                 }                                                       \
             }                                                           \
@@ -254,11 +280,13 @@
         rc = MPI_Bcast(io, count, mpi_type, root, MPI_COMM_WORLD);      \
         if (rc) {                                                       \
             free(io); free(sol);                                        \
+            CALL_FAILED                                                 \
             MPI_Abort(MPI_COMM_WORLD, rc);                              \
         } else {                                                        \
             for (i = 0; i < count; i++) {                               \
                 if (fabs(io[i] - sol[i]) > 1e-6) {                      \
                     free(io); free(sol);                                \
+                    CALCULATION_ERROR                                   \
                     MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);            \
                 }                                                       \
             }                                                           \
@@ -272,11 +300,13 @@
         rc = MPI_Bcast(io, count, mpi_type, root, MPI_COMM_WORLD);      \
         if (rc) {                                                       \
             free(io); free(sol);                                        \
+            CALL_FAILED                                                 \
             MPI_Abort(MPI_COMM_WORLD, rc);                              \
         } else {                                                        \
             for (i = 0; i < count; i++) {                               \
                 if ((io[i].a != sol[i].a) || (io[i].b != sol[i].b)) {   \
                     free(io); free(sol);                                \
+                    CALCULATION_ERROR                                   \
                     MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);            \
                 }                                                       \
             }                                                           \
@@ -289,11 +319,13 @@
         rc = MPI_Bcast(io, count, mpi_type, root, MPI_COMM_WORLD);      \
         if (rc) {                                                       \
             free(io); free(sol);                                        \
+            CALL_FAILED                                                 \
             MPI_Abort(MPI_COMM_WORLD, rc);                              \
         } else {                                                        \
             for (i = 0; i < count; i++) {                               \
                 if ((io[i].a != sol[i].a) || (io[i].b != sol[i].b)) {   \
                     free(io); free(sol);                                \
+                    CALCULATION_ERROR                                   \
                     MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);            \
                 }                                                       \
             }                                                           \
@@ -307,11 +339,13 @@
         rc = MPI_Bcast(io, count, mpi_type, root, MPI_COMM_WORLD);      \
         if (rc) {                                                       \
             free(io); free(sol);                                        \
+            CALL_FAILED                                                 \
             MPI_Abort(MPI_COMM_WORLD, rc);                              \
         } else {                                                        \
             for (i = 0; i < count; i++) {                               \
                 if (fabs(io[i].a - sol[i].a) > 1e-6 || io[i].b != sol[i].b) { \
                     free(io); free(sol);                                \
+                    CALCULATION_ERROR                                   \
                     MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);            \
                 }                                                       \
             }                                                           \
@@ -325,12 +359,14 @@
         rc = MPI_Bcast(io, count, mpi_type, root, MPI_COMM_WORLD);      \
         if (rc) {                                                       \
             free(io); free(sol);                                        \
+            CALL_FAILED                                                 \
             MPI_Abort(MPI_COMM_WORLD, rc);                              \
         } else {                                                        \
             for (i = 0; i < count; i++) {                               \
                 for (j = 0; j < n; j++) {                               \
                     if (io[i].a[j] != sol[i].a[j]) {                    \
                         free(io); free(sol);                            \
+                        CALCULATION_ERROR                               \
                         MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);        \
                     }                                                   \
                 }                                                       \
@@ -345,6 +381,7 @@
         rc = MPI_Bcast(io, count, mpi_type, root, MPI_COMM_WORLD);      \
         if (rc) {                                                       \
             free(io); free(sol);                                        \
+            CALL_FAILED                                                 \
             MPI_Abort(MPI_COMM_WORLD, rc);                              \
         } else {                                                        \
             for (i = 0; i < count; i++) {                               \
@@ -352,6 +389,7 @@
                     if (io[i].st[j].a != sol[i].st[j].a ||              \
                         io[i].st[j].b != sol[i].st[j].b) {              \
                         free(io); free(sol);                            \
+                        CALCULATION_ERROR                               \
                         MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);        \
                     }                                                   \
                 }                                                       \
@@ -366,11 +404,13 @@
         rc = MPI_Allreduce(MPI_IN_PLACE, io, count, mpi_type, mpi_op, MPI_COMM_WORLD); \
         if (rc) {                                                       \
             free(io); free(sol);                                        \
+            CALL_FAILED                                                 \
             MPI_Abort(MPI_COMM_WORLD, rc);                              \
         } else {                                                        \
             for (i = 0; i < count; i++) {                               \
                 if (io[i] != sol[i]) {                                  \
                     free(io); free(sol);                                \
+                    CALCULATION_ERROR                                   \
                     MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);            \
                 }                                                       \
             }                                                           \
@@ -384,11 +424,13 @@
         rc = MPI_Allreduce(MPI_IN_PLACE, io, count, mpi_type, mpi_op, MPI_COMM_WORLD); \
         if (rc) {                                                       \
             free(io); free(sol);                                        \
+            CALL_FAILED                                                 \
             MPI_Abort(MPI_COMM_WORLD, rc);                              \
         } else {                                                        \
             for (i = 0; i < count; i++) {                               \
                 if (fabs(io[i] - sol[i]) > 1e-6) {                      \
                     free(io); free(sol);                                \
+                    CALCULATION_ERROR                                   \
                     MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);            \
                 }                                                       \
             }                                                           \
@@ -402,11 +444,13 @@
         rc = MPI_Allreduce(MPI_IN_PLACE, io, count, mpi_type, mpi_op, MPI_COMM_WORLD); \
         if (rc) {                                                       \
             free(io); free(sol);                                        \
+            CALL_FAILED                                                 \
             MPI_Abort(MPI_COMM_WORLD, rc);                              \
         } else {                                                        \
             for (i = 0; i < count; i++) {                               \
                 if (io[i] != sol[i]) {                                  \
                     free(io); free(sol);                                \
+                    CALCULATION_ERROR                                   \
                     MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);            \
                 }                                                       \
             }                                                           \
@@ -419,11 +463,13 @@
         rc = MPI_Allreduce(MPI_IN_PLACE, io, count, mpi_type, mpi_op, MPI_COMM_WORLD); \
         if (rc) {                                                       \
             free(io); free(sol);                                        \
+            CALL_FAILED                                                 \
             MPI_Abort(MPI_COMM_WORLD, rc);                              \
         } else {                                                        \
             for (i = 0; i < count; i++) {                               \
                 if (fabs(io[i] - sol[i]) > 1e-6) {                      \
                     free(io); free(sol);                                \
+                    CALCULATION_ERROR                                   \
                     MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);            \
                 }                                                       \
             }                                                           \
@@ -436,11 +482,13 @@
         rc = MPI_Allreduce(MPI_IN_PLACE, io, count, mpi_type, mpi_op, MPI_COMM_WORLD); \
         if (rc) {                                                       \
             free(io); free(sol);                                        \
+            CALL_FAILED                                                 \
             MPI_Abort(MPI_COMM_WORLD, rc);                              \
         } else {                                                        \
             for (i = 0; i < count; i++) {                               \
                 if ((io[i].a != sol[i].a) || (io[i].b != sol[i].b)) {   \
                     free(io); free(sol);                                \
+                    CALCULATION_ERROR                                   \
                     MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);            \
                 }                                                       \
             }                                                           \
@@ -453,11 +501,13 @@
         rc = MPI_Allreduce(MPI_IN_PLACE, io, count, mpi_type, mpi_op, MPI_COMM_WORLD); \
         if (rc) {                                                       \
             free(io); free(sol);                                        \
+            CALL_FAILED                                                 \
             MPI_Abort(MPI_COMM_WORLD, rc);                              \
         } else {                                                        \
             for (i = 0; i < count; i++) {                               \
                 if ((io[i].a != sol[i].a) || (io[i].b != sol[i].b)) {   \
                     free(io); free(sol);                                \
+                    CALCULATION_ERROR                                   \
                     MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);            \
                 }                                                       \
             }                                                           \
@@ -471,12 +521,14 @@
         rc = MPI_Allreduce(MPI_IN_PLACE, io, count, mpi_type, mpi_op, MPI_COMM_WORLD); \
         if (rc) {                                                       \
             free(io); free(sol);                                        \
+            CALL_FAILED                                                 \
             MPI_Abort(MPI_COMM_WORLD, rc);                              \
         } else {                                                        \
             for (i = 0; i < count; i++) {                               \
                 for (j = 0; j < n; j++) {                               \
                     if (io[i].a[j] != sol[i].a[j]) {                    \
                         free(io); free(sol);                            \
+                        CALCULATION_ERROR                               \
                         MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);        \
                     }                                                   \
                 }                                                       \
@@ -491,6 +543,7 @@
         rc = MPI_Allreduce(MPI_IN_PLACE, io, count, mpi_type, mpi_op, MPI_COMM_WORLD); \
         if (rc) {                                                       \
             free(io); free(sol);                                        \
+            CALL_FAILED                                                 \
             MPI_Abort(MPI_COMM_WORLD, rc);                              \
         } else {                                                        \
             for (i = 0; i < count; i++) {                               \
@@ -498,6 +551,7 @@
                     if (io[i].st[j].a != sol[i].st[j].a ||              \
                         io[i].st[j].b != sol[i].st[j].b) {              \
                         free(io); free(sol);                            \
+                        CALCULATION_ERROR                               \
                         MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);        \
                     }                                                   \
                 }                                                       \
@@ -522,4 +576,3 @@
         printf("%s\b\b success\n", __FILE__)
 
 #endif // !MPI_TEST_COMMON_H
-

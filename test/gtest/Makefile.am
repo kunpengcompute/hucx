@@ -192,6 +192,7 @@ gtest_SOURCES += \
 	ucg/test_op.cc \
 	ucg/test_ucg_context.cc \
 	ucg/test_builtin.cc \
+	ucg/ucg_algo_decision_test.cc \
 	ucg/test_cb.cc
 endif
 
@@ -223,7 +224,7 @@ endif
 if HAVE_TL_RC
 gtest_SOURCES += \
 	uct/ib/test_rc.cc
-endif	
+endif
 if HAVE_TL_DC
 gtest_SOURCES += \
 	uct/ib/test_dc.cc
