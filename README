@@ -51,7 +51,7 @@ $ make install
 ```
 
 NOTE: Compiling support for various networks or other specific hardware may
-require additional command line flags when running "configure".
+require additional command line flags when running configure.
 
 ### Developer Builds
 
@@ -69,17 +69,17 @@ penalty at run-time because of extra debugging code.
 $ make -C test/gtest test
 ```
 
-### Building RPM package
+### Build RPM package
 ```bash
 $ contrib/buildrpm.sh -s -b
 ```
 
-### Building DEB package
+### Build DEB package
 ```bash
 $ dpkg-buildpackage -us -uc
 ```
 
-### Building Doxygen documentation
+### Build Doxygen documentation
 ```bash
 $ make docs
 ```
@@ -92,18 +92,18 @@ $ make docs
 
 ### UCX Performance Test
 
-Start the server:
+Start server:
 
 ```sh
 $ ./src/tools/perf/ucx_perftest -c 0
 ```
 
-Connect to the client:
+Connect client:
 
 ```sh
 $ ./src/tools/perf/ucx_perftest <server-hostname> -t tag_lat -c 1
 ```
-Note: The -c flag sets CPU affinity. To run both commands on the same host, set the affinity to different CPU cores.
+Note: the `-c` flag sets CPU affinity. If running both commands on same host, make sure you set the affinity to different CPU cores.
 
 ## Our Community
 
@@ -185,7 +185,7 @@ To reference the UCX website:
 
 ## Huawei Optimization Introduction
 
-Based on performance consideration, UCX **DOES NOT** provide the functionalities related to transmission security.
+Based on performance consideration, UCX **DO NOT** provide the functionalities related to transmission security.
 
 There are three optimized collective operations:
 
@@ -203,7 +203,7 @@ New algorithms are as follows:
 - Topo-aware Recursive + Binomial(intra)
 - Topo-aware Recursive + K-nomial(intra)
 
-Select a specific algorithm with parameters which are described in the tables below.
+Select specific algorithm with parameters which is showed in the table below.
 
 Bcast:
 
@@ -238,4 +238,3 @@ Barrier:
 | 5  | Topo-aware Recursive + K-nomial (intra)(Socket) |
 | 6  | Topo-aware K-nomial(Node) |
 | 7  | Topo-aware K-nomial(Socket) |
-

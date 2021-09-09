@@ -3,12 +3,10 @@
  * See file LICENSE for terms.
  */
 
-extern "C" {
+
 #include <ucg/builtin/plan/builtin_plan.h>
-}
 #include "ucg_test.h"
 #include "ucg_plan_test.h"
-
 
 ucg_plan_test::ucg_plan_test()
 {
@@ -52,44 +50,44 @@ ucg_plan_test::~ucg_plan_test()
     m_all_rank_infos.clear();
 }
 
+extern "C" {
+    STATIC_GTEST void ucg_builtin_set_algo(coll_type_t ctype, int algo_id, ucg_builtin_algo_t *algo);
+    STATIC_GTEST void ucg_builtin_print(ucg_plan_t *plan, const ucg_collective_params_t *coll_params);
+    STATIC_GTEST void ucg_builtin_set_phase_thresholds(ucg_builtin_group_ctx_t *ctx,
+        ucg_builtin_plan_phase_t *phase);
+}
 
 TEST(ucg_plan_test, ucg_plan_1_test) {
     ucg_plan_test example(4, 8, 0);
-    size_t msg_size = UCG_GROUP_MED_MSG_SIZE - 1024;
 
     ucg_plan_t *plan = NULL;
     ucs_status_t ret = ucg_builtin_component.create(&ucg_builtin_component, example.m_ucg_worker,
                                                     example.m_group, 23, 0, NULL, example.m_group_params);
     EXPECT_EQ(UCS_OK, ret);
-    ret = ucg_builtin_component.plan(&ucg_builtin_component, &example.m_coll_type, msg_size,
-                                     example.m_group, example.m_coll_params, &plan);
+    ret = ucg_builtin_component.plan(example.m_group, 2, example.m_coll_params, &plan);
     EXPECT_EQ(UCS_OK, ret);
 
 }
 
 TEST(ucg_plan_test, ucg_plan_2_test) {
     ucg_plan_test example(4, 8, 0);
-    size_t msg_size = UCG_GROUP_MED_MSG_SIZE + 1024;
 
     ucg_plan_t *plan = NULL;
     ucs_status_t ret = ucg_builtin_component.create(&ucg_builtin_component, example.m_ucg_worker,
                                                     example.m_group, 23, 0, NULL, example.m_group_params);
     EXPECT_EQ(UCS_OK, ret);
-    ret = ucg_builtin_component.plan(&ucg_builtin_component, &example.m_coll_type, msg_size,
-                                     example.m_group, example.m_coll_params, &plan);
+    ret = ucg_builtin_component.plan(example.m_group, 2, example.m_coll_params, &plan);
     EXPECT_EQ(UCS_OK, ret);
 }
 
 TEST(ucg_plan_test, ucg_plan_3_test) {
     ucg_plan_test example(4, 8, 0);
-    size_t msg_size = UCG_GROUP_MED_MSG_SIZE - 1024;
 
     ucg_plan_t *plan = NULL;
     ucs_status_t ret = ucg_builtin_component.create(&ucg_builtin_component, example.m_ucg_worker,
                                                     example.m_group, 23, 0, NULL, example.m_group_params);
     EXPECT_EQ(UCS_OK, ret);
-    ret = ucg_builtin_component.plan(&ucg_builtin_component, &example.m_coll_type, msg_size,
-                                     example.m_group, example.m_coll_params, &plan);
+    ret = ucg_builtin_component.plan(example.m_group, 2, example.m_coll_params, &plan);
     EXPECT_EQ(UCS_OK, ret);
 }
 /*
@@ -107,56 +105,46 @@ TEST(ucg_plan_test, ucg_plan_4_test) {
 }
 */
 TEST(ucg_plan_test, algorithm_selection) {
-    ucs_status_t ret;
     unsigned idx;
     for (idx = 0; idx < UCG_ALGORITHM_ALLREDUCE_LAST; idx++) {
-        ret = ucg_builtin_allreduce_algo_switch((enum ucg_builtin_allreduce_algorithm) idx, &ucg_algo);
-        ASSERT_EQ(UCS_OK, ret);
+        ucg_builtin_allreduce_algo_switch((enum ucg_builtin_allreduce_algorithm) idx, &ucg_algo);
     }
 
     for (idx = 0; idx < UCG_ALGORITHM_BARRIER_LAST; idx++) {
-        ret = ucg_builtin_barrier_algo_switch((enum ucg_builtin_barrier_algorithm) idx, &ucg_algo);
-        ASSERT_EQ(UCS_OK, ret);
+        ucg_builtin_barrier_algo_switch((enum ucg_builtin_barrier_algorithm) idx, &ucg_algo);
     }
 
     for (idx = 0; idx < UCG_ALGORITHM_BCAST_LAST; idx++) {
-        ret = ucg_builtin_bcast_algo_switch((enum ucg_builtin_bcast_algorithm) idx, &ucg_algo);
-        ASSERT_EQ(UCS_OK, ret);
+        ucg_builtin_bcast_algo_switch((enum ucg_builtin_bcast_algorithm) idx, &ucg_algo);
     }
 
+    for (idx = 0; idx < UCG_ALGORITHM_ALLTOALLV_LAST; idx++) {
+        ucg_builtin_alltoallv_algo_switch((enum ucg_builtin_alltoallv_algorithm) idx, &ucg_algo);
+    }
 }
 
 TEST(ucg_plan_test, topo_level) {
-    ucs_status_t ret;
     ucg_algo.topo_level = UCG_GROUP_HIERARCHY_LEVEL_NODE;
     enum ucg_group_member_distance domain_distance = UCG_GROUP_MEMBER_DISTANCE_SELF;
-    ret = choose_distance_from_topo_aware_level(&domain_distance);
-    ASSERT_EQ(UCS_OK, ret);
+    choose_distance_from_topo_aware_level(&domain_distance);
     ucg_algo.topo_level = UCG_GROUP_HIERARCHY_LEVEL_SOCKET;
-    ret = choose_distance_from_topo_aware_level(&domain_distance);
-    ASSERT_EQ(UCS_OK, ret);
+    choose_distance_from_topo_aware_level(&domain_distance);
     ucg_algo.topo_level = UCG_GROUP_HIERARCHY_LEVEL_L3CACHE;
-    ret = choose_distance_from_topo_aware_level(&domain_distance);
-    ASSERT_EQ(UCS_OK, ret);
+    choose_distance_from_topo_aware_level(&domain_distance);
 }
 
 TEST(ucg_plan_test, check_continus_number) {
     ucg_group_params_t group_params;
+
     group_params.member_count = 4;
-    group_params.topo_map = (char **)malloc(sizeof(char *) * group_params.member_count);
-    group_params.topo_map[0] = new char[4] {UCG_GROUP_MEMBER_DISTANCE_SELF, UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_NET, UCG_GROUP_MEMBER_DISTANCE_NET};
-    group_params.topo_map[1] = new char[4] {UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_SELF, UCG_GROUP_MEMBER_DISTANCE_NET, UCG_GROUP_MEMBER_DISTANCE_NET};
-    group_params.topo_map[2] = new char[4] {UCG_GROUP_MEMBER_DISTANCE_NET, UCG_GROUP_MEMBER_DISTANCE_NET, UCG_GROUP_MEMBER_DISTANCE_SELF, UCG_GROUP_MEMBER_DISTANCE_HOST};
-    group_params.topo_map[3] = new char[4] {UCG_GROUP_MEMBER_DISTANCE_NET, UCG_GROUP_MEMBER_DISTANCE_NET, UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_SELF};
+    group_params.topo_args.nrank_uncontinue = 0;
+    group_params.topo_args.srank_uncontinue = 1;
+
     unsigned discount = 0;
     ucs_status_t status = ucg_builtin_check_continuous_number(&group_params, UCG_GROUP_MEMBER_DISTANCE_HOST, &discount);
     ASSERT_EQ(UCS_OK, status);
     ASSERT_EQ(0u, discount);
 
-    group_params.topo_map[0] = new char[4] {UCG_GROUP_MEMBER_DISTANCE_SELF, UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_SOCKET};
-    group_params.topo_map[1] = new char[4] {UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_SELF, UCG_GROUP_MEMBER_DISTANCE_SOCKET, UCG_GROUP_MEMBER_DISTANCE_HOST};
-    group_params.topo_map[2] = new char[4] {UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_SOCKET, UCG_GROUP_MEMBER_DISTANCE_SELF, UCG_GROUP_MEMBER_DISTANCE_HOST};
-    group_params.topo_map[3] = new char[4] {UCG_GROUP_MEMBER_DISTANCE_SOCKET, UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_HOST, UCG_GROUP_MEMBER_DISTANCE_SELF};
     discount = 0;
     status = ucg_builtin_check_continuous_number(&group_params, UCG_GROUP_MEMBER_DISTANCE_SOCKET, &discount);
     ASSERT_EQ(UCS_OK, status);
@@ -207,60 +195,47 @@ TEST(ucg_plan_test, choose_type) {
     }
 }
 
-/* TODO: add verification to below functions */
-/*
-TEST(ucg_plan_test, plan_decision_in_discontinuous_case) {
-    ucg_plan_test example(2, 2, 0);
-    unsigned op_num = 3;
-    enum ucg_collective_modifiers modifiers[op_num] = { (enum ucg_collective_modifiers ) (UCG_GROUP_COLLECTIVE_MODIFIER_BROADCAST | UCG_GROUP_COLLECTIVE_MODIFIER_SINGLE_SOURCE), \
-        (enum ucg_collective_modifiers) (UCG_GROUP_COLLECTIVE_MODIFIER_AGGREGATE | UCG_GROUP_COLLECTIVE_MODIFIER_BROADCAST | UCG_GROUP_COLLECTIVE_MODIFIER_BARRIER), \
-        (enum ucg_collective_modifiers) (UCG_GROUP_COLLECTIVE_MODIFIER_AGGREGATE | UCG_GROUP_COLLECTIVE_MODIFIER_BROADCAST) };
-    unsigned size_num = 2;
-    size_t msg_size[size_num] = {UCG_GROUP_MED_MSG_SIZE - 10, UCG_GROUP_MED_MSG_SIZE + 10};
-    for (unsigned i = 0; i < op_num; i++) {
-        for (unsigned j = 0; j < size_num; j++) {
-            ucg_builtin_plan_decision_in_discontinuous_case(msg_size[j], example.m_group_params, modifiers[i], example.m_coll_params);
-        }
-    }
-}
-*/
-TEST(ucg_plan_test, plan_decision_fixed) {
-    ucg_plan_test example(2, 2, 0);
-    unsigned op_num = 3;
-    enum ucg_collective_modifiers modifiers[op_num] = { (enum ucg_collective_modifiers ) (UCG_GROUP_COLLECTIVE_MODIFIER_BROADCAST | UCG_GROUP_COLLECTIVE_MODIFIER_SINGLE_SOURCE), \
-        (enum ucg_collective_modifiers) (UCG_GROUP_COLLECTIVE_MODIFIER_AGGREGATE | UCG_GROUP_COLLECTIVE_MODIFIER_BROADCAST | UCG_GROUP_COLLECTIVE_MODIFIER_BARRIER), \
-        (enum ucg_collective_modifiers) (UCG_GROUP_COLLECTIVE_MODIFIER_AGGREGATE | UCG_GROUP_COLLECTIVE_MODIFIER_BROADCAST) };
-    unsigned size_num = 2;
-    size_t msg_size[size_num] = {UCG_GROUP_MED_MSG_SIZE - 10, UCG_GROUP_MED_MSG_SIZE + 10};
-    unsigned data_num = 2;
-    unsigned large_data[data_num] = {100, 10000};
-    example.m_coll_params->send.dt_len = 200;
-    enum ucg_builtin_bcast_algorithm bcast_algo_decision;
-    enum ucg_builtin_allreduce_algorithm allreduce_algo_decision;
-    enum ucg_builtin_barrier_algorithm barrier_algo_decision;
-    for (unsigned i = 0; i < op_num; i++) {
-        for (unsigned j = 0; j < size_num; j++) {
-            for (unsigned k = 0; k < data_num; k++) {
-                plan_decision_fixed(msg_size[j], example.m_group_params, modifiers[i], example.m_coll_params, large_data[k], 0, &bcast_algo_decision, &allreduce_algo_decision, &barrier_algo_decision);
-            }
-        }
+TEST(ucg_plan_test, set_algo) {
+    coll_type_t ctype[] = {COLL_TYPE_BARRIER, COLL_TYPE_BCAST, COLL_TYPE_ALLREDUCE, COLL_TYPE_ALLTOALLV};
+    for (int i = 0; i < sizeof(ctype) / sizeof(ctype[0]); i++) {
+        ucg_builtin_set_algo(ctype[i], 0, &ucg_algo);
     }
 }
 
-TEST(ucg_plan_test, plan_chooose_ops) {
-    ucg_plan_test example(2, 2, 0);
-    unsigned op_num = 3;
-    enum ucg_collective_modifiers modifiers[op_num] = { (enum ucg_collective_modifiers ) (UCG_GROUP_COLLECTIVE_MODIFIER_BROADCAST | UCG_GROUP_COLLECTIVE_MODIFIER_SINGLE_SOURCE), \
-        (enum ucg_collective_modifiers) (UCG_GROUP_COLLECTIVE_MODIFIER_AGGREGATE | UCG_GROUP_COLLECTIVE_MODIFIER_BROADCAST | UCG_GROUP_COLLECTIVE_MODIFIER_BARRIER), \
-        (enum ucg_collective_modifiers) (UCG_GROUP_COLLECTIVE_MODIFIER_AGGREGATE | UCG_GROUP_COLLECTIVE_MODIFIER_BROADCAST) };
-
-    for (unsigned i = 0; i < op_num; i++) {
-            ucg_builtin_plan_choose_ops(example.m_planc, modifiers[i]);
-    }
+TEST(ucg_plan_test, builtin_plan) {
+    ucg_plan_t *plan = new ucg_plan_t;
+    plan->planner = &ucg_builtin_component;
+    ucg_collective_params_t *coll_params = NULL;
+    ucg_builtin_print(plan, coll_params);
 }
 
-TEST(ucg_plan_test, test_algorithm_decision) {
-    ucg_plan_test example(2, 2, 0);
-    ucs_status_t ret = ucg_builtin_algorithm_decision(&(example.m_coll_type), 1024, example.m_group_params, example.m_coll_params, example.m_planc);
-    ASSERT_EQ(UCS_OK, ret);
+TEST(ucg_plan_test, set_phase_thresholds) {
+    ucg_plan_test example(4, 8, 0);
+    ucg_builtin_plan_phase_t plan_phase;
+
+    uct_iface_attr_t *ep_attr = new uct_iface_attr_t();
+    plan_phase.ep_attr = ep_attr;
+
+    uct_md_attr_t *md_attr = new uct_md_attr_t();
+    md_attr->cap.max_reg = 8128;
+    plan_phase.md_attr = md_attr;
+
+    plan_phase.send_thresh.max_short_one = 31;
+    plan_phase.send_thresh.max_short_max = 63;
+    plan_phase.send_thresh.max_bcopy_one = 127;
+    plan_phase.send_thresh.max_bcopy_max = 255;
+    plan_phase.send_thresh.max_zcopy_one = 1023;
+    plan_phase.send_thresh.md_attr_cap_max_reg = 8127;
+
+    plan_phase.recv_thresh.max_short_one = plan_phase.send_thresh.max_short_one;
+    plan_phase.recv_thresh.max_short_max = plan_phase.send_thresh.max_short_max;
+    plan_phase.recv_thresh.max_bcopy_one = plan_phase.send_thresh.max_bcopy_one;
+    plan_phase.recv_thresh.max_bcopy_max = plan_phase.send_thresh.max_bcopy_max;
+    plan_phase.recv_thresh.max_zcopy_one = plan_phase.send_thresh.max_zcopy_one;
+    plan_phase.recv_thresh.md_attr_cap_max_reg = 8127;
+
+    ucg_builtin_set_phase_thresholds(example.m_builtin_ctx, &plan_phase);
+
+    delete ep_attr;
 }
+

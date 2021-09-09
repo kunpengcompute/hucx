@@ -391,7 +391,7 @@ uct_ud_ep_is_last_pending_elem(uct_ud_ep_t *ep, ucs_arbiter_elem_t *elem)
              /* only two elements are in the group (the 1st element is the
               * current one, the 2nd (or the last) element is the control one) */
              (ucs_arbiter_group_tail(&ep->tx.pending.group) == &ep->tx.pending.elem)));
-            
+
 }
 
 static ucs_arbiter_cb_result_t
@@ -1085,6 +1085,7 @@ static uct_ud_send_skb_t *uct_ud_ep_prepare_crep(uct_ud_ep_t *ep)
     crep = (uct_ud_ctl_hdr_t *)(neth + 1);
 
     crep->type               = UCT_UD_PACKET_CREP;
+    memset(&crep->conn_rep, 0, sizeof(crep->conn_rep));
     crep->conn_rep.src_ep_id = ep->ep_id;
 
     uct_ud_peer_name(ucs_unaligned_ptr(&crep->peer));

@@ -31,6 +31,7 @@ protected:
 TEST_F(ucg_group_test, test_group_create) {
     ucg_group_h group;
     ucs_status_t ret = ucg_group_create(m_ucg_worker, m_params, &group);
+    ucg_group_get_member_count(group);
     ucg_group_destroy(group);
 
     ASSERT_EQ(UCS_OK, ret);
@@ -56,4 +57,12 @@ TEST_F(ucg_group_test, test_group_progress) {
     //TODO
     cout << "ucg_group_progress return: " << retU << endl;
     ASSERT_TRUE(true) << "ucg_group_progress return " << retU;
+}
+
+TEST_F(ucg_group_test, test_group_get_member_count) {
+    ucg_group_h group;
+    ucs_status_t retS = ucg_group_create(m_ucg_worker, m_params, &group);
+    EXPECT_EQ(UCS_OK, retS);
+
+    ucg_group_get_member_count(group);
 }

@@ -83,6 +83,14 @@ ucg_collective_type_t ucg_test::create_allreduce_coll_type() const {
     return type;
 }
 
+ucg_collective_type_t ucg_test::create_alltoallv_coll_type() const {
+    ucg_collective_type_t type;
+    type.modifiers = (ucg_collective_modifiers) (UCG_GROUP_COLLECTIVE_MODIFIER_ALLTOALLV |
+                                                 UCG_GROUP_COLLECTIVE_MODIFIER_VARIABLE_LENGTH);
+    type.root = 0;
+    return type;
+}
+
 ucg_collective_type_t ucg_test::create_bcast_coll_type() const {
     ucg_collective_type_t type;
     type.modifiers = (ucg_collective_modifiers) (UCG_GROUP_COLLECTIVE_MODIFIER_BROADCAST |
@@ -112,8 +120,42 @@ ucg_collective_params_t *ucg_test::create_allreduce_params() const {
     ucg_ompi_op *op = new ucg_ompi_op();
     op->commutative = false;
 
-    return m_resource_factory->create_collective_params(create_allreduce_coll_type().modifiers,
+    m_resource_factory->ctype = COLL_TYPE_ALLREDUCE;
+    return m_resource_factory->create_collective_params(create_alltoallv_coll_type().modifiers,
                                                         0, send_buf, count, recv_buf, sizeof(int), NULL, op);
+}
+
+ucg_collective_params_t *ucg_test::create_alltoallv_params() const {
+    size_t count = 2;
+
+    int *send_buf       = new int[count];
+    int *recv_buf       = new int[count];
+    int *send_counts    = new int[count];
+    int *sdispls        = new int[count];
+    int *recv_counts    = new int[count];
+    int *rdispls        = new int[count];
+
+    for (size_t i = 0; i < count; i++) {
+        send_buf[i] = i;
+        recv_buf[i] = -1;
+    }
+
+    for (size_t i = 0; i < count; i++) {
+        send_counts[i] = 1;
+        recv_counts[i] = 1;
+    }
+
+    sdispls[0] = 0;
+    rdispls[0] = 0;
+
+    for (size_t i = 0; i < (count - 1); i++) {
+        sdispls[i + 1] = sdispls[i] + send_counts[i];
+        rdispls[i + 1] = rdispls[i] + recv_counts[i];
+    }
+
+    m_resource_factory->ctype = COLL_TYPE_ALLTOALLV;
+    return m_resource_factory->create_var_collective_params(create_alltoallv_coll_type().modifiers, 0, send_buf,
+        send_counts, sdispls, recv_buf, recv_counts, rdispls, sizeof(int), NULL);
 }
 
 ucg_collective_params_t *ucg_test::create_bcast_params() const {
@@ -125,6 +167,7 @@ ucg_collective_params_t *ucg_test::create_bcast_params() const {
         recv_buf[i] = -1;
     }
 
+    m_resource_factory->ctype = COLL_TYPE_BCAST;
     return m_resource_factory->create_collective_params(create_bcast_coll_type().modifiers,
                                                         0, send_buf, count, recv_buf, sizeof(int), NULL, NULL);
 }
@@ -178,11 +221,42 @@ static ucg_group_member_index_t mpi_global_idx_dummy(void *cb_group_obj, ucg_gro
     return 0;
 }
 
+typedef struct {
+    uint32_t node_id    : 16;
+    uint32_t sock_id    : 8;
+    uint32_t reserved   : 8;
+} rank_location_t;
+
+#define MAX_MEMBER_COUNT 128
+rank_location_t g_locs[MAX_MEMBER_COUNT];
+
+enum ucg_group_member_distance mca_coll_ucx_get_distance_for_ut(void *comm, int rank1, int rank2)
+{
+    rank_location_t loc1;
+    rank_location_t loc2;
+
+    if (rank1 == rank2) {
+        return UCG_GROUP_MEMBER_DISTANCE_SELF;
+    }
+
+    loc1 = g_locs[rank1];
+    loc2 = g_locs[rank2];
+    if (loc1.node_id != loc2.node_id) {
+        return UCG_GROUP_MEMBER_DISTANCE_NET;
+    }
+    if (loc1.sock_id != loc2.sock_id) {
+        return UCG_GROUP_MEMBER_DISTANCE_HOST;
+    }
+
+    return UCG_GROUP_MEMBER_DISTANCE_SOCKET;
+}
+
 ucg_group_params_t *ucg_resource_factory::create_group_params(
     ucg_rank_info my_rank_info, const std::vector<ucg_rank_info> &rank_infos)
 {
     ucg_group_params_t *args = new ucg_group_params_t();
     args->member_count = rank_infos.size();
+    args->member_index = my_rank_info.rank;
     args->cid = 0;
     args->mpi_reduce_f = NULL;
     args->resolve_address_f = &resolve_address_callback;
@@ -190,24 +264,23 @@ ucg_group_params_t *ucg_resource_factory::create_group_params(
     args->cb_group_obj = NULL;
     args->op_is_commute_f = ompi_op_is_commute;
     args->mpi_dt_convert = mca_coll_ucg_datatype_convert_for_ut;
-    args->distance = (ucg_group_member_distance *) malloc(args->member_count * sizeof(*args->distance));
+    args->mpi_rank_distance = mca_coll_ucx_get_distance_for_ut;
+    args->topo_args.nrank_uncontinue = 0;
+    args->topo_args.srank_uncontinue = 0;
+    args->topo_args.ppn_unbalance = 0;
+    args->topo_args.pps_unbalance = 0;
+    args->topo_args.bind_to_none = 0;
+    args->topo_args.ppn_local = args->member_count / (rank_infos[args->member_count - 1].nodex_idx + 1);
+    args->topo_args.pps_local = args->topo_args.ppn_local;
+    args->topo_args.ppn_max = args->topo_args.ppn_local;
+    args->topo_args.node_nums = 1;
     args->node_index = (uint16_t *) malloc(args->member_count * sizeof(*args->node_index));
     args->mpi_global_idx_f = mpi_global_idx_dummy;
 
     for (size_t i = 0; i < rank_infos.size(); i++) {
-        if (rank_infos[i].rank == my_rank_info.rank) {
-            args->distance[rank_infos[i].rank] = UCG_GROUP_MEMBER_DISTANCE_SELF;
-        } else if (rank_infos[i].nodex_idx == my_rank_info.nodex_idx) {
-            if (rank_infos[i].socket_idx == my_rank_info.socket_idx) {
-                args->distance[rank_infos[i].rank] = UCG_GROUP_MEMBER_DISTANCE_SOCKET;
-            } else {
-                args->distance[rank_infos[i].rank] = UCG_GROUP_MEMBER_DISTANCE_HOST;
-            }
-        } else {
-            args->distance[rank_infos[i].rank] = UCG_GROUP_MEMBER_DISTANCE_NET;
-        }
-
         args->node_index[i] = rank_infos[i].nodex_idx;
+        g_locs[i].node_id = rank_infos[i].nodex_idx;
+        g_locs[i].sock_id = rank_infos[i].socket_idx;
     }
 
     return args;
@@ -227,6 +300,7 @@ ucg_collective_params_t *ucg_resource_factory::create_collective_params(
     ucg_collective_params_t *params = new ucg_collective_params_t();
     params->type.modifiers = modifiers;
     params->type.root = root;
+    params->coll_type = ctype;
     params->send.buf = send_buffer;
     params->send.count = count;
     params->send.dt_len = dt_len;
@@ -238,6 +312,29 @@ ucg_collective_params_t *ucg_resource_factory::create_collective_params(
     params->recv.dt_len = dt_len;
     params->recv.dt_ext = dt_ext;
     params->recv.op_ext = op_ext;
+
+    return params;
+}
+
+ucg_collective_params_t *ucg_resource_factory::create_var_collective_params(ucg_collective_modifiers modifiers,
+    ucg_group_member_index_t root, void *send_buffer, int *send_counts, int *sdispls, void *recv_buffer,
+    int *recv_counts, int *rdispls, size_t dt_len, void *dt_ext)
+{
+    ucg_collective_params_t *params = new ucg_collective_params_t();
+    params->type.modifiers = modifiers;
+    params->type.root = root;
+    params->coll_type = ctype;
+    params->send.buf = send_buffer;
+    params->send.counts = send_counts;
+    params->send.dt_len = dt_len;
+    params->send.dt_ext = dt_ext;
+    params->send.displs = sdispls;
+
+    params->recv.buf = recv_buffer;
+    params->recv.counts = recv_counts;
+    params->recv.dt_len = dt_len;
+    params->recv.dt_ext = dt_ext;
+    params->recv.displs = rdispls;
 
     return params;
 }
