@@ -1206,11 +1206,6 @@ ucs_status_t ucp_ep_create(ucp_worker_h worker, const ucp_ep_params_t *params,
     unsigned flags = UCP_PARAM_VALUE(EP, params, flags, FLAGS, 0);
     ucs_status_t status;
 
-    ep->peer_hostname = (char*)malloc(sizeof(char) * 128);
-    if (!ep->peer_hostname) {
-        return UCS_ERR_NO_MEMORY;
-    }
-    
     UCS_ASYNC_BLOCK(&worker->async);
 
     if (flags & UCP_EP_PARAMS_FLAGS_CLIENT_SERVER) {
@@ -1221,6 +1216,11 @@ ucs_status_t ucp_ep_create(ucp_worker_h worker, const ucp_ep_params_t *params,
         status = ucp_ep_create_api_to_worker_addr(worker, params, &ep);
     } else {
         status = UCS_ERR_INVALID_PARAM;
+    }
+
+    ep->peer_hostname = (char*)malloc(sizeof(char) * 128);
+    if (!ep->peer_hostname) {
+        return UCS_ERR_NO_MEMORY;
     }
 
     if (status == UCS_OK) {
