@@ -772,6 +772,13 @@ typedef struct ucp_ep_params {
      */
     ucs_sock_addr_t         local_sockaddr;
 
+    /**
+     * The vpid records the virtual processor identifiers of the peer device.
+     * The peer_hostname records the host name of the peer device.
+     */
+    int                     vpid;
+    char                    *peer_hostname;
+
 } ucp_ep_params_t;
 
 

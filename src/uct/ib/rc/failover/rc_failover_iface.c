@@ -86,6 +86,8 @@ uct_rc_failover_handle_failure(uct_ib_iface_t *ib_iface, void *arg,
     unsigned count;
     struct ibv_ah_attr ah_attr;
 
+    uct_ib_device_t *dev  = uct_ib_iface_device(&iface->super);
+
     ep = ucs_derived_of(uct_rc_iface_lookup_ep(iface, wc->qp_num),
                         uct_rc_verbs_ep_t);
     if (ucs_unlikely(!ep)) {
@@ -116,6 +118,12 @@ uct_rc_failover_handle_failure(uct_ib_iface_t *ib_iface, void *arg,
         uct_ib_log_dump_qp_peer_info(ib_iface, &ah_attr, dest_qpn, peer_info,
                                      sizeof(peer_info));
     }
+
+
+    ucs_warn("RC unhandled timeout error with local dev name:%s remote dev gid:[subnet prefix:%llx interface id:%llx]",
+             uct_ib_device_name(dev),
+             ep->super.gid.global.subnet_prefix,
+             ep->super.gid.global.interface_id);
 
     ucs_log(log_lvl,
             "send completion with error: %s [qpn 0x%x wrid 0x%lx"

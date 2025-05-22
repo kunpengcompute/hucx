@@ -275,9 +275,16 @@ static unsigned uct_ud_ep_deferred_timeout_handler(void *arg)
                                      &ep->super.super,
                                      UCS_ERR_ENDPOINT_TIMEOUT);
     if (status != UCS_OK) {
+
+        uct_ib_device_t *dev  = uct_ib_iface_device(&iface->super);
+
         ucs_fatal("UD endpoint %p to "UCT_UD_EP_PEER_NAME_FMT": "
-                  "unhandled timeout error",
-                  ep, UCT_UD_EP_PEER_NAME_ARG(ep));
+                  "unhandled timeout error with local dev name:%s remote dev gid:[subnet prefix:%llx interface id:%llx]",
+                  ep, UCT_UD_EP_PEER_NAME_ARG(ep),
+                  uct_ib_device_name(dev),
+                  ep->gid.global.subnet_prefix,
+                  ep->gid.global.interface_id);
+
     }
 
 out:
@@ -550,9 +557,13 @@ static ucs_status_t uct_ud_ep_connect_to_iface(uct_ud_ep_t *ep,
     uct_ud_iface_t *iface = ucs_derived_of(ep->super.super.iface, uct_ud_iface_t);
     uct_ib_device_t *dev  = uct_ib_iface_device(&iface->super);
     char buf[128];
+    uct_ib_address_pack_params_t unpack_params;
 
     ucs_frag_list_cleanup(&ep->rx.ooo_pkts);
     uct_ud_ep_reset(ep);
+
+    uct_ib_address_unpack(ib_addr, &unpack_params);
+    ep->gid = unpack_params.gid;
 
     ucs_debug(UCT_IB_IFACE_FMT" lid %d qpn 0x%x epid %u ep %p connected to "
               "IFACE %s qpn 0x%x", UCT_IB_IFACE_ARG(&iface->super),
@@ -726,6 +737,10 @@ uct_ud_ep_connect_to_ep_v2(uct_ep_h tl_ep,
     uct_ib_device_t *dev            = uct_ib_iface_device(&iface->super);
     void *peer_address;
     char buf[128];
+
+    uct_ib_address_pack_params_t unpack_params;
+    uct_ib_address_unpack(ib_addr, &unpack_params);
+    ep->gid = unpack_params.gid;
 
     ucs_assert_always(ep->dest_ep_id == UCT_UD_EP_NULL_ID);
     ucs_trace_func("");

@@ -551,6 +551,9 @@ ucp_worker_iface_error_handler(void *arg, uct_ep_h uct_ep, ucs_status_t status)
             goto out;
         }
     }
+    if (status == UCS_ERR_ENDPOINT_TIMEOUT) {
+        ucs_warn("UCT send timeout peer_hostname: %s", ucp_ep->peer_hostname);
+    }
 
     status = ucp_worker_iface_handle_uct_ep_failure(ucp_ep, lane, uct_ep,
                                                     status);
@@ -2910,6 +2913,20 @@ static void ucp_worker_timeout_warn(ucp_worker_h worker)
     return;
 }
 
+static void ucp_recv_worker_timeout_warn(ucp_worker_h worker)
+{
+    ucp_ep_h ucp_ep;
+    ucp_ep_ext_t *ep_ext;
+    ucs_list_for_each(ep_ext, &worker->all_eps, ep_list) {
+        ucp_ep = ep_ext->ep;
+        if (ucp_ep->send_cnt > 0){
+            ucs_warn("UCP recv request timeout! peer proc: %u peer hostname: %s",
+                ucp_ep->vpid, ucp_ep->peer_hostname);
+        }
+    }
+    return; 
+}
+
 static void ucp_worker_check_timeout(ucp_worker_h worker, int complete_flag)
 {
     /** start_time: the start tick of the blocking duration.
@@ -2956,6 +2973,50 @@ out:
     return;
 }
 
+static void ucp_worker_check_recv_timeout(ucp_worker_h worker, int complete_flag)
+{
+    /** start_time: the start tick of the blocking duration.
+     * last_time: last tick record.
+     * pending_time: Sum of scheduler pending time.
+     */
+    static ucs_time_t start_time = 0, last_time = 0, pending_time = 0;
+    ucs_time_t current_time, last_time_diff;
+    double min_pending_time = worker->context->config.ext.min_pending_time;
+    double timeout_thresh = worker->context->config.ext.req_timeout_thresh;
+    int block_flag;
+    static int last_send_cnt = 0;
+
+    /* If uncomplete request count is more than min pending_send_cnt but no requests completed, some requests blocked. */
+    block_flag = (complete_flag == 0 && worker->send_cnt != 0 && worker->send_cnt != last_send_cnt) ? 1: 0;
+    current_time = ucs_get_time();
+    if (!block_flag){
+        /* No requests block, update the start tick and reset pending time. */
+        start_time = current_time;
+        pending_time = 0;
+        goto out;
+    }
+
+    /* Calculate the time diff between the current and the last time,
+     * if time diff exceeds the min_pending_time, determined as scheduler pending. */
+    last_time_diff = current_time - last_time;
+    if (ucs_unlikely(ucs_time_to_sec(last_time_diff) > min_pending_time)) {
+        pending_time += last_time_diff;
+    }
+
+    /* Calculate the time diff between the current and the start time
+     *if time diff exceeds the timeout thresh, determined as requests timeout. */
+    if (ucs_unlikely(ucs_time_to_sec(current_time - start_time - pending_time) > timeout_thresh)) {
+        start_time = current_time;
+        pending_time = 0;
+        ucp_recv_worker_timeout_warn(worker);
+    }
+
+out:
+    last_time = current_time;
+    last_send_cnt = worker->send_cnt;
+    return;
+}
+
 unsigned ucp_worker_progress(ucp_worker_h worker)
 {
     unsigned count;
@@ -2977,6 +3038,7 @@ unsigned ucp_worker_progress(ucp_worker_h worker)
         if (++timeout_check_count % 1000 == 0) {
             timeout_check_count = 0;
             ucp_worker_check_timeout(worker, req_complete_flag);
+            ucp_worker_check_recv_timeout(worker, req_complete_flag);
             req_complete_flag = 0;
         }
     }

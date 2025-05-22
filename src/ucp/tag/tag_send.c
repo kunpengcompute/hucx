@@ -289,6 +289,9 @@ UCS_PROFILE_FUNC(ucs_status_ptr_t, ucp_tag_send_nbx,
         goto out;
     });
 
+    ep->send_cnt++;
+    ep->worker->send_cnt++;
+
     if (worker->context->config.ext.proto_enable) {
         req->send.msg_proto.tag = tag;
 
@@ -301,6 +304,12 @@ UCS_PROFILE_FUNC(ucs_status_ptr_t, ucp_tag_send_nbx,
         ret = ucp_tag_send_req(req, count, &ucp_ep_config(ep)->tag.eager,
                                param, ucp_ep_config(ep)->tag.proto);
     }
+
+    if (!UCS_PTR_IS_PTR(ret)) {
+        ep->send_cnt--;
+        ep->worker->send_cnt--;
+    }
+
 out:
     UCP_WORKER_THREAD_CS_EXIT_CONDITIONAL(ep->worker);
     return ret;

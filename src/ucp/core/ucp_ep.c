@@ -512,6 +512,11 @@ void ucp_ep_destroy_base(ucp_ep_h ep)
     ucp_ep_refcount_assert(ep, discard, ==, 0);
     ucs_assert(ucs_hlist_is_empty(&ep->ext->proto_reqs));
 
+    if (ep->peer_hostname != NULL) {
+        free(ep->peer_hostname);
+        ep->peer_hostname = NULL;
+    }
+
     if (!(ep->flags & UCP_EP_FLAG_INTERNAL)) {
         ucs_assert(ep->worker->num_all_eps > 0);
         --ep->worker->num_all_eps;
@@ -1201,6 +1206,11 @@ ucs_status_t ucp_ep_create(ucp_worker_h worker, const ucp_ep_params_t *params,
     unsigned flags = UCP_PARAM_VALUE(EP, params, flags, FLAGS, 0);
     ucs_status_t status;
 
+    ep->peer_hostname = (char*)malloc(sizeof(char) * 128);
+    if (!ep->peer_hostname) {
+        return UCS_ERR_NO_MEMORY;
+    }
+    
     UCS_ASYNC_BLOCK(&worker->async);
 
     if (flags & UCP_EP_PARAMS_FLAGS_CLIENT_SERVER) {
@@ -1223,6 +1233,11 @@ ucs_status_t ucp_ep_create(ucp_worker_h worker, const ucp_ep_params_t *params,
             ucs_snprintf_zero(ep->name, UCP_ENTITY_NAME_MAX, "%p", ep);
         }
 #endif
+
+        if (params->field_mask & UCP_EP_PARAM_FIELD_PEER_HOST_ADDR) {
+            ep->vpid = params->vpid;
+            memcpy(ep->peer_hostname, params->peer_hostname, strlen(params->peer_hostname)+1);
+        }
 
         ucp_ep_params_check_err_handling(ep, params);
         ucp_ep_update_flags(ep, UCP_EP_FLAG_USED, 0);
