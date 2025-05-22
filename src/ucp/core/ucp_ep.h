@@ -562,6 +562,11 @@ typedef struct ucp_ep {
     ucs_bitmap_t(64)              discarded_lane_bitmap;        // lane blacklist, for ep fault, not iface fault
     ucs_time_t                    wireup_chk_time;              /* wireup timeout */
 
+    int                           vpid;
+    char                          *peer_hostname;
+
+    int                           send_cnt;
+
 #if ENABLE_DEBUG_DATA
     char                          peer_name[UCP_WORKER_ADDRESS_NAME_MAX];
     /* Endpoint name for tracing and analysis */

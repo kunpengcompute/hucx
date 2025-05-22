@@ -618,6 +618,11 @@ uct_rc_verbs_ep_connect_to_ep_v2(uct_ep_h tl_ep,
     uint32_t qp_num;
     struct ibv_ah_attr ah_attr;
     enum ibv_mtu path_mtu;
+    uct_ib_address_pack_params_t unpack_params;
+
+    uct_ib_address_unpack(ib_addr, &unpack_params);
+
+    ep->super.gid = unpack_params.gid;
 
     uct_ib_iface_fill_ah_attr_from_addr(&iface->super, ib_addr,
                                         ep->super.path_index, &ah_attr,

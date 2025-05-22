@@ -7,6 +7,7 @@
 #ifndef UCT_RC_EP_H
 #define UCT_RC_EP_H
 
+#include <infiniband/verbs.h>
 #include "rc_iface.h"
 
 #include <uct/api/uct.h>
@@ -221,6 +222,7 @@ struct uct_rc_ep {
     uint16_t            atomic_mr_offset;
     uint8_t             path_index;
     uint8_t             flags;
+    union ibv_gid       gid;
 };
 
 

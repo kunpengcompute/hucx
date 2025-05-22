@@ -170,6 +170,13 @@ ucs_status_t ucp_request_check_status(void *request)
 
     if (req->flags & UCP_REQUEST_FLAG_COMPLETED) {
         ucs_assert(req->status != UCS_INPROGRESS);
+
+        if ((req->flags & UCP_REQUEST_FLAG_SEND_TAG) ||
+            (req->flags & UCP_REQUEST_FLAG_PROTO_SEND)) {
+            req->send.ep->send_cnt--;
+            req->send.ep->worker->send_cnt--;
+        }
+
         return req->status;
     }
     return UCS_INPROGRESS;
@@ -219,6 +226,13 @@ ucp_request_release_common(void *request, uint8_t cb_flag, const char *debug_nam
     ucs_assert(!(flags & UCP_REQUEST_FLAG_RELEASED));
 
     if (ucs_likely(flags & UCP_REQUEST_FLAG_COMPLETED)) {
+
+        if ((req->flags & UCP_REQUEST_FLAG_SEND_TAG) ||
+            (req->flags & UCP_REQUEST_FLAG_PROTO_SEND)) {
+                req->send.ep->send_cnt--;
+                req->send.ep->worker->send_cnt--;
+            }
+
         ucp_request_put(req);
     } else {
         req->flags = (flags | UCP_REQUEST_FLAG_RELEASED) & ~cb_flag;
