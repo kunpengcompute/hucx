@@ -120,10 +120,16 @@ static void uct_rc_verbs_handle_failure(uct_ib_iface_t *ib_iface, void *arg,
     }
 
     if (ep_status == UCS_ERR_ENDPOINT_TIMEOUT) {
-        ucs_warn("RC unhandled timeout error with local dev name:%s remote dev gid:[subnet prefix:%llx interface id:%llx]",
-                 uct_ib_device_name(dev),
-                 ep->super.gid.global.subnet_prefix,
-                 ep->super.gid.global.interface_id);
+        if (ep->super.lid == 0) {
+            ucs_warn("RC unhandled timeout error with local dev name:%s remote dev gid:[subnet prefix:%llx interface id:%llx]",
+                     uct_ib_device_name(dev),
+                     ep->super.gid.global.subnet_prefix,
+                     ep->super.gid.global.interface_id);
+        } else {
+            ucs_warn("RC unhandled timeout error with local dev name:%s remote dev lid:[%I64u]",
+                     uct_ib_device_name(dev),
+                     ep->super.lid);
+        }
     }
 
     ucs_log(log_lvl,

@@ -271,6 +271,8 @@ uct_rc_mlx5_iface_handle_failure(uct_ib_iface_t *ib_iface, void *arg,
     ucs_log_level_t    log_lvl;
     ucs_status_t       status;
 
+    uct_ib_device_t    *dev    = uct_ib_iface_device(&iface->super);
+
     if (ep == NULL) {
         ucs_diag("ignoring failure on removed qpn 0x%x wqe[%d]", qp_num, pi);
         uct_rc_iface_add_cq_credits(iface, 1);
@@ -297,6 +299,19 @@ uct_rc_mlx5_iface_handle_failure(uct_ib_iface_t *ib_iface, void *arg,
                                                ep_status);
 
     uct_ib_mlx5_completion_with_err(ib_iface, arg, &ep->tx.wq, log_lvl);
+
+    if (ep_status == UCS_ERR_ENDPOINT_TIMEOUT) {
+        if (ep->super.lid == 0) {
+            ucs_warn("RC unhandled timeout error with local dev name:%s remote dev gid:[subnet prefix:%llx interface id:%llx]",
+                     uct_ib_device_name(dev),
+                     ep->super.gid.global.subnet_prefix,
+                     ep->super.gid.global.interface_id);
+        } else {
+            ucs_warn("RC unhandled timeout error with local dev name:%s remote dev lid:[%I64u]",
+                     uct_ib_device_name(dev),
+                     ep->super.lid);
+        }
+    }
 
 out:
     uct_rc_iface_arbiter_dispatch(iface);

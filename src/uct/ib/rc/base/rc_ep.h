@@ -223,6 +223,7 @@ struct uct_rc_ep {
     uint8_t             path_index;
     uint8_t             flags;
     union ibv_gid       gid;
+    uint16_t            lid;
 };
 
 
