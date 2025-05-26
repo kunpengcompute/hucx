@@ -7,6 +7,7 @@
 #ifndef UCT_DC_EP_H
 #define UCT_DC_EP_H
 
+#include <infiniband/verbs.h>
 #include <uct/api/uct.h>
 #include <ucs/datastruct/arbiter.h>
 #include <ucs/sys/compiler_def.h>
@@ -77,6 +78,8 @@ struct uct_dc_mlx5_ep {
     uct_rc_fc_t           fc;
     uct_dc_mlx5_base_av_t av;
     uint8_t               dci_channel_index;
+    union ibv_gid         gid;
+    uint16_t              lid;
 };
 
 typedef struct {

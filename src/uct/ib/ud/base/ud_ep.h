@@ -227,6 +227,7 @@ struct uct_ud_ep {
     uint32_t                ep_id;
     uint32_t                dest_ep_id;
     union ibv_gid           gid;
+    uint16_t                lid;
     struct {
         uct_ud_psn_t           psn;          /* Next PSN to send */
         uct_ud_psn_t           max_psn;      /* Largest PSN that can be sent */

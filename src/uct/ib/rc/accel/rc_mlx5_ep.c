@@ -771,6 +771,13 @@ uct_rc_mlx5_ep_connect_to_ep_v2(uct_ep_h tl_ep,
     uint32_t flush_rkey_hi;
     ucs_status_t status;
 
+    uct_ib_address_pack_params_t unpack_params;
+
+    uct_ib_address_unpack(ib_addr, &unpack_params);
+
+    ep->super.gid = unpack_params.gid;
+    ep->super.lid = unpack_params.lid;
+
     uct_ib_iface_fill_ah_attr_from_addr(&iface->super.super, ib_addr,
                                         ep->super.path_index, &ah_attr,
                                         &path_mtu);

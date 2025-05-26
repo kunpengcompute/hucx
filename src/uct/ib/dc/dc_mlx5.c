@@ -160,6 +160,7 @@ uct_dc_mlx5_dci_keepalive_handle_failure(uct_dc_mlx5_iface_t *iface,
 static ucs_status_t
 uct_dc_mlx5_ep_create_connected(const uct_ep_params_t *params, uct_ep_h* ep_p)
 {
+    uct_dc_mlx5_ep_t *ep;
     uct_dc_mlx5_iface_t *iface = ucs_derived_of(params->iface,
                                                 uct_dc_mlx5_iface_t);
     const uct_ib_address_t *ib_addr;
@@ -169,6 +170,7 @@ uct_dc_mlx5_ep_create_connected(const uct_ep_params_t *params, uct_ep_h* ep_p)
     uct_ib_mlx5_base_av_t av;
     struct mlx5_grh_av grh_av;
     unsigned path_index;
+    uct_ib_address_pack_params_t unpack_params;
 
     ucs_trace_func("");
 
@@ -191,6 +193,14 @@ uct_dc_mlx5_ep_create_connected(const uct_ep_params_t *params, uct_ep_h* ep_p)
         return UCS_CLASS_NEW(uct_dc_mlx5_ep_t, ep_p, iface, if_addr, &av,
                              path_index);
     }
+
+    ep = ucs_derived_of(ep_p, uct_dc_mlx5_ep_t);
+
+    uct_ib_address_unpack(ib_addr, &unpack_params);
+
+    ep->gid = unpack_params.gid;
+    ep->lid = unpack_params.lid;
+
 }
 
 static ucs_status_t uct_dc_mlx5_iface_query(uct_iface_h tl_iface, uct_iface_attr_t *iface_attr)
@@ -1772,6 +1782,22 @@ void uct_dc_mlx5_iface_set_ep_failed(uct_dc_mlx5_iface_t *iface,
      * could have internal TX operations scheduled there which shouldn't be
      * purged - they need to be rescheduled when DCI will be recovered after an
      * error */
+
+    uct_rc_iface_t     *rc_iface  = ucs_derived_of(ib_iface, uct_rc_iface_t);
+    uct_ib_device_t    *dev     = uct_ib_iface_device(&rc_iface->super);
+
+    if (ep_status == UCS_ERR_ENDPOINT_TIMEOUT) {
+        if (ep->lid == 0) {
+            ucs_warn("RC unhandled timeout error with local dev name:%s remote dev gid:[subnet prefix:%llx interface id:%llx]",
+                     uct_ib_device_name(dev),
+                     ep->gid.global.subnet_prefix,
+                     ep->gid.global.interface_id);
+        } else {
+            ucs_warn("RC unhandled timeout error with local dev name:%s remote dev lid:[%I64u]",
+                     uct_ib_device_name(dev),
+                     ep->lid);
+        }
+    }
 
     if (ep == iface->tx.fc_ep) {
         /* Do not report errors on flow control endpoint */

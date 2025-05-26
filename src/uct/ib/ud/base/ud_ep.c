@@ -278,12 +278,20 @@ static unsigned uct_ud_ep_deferred_timeout_handler(void *arg)
 
         uct_ib_device_t *dev  = uct_ib_iface_device(&iface->super);
 
-        ucs_fatal("UD endpoint %p to "UCT_UD_EP_PEER_NAME_FMT": "
-                  "unhandled timeout error with local dev name:%s remote dev gid:[subnet prefix:%llx interface id:%llx]",
-                  ep, UCT_UD_EP_PEER_NAME_ARG(ep),
-                  uct_ib_device_name(dev),
-                  ep->gid.global.subnet_prefix,
-                  ep->gid.global.interface_id);
+        if (ep->lid == 0) {
+            ucs_fatal("UD endpoint %p to "UCT_UD_EP_PEER_NAME_FMT": "
+                      "unhandled timeout error with local dev name:%s remote dev gid:[subnet prefix:%llx interface id:%llx]",
+                      ep, UCT_UD_EP_PEER_NAME_ARG(ep),
+                      uct_ib_device_name(dev),
+                      ep->gid.global.subnet_prefix,
+                      ep->gid.global.interface_id);
+        } else {
+            ucs_fatal("UD endpoint %p to "UCT_UD_EP_PEER_NAME_FMT": "
+                      "unhandled timeout error with local dev name:%s remote dev lid:[%I64u]",
+                      ep, UCT_UD_EP_PEER_NAME_ARG(ep),
+                      uct_ib_device_name(dev),
+                      ep->lid);
+        }
 
     }
 
