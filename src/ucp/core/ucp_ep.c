@@ -1218,11 +1218,6 @@ ucs_status_t ucp_ep_create(ucp_worker_h worker, const ucp_ep_params_t *params,
         status = UCS_ERR_INVALID_PARAM;
     }
 
-    ep->peer_hostname = (char*)malloc(sizeof(char) * 128);
-    if (!ep->peer_hostname) {
-        return UCS_ERR_NO_MEMORY;
-    }
-
     if (status == UCS_OK) {
 #if ENABLE_DEBUG_DATA
         if ((params->field_mask & UCP_EP_PARAM_FIELD_NAME) &&
@@ -1234,6 +1229,10 @@ ucs_status_t ucp_ep_create(ucp_worker_h worker, const ucp_ep_params_t *params,
         }
 #endif
 
+        ep->peer_hostname = (char*)malloc(sizeof(char) * 128);
+        if (!ep->peer_hostname) {
+            return UCS_ERR_NO_MEMORY;
+        }
         if (params->field_mask & UCP_EP_PARAM_FIELD_PEER_HOST_ADDR) {
             ep->vpid = params->vpid;
             memcpy(ep->peer_hostname, params->peer_hostname, strlen(params->peer_hostname)+1);

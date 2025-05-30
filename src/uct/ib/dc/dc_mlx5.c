@@ -1793,7 +1793,7 @@ void uct_dc_mlx5_iface_set_ep_failed(uct_dc_mlx5_iface_t *iface,
                      ep->gid.global.subnet_prefix,
                      ep->gid.global.interface_id);
         } else {
-            ucs_warn("RC unhandled timeout error with local dev name:%s remote dev lid:[%I64u]",
+            ucs_warn("RC unhandled timeout error with local dev name:%s remote dev lid:[%hu]",
                      uct_ib_device_name(dev),
                      ep->lid);
         }
