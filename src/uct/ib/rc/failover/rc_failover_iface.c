@@ -125,7 +125,7 @@ uct_rc_failover_handle_failure(uct_ib_iface_t *ib_iface, void *arg,
                  ep->super.gid.global.subnet_prefix,
                  ep->super.gid.global.interface_id);
     } else {
-        ucs_warn("RC unhandled timeout error with local dev name:%s remote dev lid:[%I64u]",
+        ucs_warn("RC unhandled timeout error with local dev name:%s remote dev lid:[%hu]",
                  uct_ib_device_name(dev),
                  ep->super.lid);
     }

@@ -2913,14 +2913,14 @@ static void ucp_worker_timeout_warn(ucp_worker_h worker)
     return;
 }
 
-static void ucp_recv_worker_timeout_warn(ucp_worker_h worker)
+static void ucp_send_worker_timeout_warn(ucp_worker_h worker)
 {
     ucp_ep_h ucp_ep;
     ucp_ep_ext_t *ep_ext;
     ucs_list_for_each(ep_ext, &worker->all_eps, ep_list) {
         ucp_ep = ep_ext->ep;
         if (ucp_ep->send_cnt > 0){
-            ucs_warn("UCP recv request timeout! peer proc: %u peer hostname: %s",
+            ucs_warn("UCP send request timeout! peer proc: %u peer hostname: %s",
                 ucp_ep->vpid, ucp_ep->peer_hostname);
         }
     }
@@ -2973,7 +2973,7 @@ out:
     return;
 }
 
-static void ucp_worker_check_recv_timeout(ucp_worker_h worker, int complete_flag)
+static void ucp_worker_check_send_timeout(ucp_worker_h worker, int complete_flag)
 {
     /** start_time: the start tick of the blocking duration.
      * last_time: last tick record.
@@ -3008,7 +3008,7 @@ static void ucp_worker_check_recv_timeout(ucp_worker_h worker, int complete_flag
     if (ucs_unlikely(ucs_time_to_sec(current_time - start_time - pending_time) > timeout_thresh)) {
         start_time = current_time;
         pending_time = 0;
-        ucp_recv_worker_timeout_warn(worker);
+        ucp_send_worker_timeout_warn(worker);
     }
 
 out:
@@ -3038,7 +3038,7 @@ unsigned ucp_worker_progress(ucp_worker_h worker)
         if (++timeout_check_count % 1000 == 0) {
             timeout_check_count = 0;
             ucp_worker_check_timeout(worker, req_complete_flag);
-            ucp_worker_check_recv_timeout(worker, req_complete_flag);
+            ucp_worker_check_send_timeout(worker, req_complete_flag);
             req_complete_flag = 0;
         }
     }
