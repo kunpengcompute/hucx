@@ -2987,7 +2987,7 @@ static void ucp_worker_check_send_timeout(ucp_worker_h worker, int complete_flag
     static int last_send_cnt = 0;
 
     /* If uncomplete request count is more than min pending_send_cnt but no requests completed, some requests blocked. */
-    block_flag = (complete_flag == 0 && worker->send_cnt != 0 && worker->send_cnt != last_send_cnt) ? 1: 0;
+    block_flag = (complete_flag == 0 && worker->send_cnt != 0 && worker->send_cnt == last_send_cnt) ? 1: 0;
     current_time = ucs_get_time();
     if (!block_flag){
         /* No requests block, update the start tick and reset pending time. */
