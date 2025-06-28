@@ -685,7 +685,7 @@ ucs_config_field_t uct_ud_iface_config_table[] = {
      "Keep the connection open internally for this amount of time after closing it",
      ucs_offsetof(uct_ud_iface_config_t, linger_timeout), UCS_CONFIG_TYPE_TIME},
 
-    {"TIMEOUT", "30s",
+    {"TIMEOUT", "5.0m",
      "Consider the remote peer as unreachable if an acknowledgment was not received\n"
      "after this amount of time",
      ucs_offsetof(uct_ud_iface_config_t, peer_timeout), UCS_CONFIG_TYPE_TIME},
