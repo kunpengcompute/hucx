@@ -25,6 +25,7 @@
 #define UCP_WIREUP_RMA_BW_TEST_MSG_SIZE    262144
 #define UCP_WIREUP_MAX_FLAGS_STRING_SIZE   50
 #define UCP_WIREUP_PATH_INDEX_UNDEFINED    UINT_MAX
+#define SDMA_DISABLE_BW                    1024 * 1024 * 10000
 
 #define UCP_WIREUP_CHECK_AMO_FLAGS(_ae, _criteria, _context, _addr_index, _op, _size)      \
     if (!ucs_test_all_flags((_ae)->iface_attr.atomic.atomic##_size._op##_flags,            \
@@ -627,6 +628,12 @@ static UCS_F_NOINLINE ucs_status_t ucp_wireup_select_transport(
                 continue;
             }
 
+            if (strcmp(resource->tl_name, "sdma") == 0 &&
+                context->config.est_num_ppn > wiface->attr.sdma_max_num_ppn) {
+                    // disable sdma
+                    wiface->attr.bandwidth.shared = SDMA_DISABLE_BW;
+                    wiface->attr.bandwidth.dedicated = 0;
+                }
             score        = criteria->calc_score(wiface, md_attr, ae,
                                                 criteria->arg);
             priority     = iface_attr->priority + ae->iface_attr.priority;
