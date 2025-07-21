@@ -39,7 +39,6 @@ typedef struct uct_sdma_iface_config {
     size_t seg_size;            /* Maximal send size */
     double bw;                  /* BW for SDMA */
     int shared_mode;            /* share channels mode */
-    int max_num_ppn;            /* Max ppn for sdma enabled */
 } uct_sdma_iface_config_t;
 
 typedef struct uct_sdma_iface_addr {
@@ -99,7 +98,6 @@ typedef struct uct_sdma_iface {
         size_t seg_size;    /* Maximal send size */
         double bw;          /* BW for SDMA */
         int shared_mode;    /* share channels mode */
-        int max_num_ppn;    /* Max ppn for sdma enabled */
     } config;
 } uct_sdma_iface_t;
 

@@ -1170,7 +1170,6 @@ struct uct_iface_attr {
                                                 achieve higher total bandwidth
                                                 compared to using only a single
                                                 endpoint. */
-    int                      sdma_max_num_ppn; /**< Max ppn for sdma enabled */
 };
 
 

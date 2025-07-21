@@ -33,18 +33,13 @@ static ucs_config_field_t uct_sdma_iface_config_table[] = {
      * shared bw for load balancing;
      * dedicate bw for comparing with cma
      */
-    {"BW", "38400MBs", "BW of SDMA",
+    {"BW", "10000MBs", "BW of SDMA",
      ucs_offsetof(uct_sdma_iface_config_t, bw),
      UCS_CONFIG_TYPE_BW},
 
     {"SHARED_CHANNEL_MODE", "y", "SDMA use shared channels, n means to use exclusive channels",
      ucs_offsetof(uct_sdma_iface_config_t, shared_mode),
      UCS_CONFIG_TYPE_BOOL},
-
-    /** If ppn > MAX_NUM_PPN, then disable sdma */
-    {"MAX_NUM_PPN", "128", "If ppn > MAX_NUM_PPN, then disable sdma",
-     ucs_offsetof(uct_sdma_iface_config_t, max_num_ppn),
-     UCS_CONFIG_TYPE_INT},
 
     {NULL}
 };
@@ -182,12 +177,8 @@ static ucs_status_t uct_sdma_iface_query(uct_iface_h tl_iface, uct_iface_attr_t 
     attr->cap.am.max_iov = SIZE_MAX;
 
     attr->latency = ucs_linear_func_make(0, 0);
-    attr->bandwidth.dedicated = iface->config.bw;
+    attr->bandwidth.dedicated = 0;
     attr->bandwidth.shared = iface->config.bw;
-    if (iface->config.max_num_ppn < 0) {
-        iface->config.max_num_ppn = 0;
-    }
-    attr->sdma_max_num_ppn = iface->config.max_num_ppn;
     attr->overhead = 10e-9;
     attr->priority = 1;
     return UCS_OK;
@@ -315,7 +306,6 @@ static UCS_CLASS_INIT_FUNC(uct_sdma_iface_t, uct_md_h md, uct_worker_h worker, c
 
     self->iface_creat_id = iface_creat_id;
     self->config.bw = config->bw;
-    self->config.max_num_ppn = config->max_num_ppn;
 
     shmem_msg = (sdma_shmem_msg_t *)calloc(1, sizeof(sdma_shmem_msg_t));
     status = uct_creat_shmem(SHMEM_KEY_GET(self->pid, iface_creat_id), shmem_msg);
