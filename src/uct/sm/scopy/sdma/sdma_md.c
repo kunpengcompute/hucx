@@ -36,7 +36,7 @@ void uct_sdma_md_close(uct_md_h md)
 
 ucs_status_t uct_sdma_md_query(uct_md_h uct_md, uct_md_attr_v2_t *md_attr)
 {
-    md_attr->flags                  = UCT_MD_FLAG_REG | UCT_MD_FLAG_NEED_RKEY | UCT_MD_FLAG_ALLOC | UCT_MD_FLAG_FIXED;
+    md_attr->flags                  = UCT_MD_FLAG_REG | UCT_MD_FLAG_NEED_RKEY | UCT_MD_FLAG_ALLOC | UCT_MD_FLAG_FIXED | UCT_MD_FLAG_NEED_MEMH;
     md_attr->reg_mem_types          = UCS_BIT(UCS_MEMORY_TYPE_HOST);
     md_attr->reg_nonblock_mem_types = 0;
     md_attr->cache_mem_types        = 0;
@@ -53,7 +53,6 @@ ucs_status_t uct_sdma_md_query(uct_md_h uct_md, uct_md_attr_v2_t *md_attr)
     return UCS_OK;
 }
 
-bool uct_exec_pin_flag = false;
 ucs_status_t uct_sdma_mem_reg(uct_md_h md, void *address, size_t length,
                               const uct_md_mem_reg_params_t *params, uct_mem_h *memh_p)
 {
@@ -71,17 +70,13 @@ ucs_status_t uct_sdma_mem_reg(uct_md_h md, void *address, size_t length,
         return UCS_ERR_IO_ERROR;
     }
 
-    if (uct_exec_pin_flag) {
-        status = (ucs_status_t)sdma_md->pin_umem_cb(sdma_md->sdma_fd[0], address, (uint32_t)length, &sdma_memh->cookie);
-        if (status != UCS_OK) {
-            ucs_error("sdma_pin_umem failed , status is %d.", status);
-            ucs_free(sdma_memh);
-            return UCS_ERR_IO_ERROR;
-        }
-        ucs_trace("uct_sdma_mem_reg OK!pin_addr is %p", address);
-    } else {
-        ucs_debug("temp not exec uct_sdma_mem_reg");
+    status = (ucs_status_t)sdma_md->pin_umem_cb(sdma_md->sdma_fd[0], address, (uint32_t)length, &sdma_memh->cookie);
+    if (status != UCS_OK) {
+        ucs_error("sdma_pin_umem failed , status is %d.", status);
+        ucs_free(sdma_memh);
+        return UCS_ERR_IO_ERROR;
     }
+    ucs_trace("uct_sdma_mem_reg OK!pin_addr is %p", address);
 
     sdma_memh->address = address;
     *memh_p = sdma_memh;
@@ -100,14 +95,10 @@ ucs_status_t uct_sdma_mem_dereg(uct_md_h md, const uct_md_mem_dereg_params_t *pa
     UCT_MD_MEM_DEREG_CHECK_PARAMS(params, 0);
 
     sdma_memh = (uct_sdma_key_t *)params->memh;
-    if (uct_exec_pin_flag) {
-        status = (ucs_status_t)sdma_md->unpin_umem_cb(sdma_md->sdma_fd[0], sdma_memh->cookie);
-        if (status != UCS_OK) {
-            ucs_error("sdma_unpin_umem failed , status is %d.", status);
-            return UCS_ERR_IO_ERROR;
-        }
-    } else {
-        ucs_debug("temp not exec uct_sdma_mem_dereg");
+    status = (ucs_status_t)sdma_md->unpin_umem_cb(sdma_md->sdma_fd[0], sdma_memh->cookie);
+    if (status != UCS_OK) {
+        ucs_error("sdma_unpin_umem failed , status is %d.", status);
+        return UCS_ERR_IO_ERROR;
     }
     ucs_free(sdma_memh);
     return status;
@@ -151,15 +142,11 @@ ucs_status_t uct_sdma_mem_free(uct_md_h md, uct_mem_h memh)
         status = UCS_ERR_IO_ERROR;
         goto out;
     }
-    if (uct_exec_pin_flag) {
-        status = (ucs_status_t)sdma_md->unpin_umem_cb(sdma_md->sdma_fd[0], sdma_memh->cookie);
-        if (status != UCS_OK) {
-            ucs_error("sdma_unpin_umem failed , status is %d.", status);
-            status = UCS_ERR_IO_ERROR;
-            goto out;
-        }
-    } else {
-        ucs_debug("temp not exec uct_sdma_mem_dereg");
+    status = (ucs_status_t)sdma_md->unpin_umem_cb(sdma_md->sdma_fd[0], sdma_memh->cookie);
+    if (status != UCS_OK) {
+        ucs_error("sdma_unpin_umem failed , status is %d.", status);
+        status = UCS_ERR_IO_ERROR;
+        goto out;
     }
 out:
     ucs_free(sdma_memh->address);
