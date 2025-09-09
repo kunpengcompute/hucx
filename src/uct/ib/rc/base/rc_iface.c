@@ -19,7 +19,9 @@
 #include <ucs/type/class.h>
 #include <ucs/vfs/base/vfs_cb.h>
 #include <ucs/vfs/base/vfs_obj.h>
-
+#ifdef HAVE_HNS
+#include <infiniband/hnsdv.h>
+#endif
 
 static const char *uct_rc_fence_mode_values[] = {
     [UCT_RC_FENCE_MODE_NONE]   = "none",
@@ -574,6 +576,8 @@ UCS_CLASS_INIT_FUNC(uct_rc_iface_t, uct_iface_ops_t *tl_ops,
     ucs_status_t status;
     unsigned tx_cq_size;
     ucs_mpool_params_t mp_params;
+    uint32_t is_supported = 0;
+    const char *ib_dev_name;
 
     UCS_CLASS_CALL_SUPER_INIT(uct_ib_iface_t, tl_ops, &ops->super, tl_md,
                               worker, params, &config->super, init_attr);
@@ -585,7 +589,17 @@ UCS_CLASS_INIT_FUNC(uct_rc_iface_t, uct_iface_ops_t *tl_ops,
     self->rx.srq.available      = 0;
     self->rx.srq.quota          = 0;
     self->config.tx_qp_len      = config->super.tx.queue_len;
-    self->config.tx_min_sge     = config->super.tx.min_sge;
+
+    #ifdef HAVE_HNS
+        is_supported = hnsdv_is_supported(dev->ibv_context->device);
+    #endif
+    ib_dev_name = ibv_get_device_name(dev->ibv_context->device);
+    if (is_supported && ucs_config_match_spec_device(ib_dev_name) == 0) {
+        self->config.tx_min_sge     = 2;
+    } else {
+        self->config.tx_min_sge     = config->super.tx.min_sge;
+    }
+
     self->config.tx_min_inline  = config->super.tx.min_inline;
     self->config.tx_poll_always = config->tx.poll_always;
     self->config.tx_cq_len      = tx_cq_size;
