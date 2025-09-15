@@ -25,15 +25,11 @@
 #include <fnmatch.h>
 #include <ctype.h>
 #include <libgen.h>
-#include <stdbool.h>
-#ifdef HAVE_IBVERBS
 #include <infiniband/verbs.h>
-#endif
-#ifdef HAVE_HNS
-#include <infiniband/hnsdv.h>
-#endif
 
-
+// ibv_get_device_list_func g_ibv_get_device_list = NULL;
+// ibv_free_device_list_func g_ibv_free_device_list = NULL;
+// ibv_get_device_name_func g_ibv_get_device_name = NULL;
 
 /* width of titles in docstring */
 #define UCS_CONFIG_PARSER_DOCSTR_WIDTH         10
@@ -1185,101 +1181,6 @@ ucs_config_parser_set_default_values(void *opts, ucs_config_field_t *fields)
     return UCS_OK;
 }
 
-const uint32_t ucs_config_spec_devices[] = {
-    0x21,
-    0x30,
-    0x32
-};
-
-static int32_t ucs_config_read_uint_from_file(const char *path, uint32_t *value)
-{
-    FILE *file;
-    char buffer[32] = {0};
-    unsigned long long val;
-    char *endptr;
-
-    file = fopen(path, "r");
-    if (!file) {
-        return -1;
-    }
-
-    if (!fgets(buffer, sizeof(buffer), file)) {
-        fclose(file);
-        return -1;
-    }
-
-    fclose(file);
-
-    buffer[strcspn(buffer, "\n")] = 0;
-
-    errno = 0;
-    val = strtoull(buffer, &endptr, 0);
-
-    if (endptr == buffer || *endptr != '\0') {
-        return -1;
-    }
-
-    if (errno == ERANGE || val > UINT32_MAX) {
-        return -1;
-    }
-
-    *value = (uint32_t)val;
-    return 0;
-}
-
-uint32_t ucs_config_match_spec_device(const char *ib_dev_name)
-{
-    char revision_path[256];
-    uint32_t revision_id;
-
-    if (snprintf(revision_path, sizeof(revision_path), "/sys/class/infiniband/%s/device/revision", ib_dev_name) < 0) {
-        ucs_error("Failed to format path for device: %s", ib_dev_name);
-        return 1;
-    }
-
-    if (ucs_config_read_uint_from_file(revision_path, &revision_id) != 0) {
-        ucs_error("Get revision id for device:%s failed.", ib_dev_name);
-        return 1;
-    }
-
-    for (size_t i = 0; i < sizeof(ucs_config_spec_devices)/sizeof(uint32_t); i++) {
-        if (revision_id == ucs_config_spec_devices[i]) {
-            return 0;
-        }
-    }
-
-    return 1;
-}
-
-static bool ucs_has_spec_device()
-{
-#ifdef HAVE_HNS
-    struct ibv_device **dev_list;
-    uint32_t dev_num;
-    bool is_supported = false;
-
-    dev_list = ibv_get_device_list(&dev_num);
-    if (!dev_list || dev_num <= 0) {
-        ucs_error("No RDMA devices found\n");
-        return false;
-    }
-
-    for (uint32_t i = 0; i < dev_num; i++) {
-        const char *ib_dev_name = ibv_get_device_name(dev_list[i]);
-        if (ucs_config_match_spec_device(ib_dev_name) == 0) {
-                is_supported = hnsdv_is_supported(dev_list[i]);
-            if (is_supported) {
-                ibv_free_device_list(dev_list);
-                dev_list = NULL;
-                return true;
-            }
-        }
-    }
-    ibv_free_device_list(dev_list);
-    dev_list = NULL;
-#endif
-    return false;
-}
 /**
  * table_prefix == NULL  -> unused
  */
@@ -1882,45 +1783,6 @@ ucs_config_parser_print_field(FILE *stream, const void *opts, const char *env_pr
     }
 }
 
-ucs_status_t
-ucs_config_parser_set_default_values_spec(void *opts, ucs_config_field_t *fields, uint32_t is_rc)
-{
-    ucs_config_field_t *field, *sub_fields;
-    ucs_status_t status;
-    void *var;
-
-    for (field = fields; !ucs_config_field_is_last(field); ++field) {
-        if (ucs_config_is_alias_field(field) ||
-            ucs_config_is_deprecated_field(field)) {
-            continue;
-        }
-
-        var = (char*)opts + field->offset;
-
-        /* If this field is a sub-table, recursively set the values for it.
-         * Defaults can be subsequently set by parser.read(). */
-        if (ucs_config_is_table_field(field)) {
-            sub_fields = (ucs_config_field_t*)field->parser.arg;
-            status = ucs_config_parser_set_default_values_spec(var, sub_fields, is_rc);
-            if (status != UCS_OK) {
-                return status;
-            }
-        }
-
-        if (field->name && strcmp(field->name, "TX_MIN_SGE") == 0) {
-            if (is_rc) {
-                status = ucs_config_parser_parse_field(field, "2", var);
-            } else {
-                status = ucs_config_parser_parse_field(field, "1", var);
-            }
-        }
-        if (status != UCS_OK) {
-            return status;
-        }
-    }
-
-    return UCS_OK;
-}
 
 static void
 ucs_config_parser_print_opts_recurs(FILE *stream, const void *opts,
@@ -2025,6 +1887,254 @@ void ucs_config_parser_print_opts(FILE *stream, const char *title, const void *o
     }
 }
 
+static const uint32_t ucs_config_spec_dev_revision_ids[] = {
+    0x30,
+    0x32
+};
+
+static const uint32_t ucs_config_spec_dev_vendor_part_ids[] = {
+    0xa220,
+    0xa221,
+    0xa222,
+    0xa223,
+    0xa224,
+    0xa225,
+    0xa226,
+    0xa227,
+    0xa228,
+    0xa22c,
+    0xa22d,
+    0xa22e,
+    0xa22f,
+    0xa260,
+    0xa261,
+    0xa262,
+    0xa268,
+    0xa269,
+    0xa26a
+};
+
+int32_t ucs_config_read_uint_from_file(const char *path, uint32_t *value)
+{
+    FILE *file;
+    char buffer[32] = {0};
+    unsigned long long val;
+    char *endptr;
+
+    file = fopen(path, "r");
+    if (!file) {
+        return -1;
+    }
+
+    if (!fgets(buffer, sizeof(buffer), file)) {
+        fclose(file);
+        return -1;
+    }
+
+    fclose(file);
+
+    buffer[strcspn(buffer, "\n")] = 0;
+
+    errno = 0;
+    val = strtoull(buffer, &endptr, 0);
+
+    if (endptr == buffer || *endptr != '\0') {
+        return -1;
+    }
+
+    if (errno == ERANGE || val > UINT32_MAX) {
+        return -1;
+    }
+
+    *value = (uint32_t)val;
+    return 0;
+}
+
+uint32_t ucs_config_match_spec_device(const char *ib_dev_name, const uint32_t vendor_part_id)
+{
+    char revision_path[256];
+    uint32_t revision_id;
+
+    if (ib_dev_name == NULL) {
+        ucs_error("Device name is null.");
+        return 1;
+    }
+
+    if (snprintf(revision_path, sizeof(revision_path), "/sys/class/infiniband/%s/device/revision", ib_dev_name) < 0) {
+        ucs_error("Failed to format path for device: %s", ib_dev_name);
+        return 1;
+    }
+
+    if (ucs_config_read_uint_from_file(revision_path, &revision_id) != 0) {
+        ucs_error("Get revision id for device:%s failed.", ib_dev_name);
+        return 1;
+    }
+
+    for (size_t i = 0; i < sizeof(ucs_config_spec_dev_revision_ids)/sizeof(uint32_t); i++) {
+        if (revision_id == ucs_config_spec_dev_revision_ids[i]) {
+            for (size_t j = 0; j < sizeof(ucs_config_spec_dev_vendor_part_ids)/sizeof(uint32_t); j++) {
+                if (vendor_part_id == ucs_config_spec_dev_vendor_part_ids[j]) {
+                    return 0;
+                }
+            }
+        }
+    }
+
+    return 1;
+}
+
+/* try to dlopen ibverbs */
+static uint32_t ucs_has_spec_device()
+{
+    struct ibv_device **dev_list;
+    struct ibv_context *dev_context;
+    struct ibv_device_attr dev_attr;
+    const char *ib_dev_name;
+    uint32_t vendor_part_id;
+    uint32_t dev_num;
+
+    /*ibv_get_device_list*/
+    typedef struct ibv_device ** (*ibv_get_device_list_func)(int *num_devices);
+    /* ibv_free_device_list */
+    typedef void (*ibv_free_device_list_func)(struct ibv_device **list);
+    /* ibv_get_device_name */
+    typedef const char * (*ibv_get_device_name_func)(struct ibv_device *device);
+    /* ibv_open_device */
+    typedef struct ibv_context * (*ibv_open_device_func)(struct ibv_device *device);
+    /* ibv_query_device */
+    typedef int (*ibv_query_device_func)(struct ibv_context *context, struct ibv_device_attr *device_attr);
+    /* ibv_close_device */
+    typedef int (*ibv_close_device_func)(struct ibv_context *context);
+
+    ibv_get_device_list_func get_dev_list;
+    ibv_free_device_list_func free_device_list;
+    ibv_get_device_name_func get_device_name;
+    ibv_open_device_func open_device;
+    ibv_query_device_func query_device;
+    ibv_close_device_func close_device;
+
+    void* handle = dlopen("libibverbs.so", RTLD_LAZY);
+    if (!handle) {
+        ucs_debug("dlopen libibverbs.so failed: %s\n", dlerror());
+        return 0;
+    }
+
+    get_dev_list = (ibv_get_device_list_func)dlsym(handle, "ibv_get_device_list");
+    if (!get_dev_list) {
+        ucs_debug("dlsym ibv_get_device_list failed: %s\n", dlerror());
+        dlclose(handle);
+        return 0;
+    }
+
+    free_device_list = (ibv_free_device_list_func)dlsym(handle, "ibv_free_device_list");
+    if (!free_device_list) {
+        ucs_debug("dlsym ibv_free_device_list failed: %s\n", dlerror());
+        dlclose(handle);
+        return 0;
+    }
+    
+    get_device_name = (ibv_get_device_name_func)dlsym(handle, "ibv_get_device_name");
+    if (!get_device_name) {
+        ucs_debug("dlsym ibv_get_device_name failed: %s\n", dlerror());
+        dlclose(handle);
+        return 0;
+    }
+
+    open_device = (ibv_open_device_func)dlsym(handle, "ibv_open_device");
+    if (!open_device) {
+        ucs_debug("dlsym ibv_open_device failed: %s\n", dlerror());
+        dlclose(handle);
+        return 0;
+    }
+
+    query_device = (ibv_query_device_func)dlsym(handle, "ibv_query_device");
+    if (!query_device) {
+        ucs_debug("dlsym ibv_query_device failed: %s\n", dlerror());
+        dlclose(handle);
+        return 0;
+    }
+
+    close_device = (ibv_close_device_func)dlsym(handle, "ibv_close_device");
+    if (!close_device) {
+        ucs_debug("dlsym ibv_close_device failed: %s\n", dlerror());
+        dlclose(handle);
+        return 0;
+    }
+
+    dev_list = get_dev_list(&dev_num);
+    if (!dev_list || dev_num <= 0) {
+        ucs_error("No RDMA devices found\n");
+        dlclose(handle);
+        return 0;
+    }
+
+    for (uint32_t i = 0; i < dev_num; i++) {
+        ib_dev_name = get_device_name(dev_list[i]);
+        dev_context = open_device(dev_list[i]);
+        if (!dev_context) {
+            ucs_error("ibv_open_device failed, dev name :%s\n", ib_dev_name);
+            continue;
+        }
+        if (query_device(dev_context, &dev_attr)) {
+            ucs_error("ibv_query_device failed, dev name :%s\n", ib_dev_name);
+            (void)close_device(dev_context);
+            continue;
+        }
+        (void)close_device(dev_context);
+        vendor_part_id = dev_attr.vendor_part_id;
+        if (ucs_config_match_spec_device(ib_dev_name, vendor_part_id) == 0) {
+            free_device_list(dev_list);
+            dev_list = NULL;
+            dlclose(handle);
+            return 1;
+        }
+    }
+    free_device_list(dev_list);
+    dev_list = NULL;
+    dlclose(handle);
+    return 0;
+}
+
+ucs_status_t
+ucs_config_parser_set_default_values_spec(void *opts, ucs_config_field_t *fields, uint32_t is_rc)
+{
+    ucs_config_field_t *field, *sub_fields;
+    ucs_status_t status;
+    void *var;
+
+    for (field = fields; !ucs_config_field_is_last(field); ++field) {
+        if (ucs_config_is_alias_field(field) ||
+            ucs_config_is_deprecated_field(field)) {
+            continue;
+        }
+
+        var = (char*)opts + field->offset;
+
+        /* If this field is a sub-table, recursively set the values for it.
+         * Defaults can be subsequently set by parser.read(). */
+        if (ucs_config_is_table_field(field)) {
+            sub_fields = (ucs_config_field_t*)field->parser.arg;
+            status = ucs_config_parser_set_default_values_spec(var, sub_fields, is_rc);
+            if (status != UCS_OK) {
+                return status;
+            }
+        }
+
+        if (field->name && strcmp(field->name, "TX_MIN_SGE") == 0) {
+            if (is_rc) {
+                status = ucs_config_parser_parse_field(field, "2", var);
+            } else {
+                status = ucs_config_parser_parse_field(field, "1", var);
+            }
+        }
+        if (status != UCS_OK) {
+            return status;
+        }
+    }
+
+    return UCS_OK;
+}
+
 void ucs_config_parser_print_all_opts(FILE *stream, const char *prefix,
                                       ucs_config_print_flags_t flags,
                                       ucs_list_link_t *config_list)
@@ -2033,7 +2143,7 @@ void ucs_config_parser_print_all_opts(FILE *stream, const char *prefix,
     ucs_status_t status;
     char title[64];
     void *opts;
-    bool has_spec_dev = false;
+    uint32_t has_spec_dev = 0;
 
     has_spec_dev = ucs_has_spec_device();
     ucs_list_for_each(entry, config_list, list) {
@@ -2062,7 +2172,7 @@ void ucs_config_parser_print_all_opts(FILE *stream, const char *prefix,
                 status = ucs_config_parser_set_default_values_spec(opts, entry->table, 0);
             }
         }
-        
+
         snprintf(title, sizeof(title), "%s configuration", entry->name);
         ucs_config_parser_print_opts(stream, title, opts, entry->table,
                                      entry->prefix, prefix, flags);

@@ -26,6 +26,7 @@
 #include <ucs/debug/log.h>
 #include <ucs/time/time.h>
 #include <ucs/sys/sock.h>
+#include <ucs/config/parser.h>
 #include <string.h>
 #include <stdlib.h>
 #include <poll.h>
@@ -1770,4 +1771,71 @@ ucs_status_t uct_ib_iface_arm_cq(uct_ib_iface_t *iface,
         return UCS_ERR_IO_ERROR;
     }
     return UCS_OK;
+}
+
+static const uint32_t uct_ib_spec_dev_revision_ids[] = {
+    0x30,
+    0x32
+};
+
+static const uint32_t uct_ib_spec_dev_vendor_part_ids[] = {
+    0xa220,
+    0xa221,
+    0xa222,
+    0xa223,
+    0xa224,
+    0xa225,
+    0xa226,
+    0xa227,
+    0xa228,
+    0xa22c,
+    0xa22d,
+    0xa22e,
+    0xa22f,
+    0xa260,
+    0xa261,
+    0xa262,
+    0xa268,
+    0xa269,
+    0xa26a
+};
+
+uint32_t uct_ib_match_spec_device(const uct_ib_device_t *dev)
+{
+    char revision_path[256];
+    uint32_t revision_id;
+    const char *ib_dev_name;
+
+    if (dev == NULL) {
+        ucs_error("Input dev is null.");
+        return 1;
+    }
+
+    ib_dev_name = ibv_get_device_name(dev->ibv_context->device);
+    if (ib_dev_name == NULL) {
+        ucs_error("Get dev name failed.");
+        return 1;
+    }
+
+    if (snprintf(revision_path, sizeof(revision_path), "/sys/class/infiniband/%s/device/revision", ib_dev_name) < 0) {
+        ucs_error("Failed to format path for device: %s", ib_dev_name);
+        return 1;
+    }
+
+    if (ucs_config_read_uint_from_file(revision_path, &revision_id) != 0) {
+        ucs_error("Get revision id for device:%s failed.", ib_dev_name);
+        return 1;
+    }
+
+    for (size_t i = 0; i < sizeof(uct_ib_spec_dev_revision_ids)/sizeof(uint32_t); i++) {
+        if (revision_id == uct_ib_spec_dev_revision_ids[i]) {
+            for (size_t j = 0; j < sizeof(uct_ib_spec_dev_vendor_part_ids)/sizeof(uint32_t); j++) {
+                if (IBV_DEV_ATTR(dev, vendor_part_id) == uct_ib_spec_dev_vendor_part_ids[j]) {
+                    return 0;
+                }
+            }
+        }
+    }
+
+    return 1;
 }

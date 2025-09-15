@@ -44,31 +44,6 @@ AC_DEFUN([CHECK_BFD_LIB],
    ])
 ])
 
-AC_CHECK_LIB([ibverbs], [ibv_get_device_list],
-    [
-        AC_DEFINE([HAVE_IBVERBS], [1], [Define if libibverbs is available])
-        LIBS="$LIBS -libverbs"
-    ],
-    [
-        AC_MSG_WARN([libibverbs not found, some RDMA features will be disabled])
-    ]
-)
-
-# 检查 libhns
-AC_CHECK_LIB([hns], [hnsdv_is_supported],
-    [
-        AC_DEFINE([HAVE_HNS], [1], [Define if libhns is available])
-        LIBS="$LIBS -lhns"
-    ],
-    [
-        AC_MSG_WARN([libhns not found, some HNS features will be disabled])
-    ]
-)
-
-AM_CONDITIONAL([HAVE_IBVERBS], [test "x$HAVE_IBVERBS" = xyes])
-AM_CONDITIONAL([HAVE_HNS], [test "x$HAVE_HNS" = xyes])
-
-
 #
 # Detailed backtrace with debug information.
 # This option requires binutils-devel package.

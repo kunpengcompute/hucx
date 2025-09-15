@@ -19,14 +19,6 @@ libucs_la_LDFLAGS  = -ldl $(BFD_LDFLAGS) -version-info $(SOVERSION)
 libucs_ladir       = $(includedir)/ucs
 libucs_la_LIBADD   = $(LIBM) $(top_builddir)/src/ucm/libucm.la $(BFD_LIBS)
 
-if HAVE_IBVERBS
-libucs_la_LIBADD += -libverbs
-endif
-
-if HAVE_HNS
-libucs_la_LIBADD += -lhns
-endif
-
 nobase_dist_libucs_la_HEADERS = \
 	arch/aarch64/bitops.h \
 	arch/ppc64/bitops.h \

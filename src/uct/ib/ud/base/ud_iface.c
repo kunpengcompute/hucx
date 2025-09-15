@@ -21,9 +21,6 @@
 #include <ucs/vfs/base/vfs_obj.h>
 #include <ucs/vfs/base/vfs_cb.h>
 #include <sys/poll.h>
-#ifdef HAVE_HNS
-#include <infiniband/hnsdv.h>
-#endif
 
 #define UCT_UD_IFACE_CEP_CONN_SN_MAX ((uct_ud_ep_conn_sn_t)-1)
 
@@ -191,8 +188,6 @@ uct_ud_iface_create_qp(uct_ud_iface_t *self, const uct_ud_iface_config_t *config
     struct ibv_qp_attr qp_attr;
     static ucs_status_t status;
     int ret;
-    uint32_t is_supported = 0;
-    const char *ib_dev_name;
     uct_ib_device_t *dev;
 
     qp_init_attr.qp_type             = IBV_QPT_UD;
@@ -200,15 +195,13 @@ uct_ud_iface_create_qp(uct_ud_iface_t *self, const uct_ud_iface_config_t *config
     qp_init_attr.cap.max_send_wr     = config->super.tx.queue_len;
     qp_init_attr.cap.max_recv_wr     = config->super.rx.queue_len;
     dev = uct_ib_iface_device(&self->super);
-    #ifdef HAVE_HNS
-        is_supported = hnsdv_is_supported(dev->ibv_context->device);
-    #endif
-    ib_dev_name = ibv_get_device_name(dev->ibv_context->device);
-    if (is_supported && ucs_config_match_spec_device(ib_dev_name) == 0) {
+
+    if (uct_ib_match_spec_device(dev) == 0 && config->super.tx.min_sge > 1) {
         qp_init_attr.cap.max_send_sge     = 2;
     } else {
         qp_init_attr.cap.max_send_sge    = config->super.tx.min_sge + 1;
     }
+
     qp_init_attr.cap.max_recv_sge    = 1;
     qp_init_attr.cap.max_inline_data = config->super.tx.min_inline;
 
