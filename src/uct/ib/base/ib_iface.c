@@ -1808,34 +1808,34 @@ uint32_t uct_ib_match_spec_device(const uct_ib_device_t *dev)
 
     if (dev == NULL) {
         ucs_error("Input dev is null.");
-        return 1;
+        return 0;
     }
 
     ib_dev_name = ibv_get_device_name(dev->ibv_context->device);
     if (ib_dev_name == NULL) {
         ucs_error("Get dev name failed.");
-        return 1;
+        return 0;
     }
 
     if (snprintf(revision_path, sizeof(revision_path), "/sys/class/infiniband/%s/device/revision", ib_dev_name) < 0) {
         ucs_error("Failed to format path for device: %s", ib_dev_name);
-        return 1;
+        return 0;
     }
 
     if (ucs_config_read_uint_from_file(revision_path, &revision_id) != 0) {
         ucs_error("Get revision id for device:%s failed.", ib_dev_name);
-        return 1;
+        return 0;
     }
 
     for (size_t i = 0; i < sizeof(uct_ib_spec_dev_revision_ids)/sizeof(uint32_t); i++) {
         if (revision_id == uct_ib_spec_dev_revision_ids[i]) {
             for (size_t j = 0; j < sizeof(uct_ib_spec_dev_vendor_part_ids)/sizeof(uint32_t); j++) {
                 if (IBV_DEV_ATTR(dev, vendor_part_id) == uct_ib_spec_dev_vendor_part_ids[j]) {
-                    return 0;
+                    return 1;
                 }
             }
         }
     }
 
-    return 1;
+    return 0;
 }

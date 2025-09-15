@@ -27,10 +27,6 @@
 #include <libgen.h>
 #include <infiniband/verbs.h>
 
-// ibv_get_device_list_func g_ibv_get_device_list = NULL;
-// ibv_free_device_list_func g_ibv_free_device_list = NULL;
-// ibv_get_device_name_func g_ibv_get_device_name = NULL;
-
 /* width of titles in docstring */
 #define UCS_CONFIG_PARSER_DOCSTR_WIDTH         10
 
@@ -1783,7 +1779,6 @@ ucs_config_parser_print_field(FILE *stream, const void *opts, const char *env_pr
     }
 }
 
-
 static void
 ucs_config_parser_print_opts_recurs(FILE *stream, const void *opts,
                                     const ucs_config_field_t *fields,
@@ -1957,30 +1952,30 @@ uint32_t ucs_config_match_spec_device(const char *ib_dev_name, const uint32_t ve
 
     if (ib_dev_name == NULL) {
         ucs_error("Device name is null.");
-        return 1;
+        return 0;
     }
 
     if (snprintf(revision_path, sizeof(revision_path), "/sys/class/infiniband/%s/device/revision", ib_dev_name) < 0) {
         ucs_error("Failed to format path for device: %s", ib_dev_name);
-        return 1;
+        return 0;
     }
 
     if (ucs_config_read_uint_from_file(revision_path, &revision_id) != 0) {
         ucs_error("Get revision id for device:%s failed.", ib_dev_name);
-        return 1;
+        return 0;
     }
 
     for (size_t i = 0; i < sizeof(ucs_config_spec_dev_revision_ids)/sizeof(uint32_t); i++) {
         if (revision_id == ucs_config_spec_dev_revision_ids[i]) {
             for (size_t j = 0; j < sizeof(ucs_config_spec_dev_vendor_part_ids)/sizeof(uint32_t); j++) {
                 if (vendor_part_id == ucs_config_spec_dev_vendor_part_ids[j]) {
-                    return 0;
+                    return 1;
                 }
             }
         }
     }
 
-    return 1;
+    return 0;
 }
 
 /* try to dlopen ibverbs */
@@ -2015,55 +2010,55 @@ static uint32_t ucs_has_spec_device()
 
     void* handle = dlopen("libibverbs.so", RTLD_LAZY);
     if (!handle) {
-        ucs_debug("dlopen libibverbs.so failed: %s\n", dlerror());
+        ucs_debug("dlopen libibverbs.so failed: %s.", dlerror());
         return 0;
     }
 
     get_dev_list = (ibv_get_device_list_func)dlsym(handle, "ibv_get_device_list");
     if (!get_dev_list) {
-        ucs_debug("dlsym ibv_get_device_list failed: %s\n", dlerror());
+        ucs_debug("dlsym ibv_get_device_list failed: %s.", dlerror());
         dlclose(handle);
         return 0;
     }
 
     free_device_list = (ibv_free_device_list_func)dlsym(handle, "ibv_free_device_list");
     if (!free_device_list) {
-        ucs_debug("dlsym ibv_free_device_list failed: %s\n", dlerror());
+        ucs_debug("dlsym ibv_free_device_list failed: %s.", dlerror());
         dlclose(handle);
         return 0;
     }
     
     get_device_name = (ibv_get_device_name_func)dlsym(handle, "ibv_get_device_name");
     if (!get_device_name) {
-        ucs_debug("dlsym ibv_get_device_name failed: %s\n", dlerror());
+        ucs_debug("dlsym ibv_get_device_name failed: %s.", dlerror());
         dlclose(handle);
         return 0;
     }
 
     open_device = (ibv_open_device_func)dlsym(handle, "ibv_open_device");
     if (!open_device) {
-        ucs_debug("dlsym ibv_open_device failed: %s\n", dlerror());
+        ucs_debug("dlsym ibv_open_device failed: %s.", dlerror());
         dlclose(handle);
         return 0;
     }
 
     query_device = (ibv_query_device_func)dlsym(handle, "ibv_query_device");
     if (!query_device) {
-        ucs_debug("dlsym ibv_query_device failed: %s\n", dlerror());
+        ucs_debug("dlsym ibv_query_device failed: %s.", dlerror());
         dlclose(handle);
         return 0;
     }
 
     close_device = (ibv_close_device_func)dlsym(handle, "ibv_close_device");
     if (!close_device) {
-        ucs_debug("dlsym ibv_close_device failed: %s\n", dlerror());
+        ucs_debug("dlsym ibv_close_device failed: %s.", dlerror());
         dlclose(handle);
         return 0;
     }
 
     dev_list = get_dev_list(&dev_num);
     if (!dev_list || dev_num <= 0) {
-        ucs_error("No RDMA devices found\n");
+        ucs_error("No RDMA devices found.");
         dlclose(handle);
         return 0;
     }
@@ -2072,17 +2067,17 @@ static uint32_t ucs_has_spec_device()
         ib_dev_name = get_device_name(dev_list[i]);
         dev_context = open_device(dev_list[i]);
         if (!dev_context) {
-            ucs_error("ibv_open_device failed, dev name :%s\n", ib_dev_name);
+            ucs_error("ibv_open_device failed, dev name :%s.", ib_dev_name);
             continue;
         }
         if (query_device(dev_context, &dev_attr)) {
-            ucs_error("ibv_query_device failed, dev name :%s\n", ib_dev_name);
+            ucs_error("ibv_query_device failed, dev name :%s.", ib_dev_name);
             (void)close_device(dev_context);
             continue;
         }
         (void)close_device(dev_context);
         vendor_part_id = dev_attr.vendor_part_id;
-        if (ucs_config_match_spec_device(ib_dev_name, vendor_part_id) == 0) {
+        if (ucs_config_match_spec_device(ib_dev_name, vendor_part_id)) {
             free_device_list(dev_list);
             dev_list = NULL;
             dlclose(handle);

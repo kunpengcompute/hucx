@@ -20,6 +20,7 @@
 #include <ucs/vfs/base/vfs_cb.h>
 #include <ucs/vfs/base/vfs_obj.h>
 
+
 static const char *uct_rc_fence_mode_values[] = {
     [UCT_RC_FENCE_MODE_NONE]   = "none",
     [UCT_RC_FENCE_MODE_WEAK]   = "weak",
@@ -585,8 +586,7 @@ UCS_CLASS_INIT_FUNC(uct_rc_iface_t, uct_iface_ops_t *tl_ops,
     self->rx.srq.quota          = 0;
     self->config.tx_qp_len      = config->super.tx.queue_len;
 
-    
-    if (uct_ib_match_spec_device(dev) == 0 && config->super.tx.min_sge > 2) {
+    if (uct_ib_match_spec_device(dev) && config->super.tx.min_sge > 2) {
         self->config.tx_min_sge     = 2;
     } else {
         self->config.tx_min_sge     = config->super.tx.min_sge;

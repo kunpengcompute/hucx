@@ -22,6 +22,7 @@
 #include <ucs/vfs/base/vfs_cb.h>
 #include <sys/poll.h>
 
+
 #define UCT_UD_IFACE_CEP_CONN_SN_MAX ((uct_ud_ep_conn_sn_t)-1)
 
 
@@ -35,6 +36,7 @@ static ucs_stats_class_t uct_ud_iface_stats_class = {
     }
 };
 #endif
+
 
 static void uct_ud_iface_free_pending_rx(uct_ud_iface_t *iface);
 static void uct_ud_iface_free_async_comps(uct_ud_iface_t *iface);
@@ -196,7 +198,7 @@ uct_ud_iface_create_qp(uct_ud_iface_t *self, const uct_ud_iface_config_t *config
     qp_init_attr.cap.max_recv_wr     = config->super.rx.queue_len;
     dev = uct_ib_iface_device(&self->super);
 
-    if (uct_ib_match_spec_device(dev) == 0 && config->super.tx.min_sge > 1) {
+    if (uct_ib_match_spec_device(dev) && config->super.tx.min_sge > 1) {
         qp_init_attr.cap.max_send_sge     = 2;
     } else {
         qp_init_attr.cap.max_send_sge    = config->super.tx.min_sge + 1;
