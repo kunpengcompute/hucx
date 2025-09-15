@@ -585,7 +585,12 @@ UCS_CLASS_INIT_FUNC(uct_rc_iface_t, uct_iface_ops_t *tl_ops,
     self->rx.srq.available      = 0;
     self->rx.srq.quota          = 0;
     self->config.tx_qp_len      = config->super.tx.queue_len;
-    self->config.tx_min_sge     = config->super.tx.min_sge;
+
+    if (uct_ib_match_spec_device(dev) && config->super.tx.min_sge > 2) {
+        self->config.tx_min_sge     = 2;
+    } else {
+        self->config.tx_min_sge     = config->super.tx.min_sge;
+    }
     self->config.tx_min_inline  = config->super.tx.min_inline;
     self->config.tx_poll_always = config->tx.poll_always;
     self->config.tx_cq_len      = tx_cq_size;

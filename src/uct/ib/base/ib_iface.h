@@ -596,6 +596,7 @@ void uct_ib_iface_fill_attr(uct_ib_iface_t *iface,
 
 uint8_t uct_ib_iface_config_select_sl(const uct_ib_iface_config_t *ib_config);
 
+uint32_t uct_ib_match_spec_device(const uct_ib_device_t *dev);
 
 #define UCT_IB_IFACE_FMT \
     "%s:%d/%s"

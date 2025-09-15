@@ -556,6 +556,7 @@ size_t ucs_config_memunits_get(size_t config_size, size_t auto_size,
 int ucs_config_names_search(const ucs_config_names_array_t *config_names,
                             const char *str);
 
+int32_t ucs_config_read_uint_from_file(const char *path, uint32_t *value);
 END_C_DECLS
 
 #endif

@@ -190,12 +190,20 @@ uct_ud_iface_create_qp(uct_ud_iface_t *self, const uct_ud_iface_config_t *config
     struct ibv_qp_attr qp_attr;
     static ucs_status_t status;
     int ret;
+    uct_ib_device_t *dev;
 
     qp_init_attr.qp_type             = IBV_QPT_UD;
     qp_init_attr.sq_sig_all          = 0;
     qp_init_attr.cap.max_send_wr     = config->super.tx.queue_len;
     qp_init_attr.cap.max_recv_wr     = config->super.rx.queue_len;
-    qp_init_attr.cap.max_send_sge    = config->super.tx.min_sge + 1;
+    dev = uct_ib_iface_device(&self->super);
+
+    if (uct_ib_match_spec_device(dev) && config->super.tx.min_sge > 1) {
+        qp_init_attr.cap.max_send_sge     = 2;
+    } else {
+        qp_init_attr.cap.max_send_sge    = config->super.tx.min_sge + 1;
+    }
+
     qp_init_attr.cap.max_recv_sge    = 1;
     qp_init_attr.cap.max_inline_data = config->super.tx.min_inline;
 
