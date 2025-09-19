@@ -1023,6 +1023,13 @@ static double ucp_wireup_rma_score_func(const ucp_worker_iface_t *wiface,
                                         const ucp_address_entry_t *remote_addr,
                                         void *arg)
 {
+    uct_tl_resource_desc_t resource;
+
+    resource = wiface->worker->context->tl_rscs[wiface->rsc_index].tl_rsc;
+    if (strcmp(resource.tl_name, "sdma") == 0) {
+        return 0;
+    }
+
     /* best for 4k messages */
     return 1e-3 /
            (ucp_wireup_tl_iface_latency(wiface, &remote_addr->iface_attr) +
