@@ -271,7 +271,7 @@ static ucs_config_field_t ucp_context_config_table[] = {
    "Resolution for process pending time for schedule",
    ucs_offsetof(ucp_context_config_t, min_pending_time), UCS_CONFIG_TYPE_TIME},
 
-  {"REQ_TIMEOUT", "300s",
+  {"REQ_TIMEOUT", "600s",
    "Request timeout threshold",
    ucs_offsetof(ucp_context_config_t, req_timeout_thresh), UCS_CONFIG_TYPE_TIME},
 
