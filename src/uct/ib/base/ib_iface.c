@@ -1160,7 +1160,6 @@ uct_ib_iface_init_roce_addr_prefix(uct_ib_iface_t *iface,
     uct_ib_device_gid_info_t *gid_info = &iface->gid_info;
     size_t addr_size, max_prefix_bits;
     struct sockaddr_storage mask;
-    struct sockaddr_storage ifaddr;
     char ndev_name[IFNAMSIZ];
     const void *mask_addr;
     ucs_status_t status;
@@ -1207,8 +1206,8 @@ uct_ib_iface_init_roce_addr_prefix(uct_ib_iface_t *iface,
         goto out_mask_info_failed;
     }
 
-    status = uct_tcp_netif_inaddr(ndev_name, (struct sockaddr_in*)&ifaddr,
-                                  (struct sockaddr_in*)&mask);
+    status = ucs_netif_get_addr(ndev_name, AF_UNSPEC, NULL,	 
+                                 (struct sockaddr*)&mask);
     if (status != UCS_OK) {
         goto out_mask_info_failed;
     }
