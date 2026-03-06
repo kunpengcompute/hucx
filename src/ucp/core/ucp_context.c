@@ -275,7 +275,7 @@ static ucs_config_field_t ucp_context_config_table[] = {
    "Request timeout threshold",
    ucs_offsetof(ucp_context_config_t, req_timeout_thresh), UCS_CONFIG_TYPE_TIME},
 
-  {"TIMEOUT_DETECT_ENABLE", "y",
+  {"TIMEOUT_DETECT_ENABLE", "n",
    "n       - Disable the timeout detection function in ucp_worker_progress.\n"
    "y       - Enable the timeout detection function in ucp_worker_progress.\n",
    ucs_offsetof(ucp_context_config_t, if_enable_timeout_detect), UCS_CONFIG_TYPE_BOOL},
@@ -536,7 +536,7 @@ static ucs_config_field_t ucp_config_table[] = {
    "  [a-z] - matches one character from the range given in the bracket.",
    ucs_offsetof(ucp_config_t, protos), UCS_CONFIG_TYPE_ALLOW_LIST},
 
-  {"ALLOC_PRIO", "md:sdma,md:sysv,md:posix,huge,thp,md:*,mmap,heap",
+  {"ALLOC_PRIO", "md:sysv,md:posix,huge,thp,md:*,mmap,heap",
    "Priority of memory allocation methods. Each item in the list can be either\n"
    "an allocation method (huge, thp, mmap, libc) or md:<NAME> which means to use the\n"
    "specified memory domain for allocation. NAME can be either a UCT component\n"
@@ -587,8 +587,8 @@ UCS_CONFIG_DECLARE_TABLE(ucp_config_table, "UCP context", NULL, ucp_config_t)
 
 static ucp_tl_alias_t ucp_tl_aliases[] = {
   { "mm",    { "posix", "sysv", "xpmem", NULL } }, /* for backward compatibility */
-  { "sm",    { "posix", "sysv", "xpmem", "knem", "cma", "sdma", NULL } },
-  { "shm",   { "posix", "sysv", "xpmem", "knem", "cma", "sdma", NULL } },
+  { "sm",    { "posix", "sysv", "xpmem", "knem", "cma", NULL } },
+  { "shm",   { "posix", "sysv", "xpmem", "knem", "cma", NULL } },
   { "ib",    { "rc_verbs", "ud_verbs", "rc_mlx5", "ud_mlx5", "dc_mlx5", NULL } },
   { "ud_v",  { "ud_verbs", NULL } },
   { "ud_x",  { "ud_mlx5", NULL } },
@@ -608,6 +608,7 @@ static ucp_tl_alias_t ucp_tl_aliases[] = {
 
 const char *tl_exclusions_in_all[] = {
     "rc_fo",
+    "sdma",
     NULL
 };
 
