@@ -20,6 +20,10 @@
 #define UCS_CONFIG_ARRAY_MAX   128
 #define UCX_CONFIG_FILE_NAME   "ucx.conf"
 
+#define TAG_RC 1
+#define TAG_UD 2
+#define TAG_SP670 3
+
 BEGIN_C_DECLS
 
 /** @file parser.h */

@@ -68,13 +68,24 @@ const char *ucs_async_mode_names[] = {
     [UCS_ASYNC_MODE_LAST]            = NULL
 };
 
+static uint32_t has_spec_dev = 0;
+static uint32_t has_SP670_dev = 0;
+
 UCS_CONFIG_DEFINE_ARRAY(string, sizeof(char*), UCS_CONFIG_TYPE_STRING);
 
 /* Fwd */
+typedef uint32_t (*ucs_config_match_device_func)(const char *ib_dev_name, const uint32_t vendor_part_id);
+
 static ucs_status_t
 ucs_config_parser_set_value_internal(void *opts, ucs_config_field_t *fields,
                                      const char *name, const char *value,
                                      const char *table_prefix, int recurse);
+
+static uint32_t ucs_has_spec_device(ucs_config_match_device_func func);
+
+uint32_t ucs_config_match_SP670_device(const char *ib_dev_name, const uint32_t vendor_part_id);
+uint32_t ucs_config_match_spec_device(const char *ib_dev_name, const uint32_t vendor_part_id);
+ucs_status_t ucs_config_parser_set_default_values_with_tag(void *opts, ucs_config_field_t *fields, uint32_t tag);
 
 int ucs_config_sscanf_string(const char *buf, void *dest, const void *arg)
 {
@@ -1144,6 +1155,44 @@ static int ucs_config_field_is_last(const ucs_config_field_t *field)
 }
 
 ucs_status_t
+ucs_config_parser_set_default_values_with_tag(void *opts, ucs_config_field_t *fields, uint32_t tag)
+{
+    ucs_config_field_t *field, *sub_fields;
+    ucs_status_t status;
+    void *var;
+
+    for (field = fields; !ucs_config_field_is_last(field); ++field) {
+        if (ucs_config_is_alias_field(field) ||
+            ucs_config_is_deprecated_field(field)) {
+            continue;
+        }
+
+        var = (char*)opts + field->offset;
+
+        if (tag == TAG_SP670 && strcmp(field->name, "RX_QUEUE_LEN") == 0) {
+            field->dfl_value = "4095";
+            ucs_info("SET %s to %s on SP670.", field->name, field->dfl_value);
+        }
+        /* If this field is a sub-table, recursively set the values for it.
+         * Defaults can be subsequently set by parser.read(). */
+        if (ucs_config_is_table_field(field)) {
+            sub_fields = (ucs_config_field_t*)field->parser.arg;
+            status = ucs_config_parser_set_default_values_with_tag(var, sub_fields, tag);
+            if (status != UCS_OK) {
+                return status;
+            }
+        }
+
+        status = ucs_config_parser_parse_field(field, field->dfl_value, var);
+        if (status != UCS_OK) {
+            return status;
+        }
+    }
+
+    return UCS_OK;
+}
+
+ucs_status_t
 ucs_config_parser_set_default_values(void *opts, ucs_config_field_t *fields)
 {
     ucs_config_field_t *field, *sub_fields;
@@ -1162,7 +1211,9 @@ ucs_config_parser_set_default_values(void *opts, ucs_config_field_t *fields)
          * Defaults can be subsequently set by parser.read(). */
         if (ucs_config_is_table_field(field)) {
             sub_fields = (ucs_config_field_t*)field->parser.arg;
-            status = ucs_config_parser_set_default_values(var, sub_fields);
+            if (has_SP670_dev && strcmp(field->name, "IB_") == 0) {
+                status = ucs_config_parser_set_default_values_with_tag(var, sub_fields, TAG_SP670);
+            }
             if (status != UCS_OK) {
                 return status;
             }
@@ -1240,7 +1291,13 @@ ucs_config_parser_set_value_internal(void *opts, ucs_config_field_t *fields,
                                       field->parser.arg);
             ucs_assert(ret != 0); /* write success */
             ucs_config_parser_release_field(field, var);
-            status = ucs_config_parser_parse_field(field, value, var);
+            if (has_SP670_dev && strcmp(field->name, "RX_QUEUE_LEN") == 0) {
+                status = ucs_config_parser_parse_field(field, "4095", var); // for uct_rc_iface_common_config_table
+                ucs_info("SET %s to %s on SP670 for uct_rc_iface_common_config_table.", field->name, "4095");
+            } else {
+                status = ucs_config_parser_parse_field(field, value, var);
+            }
+
             if (status != UCS_OK) {
                 status_restore = ucs_config_parser_parse_field(field, value_buf, var);
                 /* current value must be valid */
@@ -1519,6 +1576,9 @@ ucs_config_parser_fill_opts(void *opts, ucs_config_global_list_entry_t *entry,
     const char   *sub_prefix = NULL;
     static ucs_init_once_t config_file_parse = UCS_INIT_ONCE_INITIALIZER;
     ucs_status_t status;
+    
+    has_spec_dev = ucs_has_spec_device(ucs_config_match_spec_device);
+    has_SP670_dev = ucs_has_spec_device(ucs_config_match_SP670_device);
 
     /* Set default values */
     status = ucs_config_parser_set_default_values(opts, entry->table);
@@ -1978,8 +2038,37 @@ uint32_t ucs_config_match_spec_device(const char *ib_dev_name, const uint32_t ve
     return 0;
 }
 
+uint32_t ucs_config_match_SP670_device(const char *ib_dev_name, const uint32_t vendor_part_id)
+{
+    char revision_path[256];
+    uint32_t revision_id;
+
+    if (ib_dev_name == NULL) {
+        ucs_error("Device name is null.");
+        return 0;
+    }
+
+    if (snprintf(revision_path, sizeof(revision_path), "/sys/class/infiniband/%s/device/revision", ib_dev_name) < 0) {
+        ucs_error("Failed to format path for device: %s", ib_dev_name);
+        return 0;
+    }
+
+    if (ucs_config_read_uint_from_file(revision_path, &revision_id) != 0) {
+        ucs_error("Get revision id for device:%s failed.", ib_dev_name);
+        return 0;
+    }
+    if (revision_id == 0x21) {
+        if (vendor_part_id == 0x0222) {
+            ucs_info("Check success, %s is SP670.", ib_dev_name);
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
 /* try to dlopen ibverbs */
-static uint32_t ucs_has_spec_device()
+static uint32_t ucs_has_spec_device(ucs_config_match_device_func func)
 {
     struct ibv_device **dev_list;
     struct ibv_context *dev_context;
@@ -2077,7 +2166,7 @@ static uint32_t ucs_has_spec_device()
         }
         (void)close_device(dev_context);
         vendor_part_id = dev_attr.vendor_part_id;
-        if (ucs_config_match_spec_device(ib_dev_name, vendor_part_id)) {
+        if (func(ib_dev_name, vendor_part_id)) {
             free_device_list(dev_list);
             dev_list = NULL;
             dlclose(handle);
@@ -2091,7 +2180,7 @@ static uint32_t ucs_has_spec_device()
 }
 
 ucs_status_t
-ucs_config_parser_set_default_values_spec(void *opts, ucs_config_field_t *fields, uint32_t is_rc)
+ucs_config_parser_set_default_values_spec(void *opts, ucs_config_field_t *fields, uint32_t tag)
 {
     ucs_config_field_t *field, *sub_fields;
     ucs_status_t status;
@@ -2109,19 +2198,27 @@ ucs_config_parser_set_default_values_spec(void *opts, ucs_config_field_t *fields
          * Defaults can be subsequently set by parser.read(). */
         if (ucs_config_is_table_field(field)) {
             sub_fields = (ucs_config_field_t*)field->parser.arg;
-            status = ucs_config_parser_set_default_values_spec(var, sub_fields, is_rc);
+            status = ucs_config_parser_set_default_values_spec(var, sub_fields, tag);
             if (status != UCS_OK) {
                 return status;
             }
         }
 
         if (field->name && strcmp(field->name, "TX_MIN_SGE") == 0) {
-            if (is_rc) {
+            if (tag == TAG_RC) {
                 status = ucs_config_parser_parse_field(field, "2", var);
-            } else {
+            } 
+            if (tag == TAG_UD){
                 status = ucs_config_parser_parse_field(field, "1", var);
             }
         }
+
+        if (field->name && strcmp(field->name, "RX_QUEUE_LEN") == 0) {
+            if (tag == TAG_SP670) {
+                status = ucs_config_parser_parse_field(field, "4095", var);
+            } 
+        }
+
         if (status != UCS_OK) {
             return status;
         }
@@ -2138,9 +2235,7 @@ void ucs_config_parser_print_all_opts(FILE *stream, const char *prefix,
     ucs_status_t status;
     char title[64];
     void *opts;
-    uint32_t has_spec_dev = 0;
 
-    has_spec_dev = ucs_has_spec_device();
     ucs_list_for_each(entry, config_list, list) {
         if ((entry->table == NULL) ||
             (ucs_config_field_is_last(&entry->table[0]))) {
@@ -2162,9 +2257,15 @@ void ucs_config_parser_print_all_opts(FILE *stream, const char *prefix,
         /* Set SGE default values for specific devices before print */
         if (has_spec_dev) {
             if (entry->prefix && strcmp(entry->prefix, "RC_VERBS_") == 0) {
-                status = ucs_config_parser_set_default_values_spec(opts, entry->table, 1);
+                status = ucs_config_parser_set_default_values_spec(opts, entry->table, TAG_RC);
             } else if (entry->prefix && strcmp(entry->prefix, "UD_VERBS_") == 0) {
-                status = ucs_config_parser_set_default_values_spec(opts, entry->table, 0);
+                status = ucs_config_parser_set_default_values_spec(opts, entry->table, TAG_UD);
+            }
+        }
+
+        if (has_SP670_dev) {
+             if (entry->prefix && strcmp(entry->prefix, "IB_") == 0) {
+                status = ucs_config_parser_set_default_values_spec(opts, entry->table, TAG_RC);
             }
         }
 
