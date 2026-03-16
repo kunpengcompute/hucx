@@ -1213,6 +1213,8 @@ ucs_config_parser_set_default_values(void *opts, ucs_config_field_t *fields)
             sub_fields = (ucs_config_field_t*)field->parser.arg;
             if (has_SP670_dev && strcmp(field->name, "IB_") == 0) {
                 status = ucs_config_parser_set_default_values_with_tag(var, sub_fields, TAG_SP670);
+            } else {
+                status = ucs_config_parser_set_default_values(var, sub_fields);
             }
             if (status != UCS_OK) {
                 return status;
