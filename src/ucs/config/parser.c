@@ -70,6 +70,7 @@ const char *ucs_async_mode_names[] = {
 
 static uint32_t has_spec_dev = 0;
 static uint32_t has_SP670_dev = 0;
+static uint32_t devs_checked = 0;
 
 UCS_CONFIG_DEFINE_ARRAY(string, sizeof(char*), UCS_CONFIG_TYPE_STRING);
 
@@ -1579,9 +1580,11 @@ ucs_config_parser_fill_opts(void *opts, ucs_config_global_list_entry_t *entry,
     static ucs_init_once_t config_file_parse = UCS_INIT_ONCE_INITIALIZER;
     ucs_status_t status;
     
-    has_spec_dev = ucs_has_spec_device(ucs_config_match_spec_device);
-    has_SP670_dev = ucs_has_spec_device(ucs_config_match_SP670_device);
-
+    if (!devs_checked) {
+        has_spec_dev = ucs_has_spec_device(ucs_config_match_spec_device);
+        has_SP670_dev = ucs_has_spec_device(ucs_config_match_SP670_device);
+        devs_checked = 1;
+    }
     /* Set default values */
     status = ucs_config_parser_set_default_values(opts, entry->table);
     if (status != UCS_OK) {
