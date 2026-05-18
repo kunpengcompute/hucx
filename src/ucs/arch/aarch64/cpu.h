@@ -39,10 +39,6 @@ BEGIN_C_DECLS
 #define ucs_aarch64_isb(_op)          asm volatile ("isb " #_op ::: "memory")
 #define ucs_aarch64_dsb(_op)          asm volatile ("dsb " #_op ::: "memory")
 
-/**
- * Data Gathering Hint on Arm, see kernel patch:
- * https://lore.kernel.org/linux-arm-kernel/20211221035556.60346-1-wangxiongfeng2@huawei.com/T/
- */
 #define ucs_aarch64_dgh()             asm volatile ("hint #6" : : : "memory")
 
 /* The macro is used to serialize stores across Normal NC (or Device) and WB
