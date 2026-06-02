@@ -25,7 +25,10 @@
 #include <fnmatch.h>
 #include <ctype.h>
 #include <libgen.h>
+
+#if HAVE_IB
 #include <infiniband/verbs.h>
+#endif
 
 /* width of titles in docstring */
 #define UCS_CONFIG_PARSER_DOCSTR_WIDTH         10
@@ -86,6 +89,7 @@ static uint32_t ucs_has_spec_device(ucs_config_match_device_func func);
 
 uint32_t ucs_config_match_SP670_device(const char *ib_dev_name, const uint32_t vendor_part_id);
 uint32_t ucs_config_match_spec_device(const char *ib_dev_name, const uint32_t vendor_part_id);
+
 ucs_status_t ucs_config_parser_set_default_values_with_tag(void *opts, ucs_config_field_t *fields, uint32_t tag);
 
 int ucs_config_sscanf_string(const char *buf, void *dest, const void *arg)
@@ -1579,12 +1583,13 @@ ucs_config_parser_fill_opts(void *opts, ucs_config_global_list_entry_t *entry,
     const char   *sub_prefix = NULL;
     static ucs_init_once_t config_file_parse = UCS_INIT_ONCE_INITIALIZER;
     ucs_status_t status;
-    
+
     if (!devs_checked) {
         has_spec_dev = ucs_has_spec_device(ucs_config_match_spec_device);
         has_SP670_dev = ucs_has_spec_device(ucs_config_match_SP670_device);
         devs_checked = 1;
     }
+
     /* Set default values */
     status = ucs_config_parser_set_default_values(opts, entry->table);
     if (status != UCS_OK) {
@@ -1947,12 +1952,12 @@ void ucs_config_parser_print_opts(FILE *stream, const char *title, const void *o
     }
 }
 
-static const uint32_t ucs_config_spec_dev_revision_ids[] = {
+static const __attribute__((unused)) uint32_t ucs_config_spec_dev_revision_ids[] = {
     0x30,
     0x32
 };
 
-static const uint32_t ucs_config_spec_dev_vendor_part_ids[] = {
+static const __attribute__((unused)) uint32_t ucs_config_spec_dev_vendor_part_ids[] = {
     0xa220,
     0xa221,
     0xa222,
@@ -2010,6 +2015,7 @@ int32_t ucs_config_read_uint_from_file(const char *path, uint32_t *value)
     return 0;
 }
 
+#if HAVE_IB
 uint32_t ucs_config_match_spec_device(const char *ib_dev_name, const uint32_t vendor_part_id)
 {
     char revision_path[256];
@@ -2183,6 +2189,22 @@ static uint32_t ucs_has_spec_device(ucs_config_match_device_func func)
     dlclose(handle);
     return 0;
 }
+#else
+uint32_t ucs_config_match_spec_device(const char *ib_dev_name, const uint32_t vendor_part_id)
+{
+    return 0;
+}
+
+uint32_t ucs_config_match_SP670_device(const char *ib_dev_name, const uint32_t vendor_part_id)
+{
+    return 0;
+}
+
+static uint32_t ucs_has_spec_device(ucs_config_match_device_func func)
+{
+    return 0;
+}
+#endif
 
 ucs_status_t
 ucs_config_parser_set_default_values_spec(void *opts, ucs_config_field_t *fields, uint32_t tag)
