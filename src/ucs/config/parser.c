@@ -89,7 +89,6 @@ static uint32_t ucs_has_spec_device(ucs_config_match_device_func func);
 
 uint32_t ucs_config_match_SP670_device(const char *ib_dev_name, const uint32_t vendor_part_id);
 uint32_t ucs_config_match_spec_device(const char *ib_dev_name, const uint32_t vendor_part_id);
-
 ucs_status_t ucs_config_parser_set_default_values_with_tag(void *opts, ucs_config_field_t *fields, uint32_t tag);
 
 int ucs_config_sscanf_string(const char *buf, void *dest, const void *arg)
@@ -2190,17 +2189,17 @@ static uint32_t ucs_has_spec_device(ucs_config_match_device_func func)
     return 0;
 }
 #else
-uint32_t ucs_config_match_spec_device(const char *ib_dev_name, const uint32_t vendor_part_id)
+ucs_status_t ucs_config_match_spec_device(const char *ib_dev_name, const uint32_t vendor_part_id)
 {
     return 0;
 }
 
-uint32_t ucs_config_match_SP670_device(const char *ib_dev_name, const uint32_t vendor_part_id)
+ucs_status_t ucs_config_match_SP670_device(const char *ib_dev_name, const uint32_t vendor_part_id)
 {
     return 0;
 }
 
-static uint32_t ucs_has_spec_device(ucs_config_match_device_func func)
+static ucs_status_t ucs_has_spec_device(ucs_config_match_device_func func)
 {
     return 0;
 }
