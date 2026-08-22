@@ -1,5 +1,6 @@
 #
 # Copyright (c) NVIDIA CORPORATION & AFFILIATES, 2001-2018. ALL RIGHTS RESERVED.
+# Copyright (c) Huawei Technologies Co., Ltd. 2026. ALL RIGHTS RESERVED.
 # See file LICENSE for terms.
 #
 
@@ -9,6 +10,7 @@ m4_include([src/uct/ib/configure.m4])
 m4_include([src/uct/rocm/configure.m4])
 m4_include([src/uct/sm/configure.m4])
 m4_include([src/uct/ugni/configure.m4])
+m4_include([src/uct/ub/configure.m4])
 
 AC_DEFINE_UNQUOTED([uct_MODULES], ["${uct_modules}"], [UCT loadable modules])
 

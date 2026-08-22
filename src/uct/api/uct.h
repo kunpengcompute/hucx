@@ -965,7 +965,10 @@ enum uct_ep_params_field {
     UCT_EP_PARAM_FIELD_PRIV_DATA_LENGTH           = UCS_BIT(15),
 
     /** Enables @ref uct_ep_params::local_sockaddr */
-    UCT_EP_PARAM_FIELD_LOCAL_SOCKADDR             = UCS_BIT(16)
+    UCT_EP_PARAM_FIELD_LOCAL_SOCKADDR             = UCS_BIT(16),
+
+    /** Enables @ref uct_ep_params::um_ep passive create*/
+    UCT_EP_PARAM_FIELD_CONN_PASSIVE               = UCS_BIT(17)
 };
 
 
@@ -1190,6 +1193,8 @@ struct uct_iface_params {
     ucs_cpu_set_t                                cpu_mask;
     /** Interface open mode bitmap. @ref uct_iface_open_mode */
     uint64_t                                     open_mode;
+    /** Pass uuid from ucp to uct*/
+    uint64_t                                     uuid;
     /** Mode-specific parameters */
     union {
         /** @anchor uct_iface_params_t_mode_device
@@ -1291,6 +1296,10 @@ struct uct_iface_params {
     uint64_t                                     features;
 };
 
+struct uct_data_params {
+    uint64_t uuid;
+    uint64_t flag;
+};
 
 /**
  * @ingroup UCT_RESOURCE

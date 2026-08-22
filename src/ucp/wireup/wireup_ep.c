@@ -325,8 +325,11 @@ ucp_wireup_ep_connect_aux(ucp_wireup_ep_t *wireup_ep, unsigned ep_init_flags,
     const ucp_address_entry_t *aux_addr;
     ucp_worker_iface_t *wiface;
     ucs_status_t status;
+    uct_data_params_t uct_data_params;
     uct_ep_h uct_ep;
 
+    uct_data_params.uuid = worker->uuid;
+    uct_data_params.flag = 0;
     /* select an auxiliary transport which would be used to pass connection
      * establishment messages.
      */
@@ -347,6 +350,11 @@ ucp_wireup_ep_connect_aux(ucp_wireup_ep_t *wireup_ep, unsigned ep_init_flags,
     uct_ep_params.iface      = wiface->iface;
     uct_ep_params.dev_addr   = aux_addr->dev_addr;
     uct_ep_params.iface_addr = aux_addr->iface_addr;
+    /* For ub tp_aware mode, pass uuid to uct layer,
+     * and get the passively created flag back.*/
+    if (worker->context->config.ext.tp_aware) {
+        uct_ep_params.user_data  = &uct_data_params;
+    }
     status = uct_ep_create(&uct_ep_params, &uct_ep);
     if (status != UCS_OK) {
         ucs_error("ep %p cannot connect aux rsc %u %d", ucp_ep, select_info.rsc_index, status);
@@ -365,6 +373,9 @@ ucp_wireup_ep_connect_aux(ucp_wireup_ep_t *wireup_ep, unsigned ep_init_flags,
         return status;
     }
 
+    if (worker->context->config.ext.tp_aware && uct_data_params.flag & UCP_EP_FLAG_FIELD_CONN_PASSIVE) {
+        ucp_ep->flags |= UCP_EP_FLAG_FIELD_CONN_PASSIVE;
+    }
     ucp_wireup_ep_set_aux(wireup_ep, uct_ep, select_info.rsc_index, 0);
 
     ucp_worker_iface_progress_ep(wiface);
@@ -606,12 +617,31 @@ ucs_status_t ucp_wireup_ep_connect(uct_ep_h uct_ep, unsigned ep_init_flags,
 {
     ucp_wireup_ep_t *wireup_ep     = ucp_wireup_ep(uct_ep);
     ucp_ep_h ucp_ep                = wireup_ep->super.ucp_ep;
+    ucp_wireup_ep_t *msg_lane_wireup_ep = NULL;
     ucp_worker_h worker            = ucp_ep->worker;
+    uct_ep_h msg_lane_uct_ep = NULL;
     uct_ep_params_t uct_ep_params;
+    ucp_lane_index_t msg_lane = 0;
     ucs_status_t status;
     uct_ep_h next_ep;
 
     ucs_assert(wireup_ep != NULL);
+    /* For ub tp_aware mode, move the aux_ep create process in advance,
+     * so that we pass the process of aux_ep create after ep_create. */
+    if (worker->context->config.ext.tp_aware && connect_aux) {
+        status = ucp_wireup_ep_connect_aux(wireup_ep, ep_init_flags,
+                                           remote_address);
+        if (status != UCS_OK) {
+            goto err_destroy_next_ep;
+        }
+    }
+    /* For ub tp_aware mode, get the aux_ep first*/
+    if (worker->context->config.ext.tp_aware) {
+        msg_lane = ucp_ep_get_wireup_msg_lane(ucp_ep);
+        msg_lane_uct_ep = ucp_ep_get_lane(ucp_ep, msg_lane);
+        msg_lane_wireup_ep = ucp_wireup_ep(msg_lane_uct_ep);
+        uct_ep_params.user_data = msg_lane_wireup_ep->aux_ep;
+    }
 
     uct_ep_params.field_mask = UCT_EP_PARAM_FIELD_IFACE |
                                UCT_EP_PARAM_FIELD_PATH_INDEX;
@@ -634,7 +664,7 @@ ucs_status_t ucp_wireup_ep_connect(uct_ep_h uct_ep, unsigned ep_init_flags,
                       &worker->context->tl_rscs[rsc_index].tl_rsc));
 
     /* we need to create an auxiliary transport only for active messages */
-    if (connect_aux) {
+    if ((!worker->context->config.ext.tp_aware) && connect_aux) {
         status = ucp_wireup_ep_connect_aux(wireup_ep, ep_init_flags,
                                            remote_address);
         if (status != UCS_OK) {

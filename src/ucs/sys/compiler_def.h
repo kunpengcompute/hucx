@@ -138,9 +138,9 @@
 
 /**
  * Get the type of a structure or variable.
- * 
+ *
  * @param _type  Return the type of this argument.
- * 
+ *
  * @return The type of the given argument.
  */
 #define ucs_typeof(_type) \
@@ -185,6 +185,7 @@
  * Prefetch cache line
  */
 #define ucs_prefetch(p)            __builtin_prefetch(p)
+#define ucs_read_prefetch(p)       __builtin_prefetch(p, 0, 3)
 
 /* Branch prediction */
 #define ucs_likely(x)              __builtin_expect(x, 1)

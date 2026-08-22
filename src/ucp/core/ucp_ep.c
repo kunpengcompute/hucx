@@ -1142,11 +1142,26 @@ ucp_ep_create_api_to_worker_addr(ucp_worker_h worker,
     }
 
     /* if needed, send initial wireup message */
+    /*
+     * If we use the tp_aware mode in ub transport, we need
+     * UCP_EP_FLAG_FIELD_CONN_PASSIVE flag to ensure if the
+     * uct_ep is created before ucp_ep.
+     */
+    if (worker->context->config.ext.tp_aware) {
+        if (!(ep->flags & UCP_EP_FLAG_LOCAL_CONNECTED) && !(ep->flags & UCP_EP_FLAG_FIELD_CONN_PASSIVE)) {
+            ucs_assert(!(ep->flags & UCP_EP_FLAG_CONNECT_REQ_QUEUED));
+            status = ucp_wireup_send_request(ep);
+            if (status != UCS_OK) {
+                goto out_free_address;
+            }
+        }
+    } else {
     if (!(ep->flags & UCP_EP_FLAG_LOCAL_CONNECTED)) {
         ucs_assert(!(ep->flags & UCP_EP_FLAG_CONNECT_REQ_QUEUED));
         status = ucp_wireup_send_request(ep);
         if (status != UCS_OK) {
             goto out_free_address;
+            }
         }
     }
 
@@ -1937,7 +1952,7 @@ int ucp_ep_config_is_equal(const ucp_ep_config_key_t *key1,
 
     /*
      * in normal cases, the last am_bw lane is selected for wireup_msg_lane,
-     * as long as am_bw lane can be matched, wireup_msg_lane must be matched too. 
+     * as long as am_bw lane can be matched, wireup_msg_lane must be matched too.
      * so wireup_msg_lane does not need to be judged.
      * but during failover, wireup_msg_lane may be switched.
      * here preceding judgment logic needs to be deleted.
@@ -3669,8 +3684,8 @@ static ucs_status_t ucp_ep_query_transport(ucp_ep_h ep, ucp_ep_attr_t *attr)
                                     lane_index * attr->transports.entry_size);
 
         /* Each field updated in the following block must have its ending offset
-         * compared to attr->transports.entry_size before the field is 
-         * updated. If the field's ending offset is greater than the 
+         * compared to attr->transports.entry_size before the field is
+         * updated. If the field's ending offset is greater than the
          * attr->transports.entry_size value, the field cannot be updated because
          * that will cause a storage overlay.
          */

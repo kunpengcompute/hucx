@@ -171,6 +171,7 @@ typedef struct ucp_context_config {
     char                                   *proto_info_dir;
     /** Memory types that perform non-blocking registration by default */
     uint64_t                               reg_nb_mem_types;
+    int                                    tp_aware;
     /** Resolution for process pending time for schedule */
     double                                 min_pending_time;
     /** Request timeout threshold */
