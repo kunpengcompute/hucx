@@ -130,8 +130,9 @@ enum {
     UCP_EP_FLAG_CLIENT_CONNECT_CB      = UCS_BIT(23),/* DEBUG: Client connect callback invoked */
     UCP_EP_FLAG_SERVER_NOTIFY_CB       = UCS_BIT(24),/* DEBUG: Server notify callback invoked */
     UCP_EP_FLAG_DISCONNECT_CB_CALLED   = UCS_BIT(25),/* DEBUG: Got disconnect notification */
-    UCP_EP_FLAG_CONNECT_WAIT_PRE_REQ   = UCS_BIT(26) /* DEBUG: Connection pre-request needs to be
+    UCP_EP_FLAG_CONNECT_WAIT_PRE_REQ   = UCS_BIT(26),/* DEBUG: Connection pre-request needs to be
                                                         received from a peer */
+    UCP_EP_FLAG_FIELD_CONN_PASSIVE     = UCS_BIT(27) /* aux ep was created passively */
 };
 
 
@@ -829,7 +830,7 @@ ucp_ep_peer_mem_get(ucp_context_h context, ucp_ep_h ep, uint64_t address,
 
 /**
  * @brief Indicates AM-based keepalive necessity.
- * 
+ *
  * @param [in] ep      UCP endpoint to check.
  * @param [in] rsc_idx Resource index to check.
  * @param [in] is_p2p  Flag that indicates whether UCT EP was created as p2p

@@ -943,7 +943,7 @@ static unsigned ucp_wireup_send_msg_check_done(void *arg)
     ucp_ep_h ucp_ep = (ucp_ep_h)arg;
     ucs_status_t status;
     ucs_info("ep %p: send wireup check done, flags 0x%x", ucp_ep, ucp_ep->flags);
-    
+
     status = ucp_wireup_msg_send(ucp_ep, UCP_WIREUP_MSG_CHECK_DONE, &ucp_tl_bitmap_min, NULL);
     if (status) {
         ucs_error("wireup send retry msg failed during failover");
@@ -1246,6 +1246,10 @@ ucp_wireup_connect_lane_to_iface(ucp_ep_h ep, ucp_lane_index_t lane,
     uct_ep_params.dev_addr   = address->dev_addr;
     uct_ep_params.iface_addr = address->iface_addr;
     uct_ep_params.path_index = path_index;
+    /* For ub tp_aware mode, um mode has no user_data passed.*/
+    if (wiface->worker->context->config.ext.tp_aware) {
+        uct_ep_params.user_data  = NULL;
+    }
     status = uct_ep_create(&uct_ep_params, &uct_ep);
     if (status != UCS_OK) {
         /* coverity[leaked_storage] */
@@ -1946,10 +1950,20 @@ ucs_status_t ucp_wireup_init_lanes(ucp_ep_h ep, unsigned ep_init_flags,
     snprintf(str, sizeof(str), "ep %p", ep);
     ucp_wireup_print_config(worker, &ucp_ep_config(ep)->key, str,
                             addr_indices, cm_idx, UCS_LOG_LEVEL_DEBUG);
-
+    /* For ub tp_aware mode, create lane with aux_ep before other lanes.*/
+    if (worker->context->config.ext.tp_aware) {
+        lane = ucp_ep_get_wireup_msg_lane(ep);
+        status = ucp_wireup_connect_lane(ep, ep_init_flags, lane,
+                                         key.lanes[lane].path_index,
+                                         remote_address, addr_indices[lane]);
+        if (status != UCS_OK) {
+            goto out;
+        }
+    }
     /* establish connections on all underlying endpoints */
     for (lane = 0; lane < ucp_ep_num_lanes(ep); ++lane) {
-        if (ucp_ep_get_cm_lane(ep) == lane) {
+        if (ucp_ep_get_cm_lane(ep) == lane ||
+		    (worker->context->config.ext.tp_aware && (lane == ucp_ep_get_wireup_msg_lane(ep)))) {
             continue;
         }
 
