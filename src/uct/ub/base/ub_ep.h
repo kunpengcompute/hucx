@@ -198,7 +198,7 @@ uct_ub_outstanding_queue_add_send_op(uct_ub_tx_queue_t *tx_queue, uct_ub_iface_s
      * than completion zero-based index).
      */
     ucs_assert(op != NULL);
-    ucs_assertv(!(op->flags & UCT_UB_IFACE_SEND_OP_FLAG_INUSE));
+    ucs_assert(!(op->flags & UCT_UB_IFACE_SEND_OP_FLAG_INUSE));
     op->flags |= UCT_UB_IFACE_SEND_OP_FLAG_INUSE;
     ucs_queue_push(&tx_queue->outstanding, &op->queue);
 }
