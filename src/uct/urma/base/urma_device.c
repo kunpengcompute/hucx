@@ -7,8 +7,8 @@
 #  include "config.h"
 #endif
 
-#include "ub_device.h"
-#include "ub_md.h"
+#include "urma_device.h"
+#include "urma_md.h"
 
 #include <ucs/arch/bitops.h>
 #include <ucs/debug/memtrack.h>
@@ -25,7 +25,7 @@
 #define BASE_NUM_16 16
 #define BASE_SHIFT_32 32
 #define SKIP_LAYERS_2 2
-#define RET_OK 4
+#define BUS_ID_FIELDS_NUM 4
 
 static UCS_F_ALWAYS_INLINE
 khint32_t uct_ub_async_event_hash_func(uct_ub_async_event_t event)
@@ -176,7 +176,7 @@ static ucs_sys_device_t uct_ub_device_get_sys_dev(uct_ub_device_t *dev)
 
     num_fields = sscanf(pcie_bus, "%hx:%hhx:%hhx.%hhx", &bus_id.domain,
                         &bus_id.bus, &bus_id.slot, &bus_id.function);
-    if (num_fields != RET_OK) {
+    if (num_fields != BUS_ID_FIELDS_NUM) {
         return UCS_SYS_DEVICE_ID_UNKNOWN;
     }
 

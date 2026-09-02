@@ -480,7 +480,7 @@ static ucs_config_field_t ucp_context_config_table[] = {
    ucs_offsetof(ucp_context_config_t, reg_nb_mem_types),
    UCS_CONFIG_TYPE_BITMAP(ucs_memory_type_names)},
 
-  {"ENABLE_TP_AWARE", "n",
+  {"TP_AWARE_ENABLE", "n",
    "Enable tp_aware function in ub transport",
    ucs_offsetof(ucp_context_config_t, tp_aware), UCS_CONFIG_TYPE_BOOL},
 
@@ -608,6 +608,7 @@ static ucp_tl_alias_t ucp_tl_aliases[] = {
   { "cuda",  { "cuda_copy", "cuda_ipc", "gdr_copy", NULL } },
   { "rocm",  { "rocm_copy", "rocm_ipc", "rocm_gdr", NULL } },
   { "um_u",  { "um_urma", NULL } },
+  { "um",    { "um_urma", NULL } },
   { NULL }
 };
 

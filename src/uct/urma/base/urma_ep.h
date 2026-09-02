@@ -11,7 +11,7 @@
 #include <ucs/datastruct/arbiter.h>
 #include <ucs/sys/compiler_def.h>
 #include <uct/base/uct_iface.h>
-#include <uct/ub/base/ub_iface.h>
+#include <uct/urma/base/urma_iface.h>
 
 #define MAX_TASK_COUNT 608
 #define UCT_UB_MAX_HDR_SIZE 128

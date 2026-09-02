@@ -68,4 +68,4 @@ AM_CONDITIONAL([HAVE_UC_OFFLOAD],      [test "x$uc_offload" != xno])
 
 uct_ub_modules=""
 AC_DEFINE_UNQUOTED([uct_ub_MODULES], ["${uct_ub_modules}"], [UB loadable modules])
-AC_CONFIG_FILES([src/uct/ub/Makefile])
+AC_CONFIG_FILES([src/uct/urma/Makefile])

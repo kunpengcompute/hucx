@@ -8,8 +8,8 @@
 #  include "config.h"
 #endif
 
-#include "ub_iface.h"
-#include "ub_ep.h"
+#include "urma_iface.h"
+#include "urma_ep.h"
 
 #include <uct/api/uct.h>
 #include <uct/base/uct_md.h>

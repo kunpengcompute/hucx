@@ -8,8 +8,8 @@
 #  include "config.h"
 #endif
 
-#include <uct/ub/base/ub_device.h>
-#include <uct/ub/um_urma/um_urma_ep.h>
+#include <uct/urma/base/urma_device.h>
+#include <uct/urma/um_urma/um_urma_ep.h>
 #include <uct/api/uct.h>
 #include <uct/base/uct_md.h>
 #include <uct/base/uct_iface.h>
@@ -49,7 +49,7 @@ ucs_config_field_t uct_um_urma_iface_config_table[] = {
     ucs_offsetof(uct_um_urma_iface_config_t, super),
     UCS_CONFIG_TYPE_TABLE(uct_ub_iface_config_table)},
 
-    {"TIMEOUT", "60.0s", "Transport timeout",
+    {"TIMEOUT", "5.0m", "Transport timeout",
      ucs_offsetof(uct_um_urma_iface_config_t, peer_timeout), UCS_CONFIG_TYPE_TIME},
 
     {"TX_JFC_LEN", "4096",
@@ -313,7 +313,7 @@ static void uct_um_urma_iface_post_recv_always(uct_um_urma_iface_t *iface, unsig
         for (tmp_count = 0; tmp_count < count; tmp_count++) {
             UCT_TL_IFACE_PUT_DESC(desc[tmp_count]);
         }
-        ucs_fatal("Urma_post_jetty_recv_wr failed failed status:%u.", status);
+        ucs_fatal("urma_post_jetty_recv_wr failed failed status:%u.", status);
     }
     iface->rx.available -= count;
 }

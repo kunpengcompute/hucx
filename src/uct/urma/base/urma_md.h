@@ -8,11 +8,7 @@
 #define UCT_UB_MD_H_
 
 #include <urma_types.h>
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-#include "ub_device.h"
+#include "urma_device.h"
 
 #include <uct/base/uct_md.h>
 #include <ucs/stats/stats.h>
@@ -187,9 +183,5 @@ void uct_ub_md_close_common(uct_ub_md_t *md,
                             const uct_ub_md_config_t *md_config);
 void uct_ub_md_close(uct_md_h uct_md);
 bool uct_check_ip_valid(urma_device_t *urma_dev, uint32_t eid_index);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif
