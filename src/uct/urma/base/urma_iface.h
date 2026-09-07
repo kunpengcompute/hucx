@@ -7,8 +7,8 @@
 #ifndef UCT_UB_IFACE_H
 #define UCT_UB_IFACE_H
 
-#include "ub_def.h"
-#include "ub_md.h"
+#include "urma_def.h"
+#include "urma_md.h"
 
 #include <uct/api/uct.h>
 #include <uct/base/uct_iface.h>

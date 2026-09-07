@@ -14,8 +14,8 @@
 #include <ucs/type/cpu_set.h>
 #include <ucs/debug/log.h>
 #include <uct/base/uct_iov.inl>
-#include "ub_ep.h"
-#include "ub_md.h"
+#include "urma_ep.h"
+#include "urma_md.h"
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif

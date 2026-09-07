@@ -8,9 +8,9 @@
 #include "config.h"
 #endif
 
-#include "ub_md.h"
-#include "ub_device.h"
-#include "ub_iface.h"
+#include "urma_md.h"
+#include "urma_device.h"
+#include "urma_iface.h"
 
 #include <ucs/arch/atomic.h>
 #include <ucs/profile/profile.h>

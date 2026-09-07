@@ -14,9 +14,9 @@
 #include <ucs/time/timer_wheel.h>
 #include <ucs/sys/compiler_def.h>
 #include <uct/base/uct_iface.h>
-#include <uct/ub/base/ub_iface.h>
-#include <uct/ub/base/ub_ep.h>
-#include <uct/ub/um_urma/um_urma_iface.h>
+#include <uct/urma/base/urma_iface.h>
+#include <uct/urma/base/urma_ep.h>
+#include <uct/urma/um_urma/um_urma_iface.h>
 #include "um_urma_def.h"
 
 #define UCT_UM_URMA_INITIAL_PSN             1   /* initial packet serial number */

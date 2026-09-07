@@ -7,7 +7,7 @@
 # See file LICENSE for terms.
 #
 
-SUBDIRS = . cuda ib rocm sm ugni ub
+SUBDIRS = . cuda ib rocm sm ugni urma
 
 lib_LTLIBRARIES    = libuct.la
 libuct_la_CFLAGS   = $(BASE_CFLAGS)

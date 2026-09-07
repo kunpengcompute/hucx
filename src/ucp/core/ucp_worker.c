@@ -1346,7 +1346,7 @@ ucs_status_t ucp_worker_iface_open(ucp_worker_h worker, ucp_rsc_index_t tl_id,
     iface_params->err_handler_flags = UCT_CB_FLAG_ASYNC;
     iface_params->cpu_mask          = worker->cpu_mask;
 
-    /* For ub tp_aware mode, pass uuid to uct layer*/
+    /* For ub tp_aware mode, pass uuid to uct layer */
     if (worker->context->config.ext.tp_aware) {
         iface_params->uuid              = worker->uuid;
     }

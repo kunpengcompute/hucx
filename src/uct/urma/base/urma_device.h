@@ -8,9 +8,6 @@
 
 #include <urma_api.h>
 #include <urma_types.h>
-#ifdef __cplusplus
-extern "C" {
-#endif
 #include <uct/api/uct.h>
 #include <uct/base/uct_iface.h>
 #include <ucs/stats/stats.h>
@@ -250,9 +247,5 @@ size_t uct_ub_mtu_value(urma_mtu_t mtu);
 ucs_status_t uct_ub_device_get_ndev_name(uct_ub_device_t *dev, char *ndev_name, size_t max);
 
 sa_family_t uct_ub_device_get_addr_family(urma_eid_t *eid);
-#ifdef __cplusplus
-}
-#endif
 
 #endif
-
