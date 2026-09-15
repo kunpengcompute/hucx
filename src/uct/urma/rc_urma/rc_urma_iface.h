@@ -17,7 +17,6 @@
 
 #include <urma_api.h>
 
-#define UCT_RC_URMA_OPS_CNT    1024
 typedef struct uct_rc_urma_iface    uct_rc_urma_iface_t;
 
 enum {
@@ -44,7 +43,7 @@ typedef struct uct_rc_urma_pending_req {
 } uct_rc_urma_pending_req_t;
 
 struct uct_rc_urma_iface {
-    uct_ub_iface_t             super;
+    uct_urma_iface_t             super;
     ucs_callback_t             progress;
     uct_ub_iface_send_desc_t   *fc_desc; /* used when max_inline is zero */
     struct {
@@ -65,7 +64,7 @@ struct uct_rc_urma_iface {
 };
 
 typedef struct uct_rc_urma_iface_config {
-    uct_ub_iface_config_t      super;
+    uct_urma_iface_config_t      super;
     unsigned                   flush_mode;
     unsigned                   tx_jfc_len;
     double                     soft_thresh;

@@ -380,7 +380,7 @@ out:
     return ret;
 }
 
-ucs_status_t uct_rc_urma_ep_get_0bytes(uct_rc_urma_ep_t *ep, uct_rc_urma_iface_t *iface,
+ucs_status_t uct_rc_urma_ep_get_zero_bytes(uct_rc_urma_ep_t *ep, uct_rc_urma_iface_t *iface,
                                        uct_ub_iface_send_desc_t *desc)
 {
     urma_jetty_t *jetty = ep->rc_urma_jetty.jetty;
@@ -434,7 +434,7 @@ ucs_status_t uct_rc_urma_ep_get_bcopy(uct_ep_h tl_ep,
     UCT_TL_EP_STAT_OP(&ep->super.super, GET, BCOPY, length);
 
     if (ucs_unlikely(length == 0)) {
-        ret = uct_rc_urma_ep_get_0bytes(ep, iface, desc);
+        ret = uct_rc_urma_ep_get_zero_bytes(ep, iface, desc);
         if (ret != UCS_INPROGRESS) {
             goto err_free_desc;
         }
@@ -868,7 +868,7 @@ ucs_status_t uct_rc_urma_ep_fc_grant(uct_pending_req_t *self)
     return status;
 }
 
-ucs_status_t uct_rc_urma_ep_post_flush_size_zero(uct_rc_urma_iface_t *iface, uct_rc_urma_ep_t *ep, const void *payload,
+ucs_status_t uct_rc_urma_ep_post_flush_size_zero_bytes(uct_rc_urma_iface_t *iface, uct_rc_urma_ep_t *ep, const void *payload,
                                                  unsigned length, uint64_t remote_addr)
 {
     urma_jetty_t *jetty = ep->rc_urma_jetty.jetty;
@@ -888,7 +888,7 @@ ucs_status_t uct_rc_urma_ep_post_flush_size_zero(uct_rc_urma_iface_t *iface, uct
     urma_status = urma_post_jetty_send_wr(jetty, wr, &bad_wr);
     if (urma_status != URMA_SUCCESS) {
         (void)memset(wr, 0, sizeof(urma_jfs_wr_t));
-        ucs_fatal("In function uct_rc_urma_ep_post_flush_size_zero, urma_post_jetty_send_wr() failed code(0x%x)", urma_status);
+        ucs_fatal("In function uct_rc_urma_ep_post_flush_size_zero_bytes, urma_post_jetty_send_wr() failed code(0x%x)", urma_status);
     }
 
     uct_rc_urma_update_tx_resources_status(ep, iface, wr->flag.bs.complete_enable);
@@ -934,7 +934,7 @@ static void uct_rc_urma_ep_post_flush(uct_rc_urma_ep_t *ep, uct_rc_urma_iface_t 
     if (iface->config.flush_by_fc || (iface->super.config.max_inline == 0)) {
         uct_rc_urma_ep_post_flush_by_fc(iface, ep);
     } else {
-        uct_rc_urma_ep_post_flush_size_zero(iface, ep, &dummy, 0, ep->ka_va_addr);
+        uct_rc_urma_ep_post_flush_size_zero_bytes(iface, ep, &dummy, 0, ep->ka_va_addr);
     }
 }
 
@@ -1354,7 +1354,7 @@ ucs_status_t uct_rc_urma_ep_create_jetty(uct_rc_urma_iface_t *iface, uct_rc_urma
 void uct_rc_urma_ep_txqp_purge_outstanding(uct_rc_urma_iface_t *iface, uct_ub_tx_queue_t *txqp,
                                            ucs_status_t status, uint32_t sn, int warn)
 {
-    uct_ub_iface_send_op_t *op = NULL;
+    uct_urma_iface_send_op_t *op = NULL;
     ucs_status_t ret = UCS_OK;
 
     ucs_queue_for_each_extract(op, &txqp->outstanding, queue, UCS_CIRCULAR_COMPARE32(op->sn, <=, sn)) {

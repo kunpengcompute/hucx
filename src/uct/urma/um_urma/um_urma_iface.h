@@ -64,7 +64,7 @@ typedef struct uct_um_urma_iface_ops {
 } uct_um_urma_iface_ops_t;
 
 typedef struct uct_um_urma_iface_config {
-    uct_ub_iface_config_t   super;
+    uct_urma_iface_config_t   super;
     unsigned                tx_jfc_len;
     double                  peer_timeout;
     double                  min_poke_time;
@@ -139,7 +139,7 @@ KHASH_INIT(uct_um_urma_tjetty, urma_rjetty_t, uct_um_urma_peer_address_t, 1,
            uct_um_urma_tjetty_hash_func, uct_um_urma_tjetty_hash_equal)
 
 typedef struct uct_um_urma_iface {
-    uct_ub_iface_t                  super;
+    uct_urma_iface_t                  super;
     uct_um_urma_jetty_t             um_urma_jetty;
     struct {
         unsigned                    available;

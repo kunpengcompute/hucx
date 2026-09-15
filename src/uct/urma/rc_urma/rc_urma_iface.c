@@ -48,9 +48,9 @@ static ucs_stats_class_t uct_rc_urma_iface_stats_class = {
 #endif /* ENABLE_STATS */
 
 ucs_config_field_t uct_rc_urma_iface_config_table[] = {
-    {"UB_", "", NULL,
+    {"URMA_", "", NULL,
      ucs_offsetof(uct_rc_urma_iface_config_t, super),
-     UCS_CONFIG_TYPE_TABLE(uct_ub_iface_config_table)},
+     UCS_CONFIG_TYPE_TABLE(uct_urma_iface_config_table)},
 
     {"TX_JFC_LEN", "4096",
      "Length of send completion queue. This limits the total number of outstanding signaled sends.",
@@ -170,7 +170,7 @@ static UCS_F_ALWAYS_INLINE uct_ub_iface_find_ep_t uct_rc_urma_get_ep_by_cr(uct_r
     return UCT_UB_FIND_DATA_EP;
 }
 
-static void uct_rc_urma_handle_failure(uct_ub_iface_t *ub_iface, urma_cr_t *cr)
+static void uct_rc_urma_handle_failure(uct_urma_iface_t *ub_iface, urma_cr_t *cr)
 {
     uct_rc_urma_iface_t *iface = ucs_derived_of(ub_iface, uct_rc_urma_iface_t);
     uct_rc_urma_ep_t *ep = NULL;
@@ -203,13 +203,13 @@ static void uct_rc_urma_handle_failure(uct_ub_iface_t *ub_iface, urma_cr_t *cr)
 
     status  = uct_iface_handle_ep_err(&iface->super.super.super,
                                       &ep->super.super.super, ep_status);
-    log_lvl = uct_ub_iface_failure_log_level(&iface->super.super, status,
+    log_lvl = uct_urma_iface_failure_log_level(&iface->super.super, status,
                                              ep_status);
 
     ucs_log(log_lvl, "Send completion with error: %u", cr->status);
 }
 
-ucs_status_t uct_rc_urma_iface_fc_handler(uct_ub_iface_t *ub_iface, void *arg, urma_cr_t *cr, unsigned flags)
+ucs_status_t uct_rc_urma_iface_fc_handler(uct_urma_iface_t *ub_iface, void *arg, urma_cr_t *cr, unsigned flags)
 {
     uct_rc_urma_iface_t *iface = ucs_derived_of(ub_iface, uct_rc_urma_iface_t);
     uct_rc_urma_pending_req_t *fc_req = NULL;
@@ -296,7 +296,7 @@ out:
                                hdr + 1, length, flags);
 }
 
-static void uct_rc_urma_iface_jfc_destroy(uct_ub_iface_t *iface, uint8_t direction)
+static void uct_rc_urma_iface_jfc_destroy(uct_urma_iface_t *iface, uint8_t direction)
 {
     uct_ub_destroy_jfc(iface->jfc[direction]);
 }
@@ -560,8 +560,9 @@ static ucs_status_t uct_rc_urma_iface_pending_mpool_init(uct_rc_urma_iface_t *if
     ucs_mpool_params_reset(&mp_params);
     mp_params.elem_size = sizeof(uct_rc_urma_pending_req_t);
     mp_params.elems_per_chunk = 128;
+    mp_params.alignment = 1;
     mp_params.ops = &uct_rc_urma_pending_mpool_ops;
-    mp_params.name = "pendng-ops";
+    mp_params.name = "pending-ops";
     status = ucs_mpool_init(&mp_params, &iface->tx.pending_mp);
 
     return status;
@@ -590,7 +591,7 @@ static UCS_CLASS_INIT_FUNC(uct_rc_urma_iface_t, uct_md_h tl_md, uct_worker_h wor
     init_attr.rx_hdr_len               = sizeof(uct_ub_hdr_t);
     init_attr.use_min_seg              = 0;
 
-    UCS_CLASS_CALL_SUPER_INIT(uct_ub_iface_t, ops, &uct_rc_urma_iface_tl_ops, tl_md, worker,
+    UCS_CLASS_CALL_SUPER_INIT(uct_urma_iface_t, ops, &uct_rc_urma_iface_tl_ops, tl_md, worker,
                               params, tl_config, &init_attr);
 
     status = UCS_STATS_NODE_ALLOC(&self->stats, &uct_rc_urma_iface_stats_class, self->super.stats, "-%p", self);
@@ -640,7 +641,7 @@ static UCS_CLASS_CLEANUP_FUNC(uct_rc_urma_iface_t)
     }
 }
 
-UCS_CLASS_DEFINE(uct_rc_urma_iface_t, uct_ub_iface_t);
+UCS_CLASS_DEFINE(uct_rc_urma_iface_t, uct_urma_iface_t);
 static UCS_CLASS_DEFINE_NEW_FUNC(uct_rc_urma_iface_t, uct_iface_t, uct_md_h,
                                  uct_worker_h, const uct_iface_params_t*,
                                  const uct_iface_config_t*);

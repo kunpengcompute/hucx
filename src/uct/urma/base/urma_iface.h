@@ -20,12 +20,12 @@
 
 
 /* Forward declarations */
-typedef struct uct_ub_iface_config  uct_ub_iface_config_t;
-typedef struct uct_ub_iface         uct_ub_iface_t;
-typedef struct uct_ub_iface_send_op uct_ub_iface_send_op_t;
+typedef struct uct_urma_iface_config  uct_urma_iface_config_t;
+typedef struct uct_urma_iface         uct_urma_iface_t;
+typedef struct uct_urma_iface_send_op uct_urma_iface_send_op_t;
 
-extern ucs_config_field_t uct_ub_iface_config_table[];
-typedef void (*uct_ub_send_handler_t)(uct_ub_iface_send_op_t *op, const void *resp);
+extern ucs_config_field_t uct_urma_iface_config_table[];
+typedef void (*uct_ub_send_handler_t)(uct_urma_iface_send_op_t *op, const void *resp);
 
 #define UCT_UB_MAX_ATOMIC_SIZE sizeof(uint64_t)
 #define UCT_UB_MAX_IOV 8UL
@@ -192,10 +192,10 @@ typedef struct uct_ub_iface_addr {
  *
  */
 
- struct uct_ub_iface_send_op {
+ struct uct_urma_iface_send_op {
     union {
         ucs_queue_elem_t                  queue;      /* used when enqueued a txqp */
-        uct_ub_iface_send_op_t            *next;      /* used when on free list */
+        uct_urma_iface_send_op_t            *next;      /* used when on free list */
     };
     uct_ub_send_handler_t                 handler;
     uint32_t                              sn;
@@ -204,13 +204,13 @@ typedef struct uct_ub_iface_addr {
     union {
         void                              *buffer;
         void                              *unpack_arg;
-        uct_ub_iface_t                    *iface;
+        uct_urma_iface_t                    *iface;
     };
     uct_completion_t                      *user_comp;
 };
 
 typedef struct uct_ub_iface_send_desc {
-    uct_ub_iface_send_op_t               super;
+    uct_urma_iface_send_op_t               super;
     uct_unpack_callback_t                unpack_cb;
     urma_target_seg_t                    *tseg;
 } uct_ub_iface_send_desc_t;
@@ -238,7 +238,7 @@ typedef struct uct_ub_iface_init_attr {
     int      flags;                     /* (see enum above:like UCT_UB_TX_OPS_PER_PATH) */
 } uct_ub_iface_init_attr_t;
 
-struct uct_ub_iface_config {
+struct uct_urma_iface_config {
     uct_iface_config_t               super;
     size_t                           seg_size;
     size_t                           max_am_hdr;
@@ -276,10 +276,10 @@ struct uct_ub_iface_config {
     unsigned long                    subnet_pfx_len;
 };
 
-typedef ucs_status_t (*uct_ub_iface_create_jfc_func_t)(uct_ub_iface_t *iface, uct_ub_dir_t dir,
+typedef ucs_status_t (*uct_ub_iface_create_jfc_func_t)(uct_urma_iface_t *iface, uct_ub_dir_t dir,
                                                        const uct_ub_iface_init_attr_t *init_attr);
 
-typedef ucs_status_t (*uct_ub_iface_arm_jfc_func_t)(uct_ub_iface_t *iface, uct_ub_dir_t dir,
+typedef ucs_status_t (*uct_ub_iface_arm_jfc_func_t)(uct_urma_iface_t *iface, uct_ub_dir_t dir,
                                                     int solicited_only);
 
 typedef struct uct_ub_am_short_hdr {
@@ -288,10 +288,10 @@ typedef struct uct_ub_am_short_hdr {
 } UCS_S_PACKED uct_ub_am_short_hdr_t;
 
 
-typedef void (*uct_ub_iface_handle_failure_func_t)(uct_ub_iface_t *iface, urma_cr_t *cr);
-typedef ucs_status_t (*uct_ub_iface_fc_handler_func_t)(uct_ub_iface_t *iface, void *hdr,
+typedef void (*uct_ub_iface_handle_failure_func_t)(uct_urma_iface_t *iface, urma_cr_t *cr);
+typedef ucs_status_t (*uct_ub_iface_fc_handler_func_t)(uct_urma_iface_t *iface, void *hdr,
                                                        urma_cr_t *cr, unsigned flags);
-typedef void (*uct_ub_iface_destroy_jfc_func_t)(uct_ub_iface_t *iface, uint8_t direction);
+typedef void (*uct_ub_iface_destroy_jfc_func_t)(uct_urma_iface_t *iface, uint8_t direction);
 
 typedef struct uct_ub_iface_ops {
     uct_iface_internal_ops_t                   super;
@@ -306,7 +306,7 @@ typedef struct uct_ub_iface_ka_desc {
     urma_target_seg_t *tseg;
 } UCS_S_PACKED uct_ub_iface_ka_desc_t;
 
-struct uct_ub_iface {
+struct uct_urma_iface {
     uct_base_iface_t             super;
     urma_eid_t                   eid;
     uct_ub_device_eid_info_t     eid_info;
@@ -359,8 +359,8 @@ struct uct_ub_iface {
         ssize_t                        reads_completed;
         uct_ub_fence_info_t            fi;
         ssize_t                        jfc_available;
-        uct_ub_iface_send_op_t        *zcopy_ops_buffer;
-        uct_ub_iface_send_op_t        *zcopy_free_ops;
+        uct_urma_iface_send_op_t        *zcopy_ops_buffer;
+        uct_urma_iface_send_op_t        *zcopy_free_ops;
         ucs_mpool_t                    mp;
         ucs_mpool_t                    short_desc_mp;
         ucs_mpool_t                    send_op_mp;
@@ -419,17 +419,17 @@ enum {
     UCT_UB_IFACE_STAT_LAST
 };
 
-static inline uct_ub_md_t *uct_ub_iface_md(const uct_ub_iface_t *iface)
+static inline uct_ub_md_t *uct_ub_iface_md(const uct_urma_iface_t *iface)
 {
     return ucs_derived_of(iface->super.md, uct_ub_md_t);
 }
 
-static inline uct_ub_device_t *uct_ub_iface_device(const uct_ub_iface_t *iface)
+static inline uct_ub_device_t *uct_ub_iface_device(const uct_urma_iface_t *iface)
 {
     return &uct_ub_iface_md(iface)->dev;
 }
 
-void uct_ub_ep_am_zcopy_handler(uct_ub_iface_send_op_t *op, const void *resp);
+void uct_ub_ep_am_zcopy_handler(uct_urma_iface_send_op_t *op, const void *resp);
 
 static inline void uct_ub_zcopy_desc_set_comp(uct_ub_iface_send_desc_t *desc,
                                               uct_completion_t *comp, uint32_t *force_complete_enable)
@@ -444,7 +444,7 @@ static inline void uct_ub_zcopy_desc_set_comp(uct_ub_iface_send_desc_t *desc,
     }
 }
 
-static UCS_F_ALWAYS_INLINE void uct_ub_iface_update_reads(uct_ub_iface_t *iface)
+static UCS_F_ALWAYS_INLINE void uct_ub_iface_update_reads(uct_urma_iface_t *iface)
 {
     ucs_assert(iface->tx.reads_completed >= 0);
 
@@ -452,25 +452,25 @@ static UCS_F_ALWAYS_INLINE void uct_ub_iface_update_reads(uct_ub_iface_t *iface)
     iface->tx.reads_completed = 0;
 }
 
-static UCS_F_ALWAYS_INLINE void uct_ub_iface_put_send_op(uct_ub_iface_send_op_t *op)
+static UCS_F_ALWAYS_INLINE void uct_ub_iface_put_send_op(uct_urma_iface_send_op_t *op)
 {
-    uct_ub_iface_t *iface = op->iface;
+    uct_urma_iface_t *iface = op->iface;
 
     ucs_assert(op->flags == UCT_UB_IFACE_SEND_OP_FLAG_IFACE);
     op->next = iface->tx.zcopy_free_ops;
     iface->tx.zcopy_free_ops = op;
 }
 
-static UCS_F_ALWAYS_INLINE uct_ub_iface_send_op_t *uct_ub_iface_get_send_op(uct_ub_iface_t *iface)
+static UCS_F_ALWAYS_INLINE uct_urma_iface_send_op_t *uct_ub_iface_get_send_op(uct_urma_iface_t *iface)
 {
-    uct_ub_iface_send_op_t *op = NULL;
+    uct_urma_iface_send_op_t *op = NULL;
 
     op = iface->tx.zcopy_free_ops;
     iface->tx.zcopy_free_ops = (op == NULL) ? NULL : op->next;
     return op;
 }
 
-static inline uct_ub_ep_t *uct_ub_iface_lookup_ep(uct_ub_iface_t *iface, urma_cr_t *cr)
+static inline uct_ub_ep_t *uct_ub_iface_lookup_ep(uct_urma_iface_t *iface, urma_cr_t *cr)
 {
     uint32_t ep_value = cr->user_ctx >> UCT_UB_EP_ID_OFFSET;
     uint32_t ep_id = (ep_value & UCT_UB_IFACE_MAX_EPS);
@@ -478,7 +478,7 @@ static inline uct_ub_ep_t *uct_ub_iface_lookup_ep(uct_ub_iface_t *iface, urma_cr
     return (uct_ub_ep_t *)(iface->eps.start[ep_id]);
 }
 
-static inline void *uct_ub_iface_recv_desc_hdr(uct_ub_iface_t *iface, uct_ub_iface_recv_desc_t *desc)
+static inline void *uct_ub_iface_recv_desc_hdr(uct_urma_iface_t *iface, uct_ub_iface_recv_desc_t *desc)
 {
     return (void *)((char *)desc + iface->config.rx_hdr_offset);
 }
@@ -514,7 +514,7 @@ size_t uct_ub_sge_fill_iov(urma_sge_t *sge, const uct_iov_t *iov, size_t iovcnt)
 }
 
 static UCS_F_ALWAYS_INLINE void
-uct_ub_iface_fill_inl_sge(uct_ub_iface_t *iface, const void *addr0,
+uct_ub_iface_fill_inl_sge(uct_urma_iface_t *iface, const void *addr0,
                           unsigned len0, const void* addr1, unsigned len1)
 {
     int idx = 0;
@@ -531,7 +531,7 @@ uct_ub_iface_fill_inl_sge(uct_ub_iface_t *iface, const void *addr0,
 }
 
 static UCS_F_ALWAYS_INLINE uct_ub_send_handler_t
-uct_ub_iface_atomic_handler(uct_ub_iface_t *iface, unsigned length)
+uct_ub_iface_atomic_handler(uct_urma_iface_t *iface, unsigned length)
 {
     ucs_assert((length == sizeof(uint32_t)) || (length == sizeof(uint64_t)));
     switch (length) {
@@ -543,7 +543,7 @@ uct_ub_iface_atomic_handler(uct_ub_iface_t *iface, unsigned length)
     return NULL;
 }
 
-static UCS_F_ALWAYS_INLINE void uct_ub_iface_txqp_completion_op(uct_ub_iface_send_op_t *op, const void *resp)
+static UCS_F_ALWAYS_INLINE void uct_ub_iface_txqp_completion_op(uct_urma_iface_send_op_t *op, const void *resp)
 {
     ucs_trace_poll("Complete sn %d handler %s", op->sn,
                    ucs_debug_get_symbol_name((void*)op->handler));
@@ -555,7 +555,7 @@ static UCS_F_ALWAYS_INLINE void uct_ub_iface_txqp_completion_op(uct_ub_iface_sen
 
 static UCS_F_ALWAYS_INLINE void uct_ub_iface_txqp_completion_desc(uct_ub_tx_queue_t *tx_queue, uint32_t sn)
 {
-    uct_ub_iface_send_op_t *op = NULL;
+    uct_urma_iface_send_op_t *op = NULL;
 
     ucs_trace("Tx_queue complete ops up to sn %d", sn);
     ucs_queue_for_each_extract(op, &tx_queue->outstanding, queue,
@@ -565,7 +565,7 @@ static UCS_F_ALWAYS_INLINE void uct_ub_iface_txqp_completion_desc(uct_ub_tx_queu
 }
 
 static UCS_F_ALWAYS_INLINE
-ucs_log_level_t uct_ub_iface_failure_log_level(uct_base_iface_t *iface,
+ucs_log_level_t uct_urma_iface_failure_log_level(uct_base_iface_t *iface,
                                                  ucs_status_t err_handler_status,
                                                  ucs_status_t status)
 {
@@ -645,14 +645,14 @@ ucs_log_level_t uct_ub_iface_failure_log_level(uct_base_iface_t *iface,
 #define uct_ub_serialize_next(_iter, _type) \
     uct_ub_serialize_next_raw(_iter, _type, sizeof(_type))
 
-UCS_CLASS_DECLARE(uct_ub_iface_t, uct_ub_iface_ops_t*, uct_iface_ops_t*,
+UCS_CLASS_DECLARE(uct_urma_iface_t, uct_ub_iface_ops_t*, uct_iface_ops_t*,
                   uct_md_h, uct_worker_h, const uct_iface_params_t*, const uct_iface_config_t*,
                   const uct_ub_iface_init_attr_t*);
 
 ucs_status_t uct_ub_iface_get_device_address(uct_iface_h tl_iface, uct_device_addr_t *dev_addr);
 void uct_ub_address_unpack(const uct_ub_address_t *ub_addr, uct_ub_address_pack_params_t *params_p);
 
-int uct_ub_iface_is_ubn(uct_ub_iface_t *iface);
+int uct_ub_iface_is_ubn(uct_urma_iface_t *iface);
 
 int uct_ub_iface_is_reachable(const uct_iface_h tl_iface,
                               const uct_iface_is_reachable_params_t *params);
@@ -660,37 +660,37 @@ int uct_ub_iface_is_reachable(const uct_iface_h tl_iface,
 int uct_ub_base_iface_is_reachable(const uct_iface_h tl_iface, const uct_device_addr_t *dev_addr,
                                    const uct_iface_addr_t *iface_addr);
 
-ucs_status_t uct_ub_base_iface_query(uct_ub_iface_t *iface, uct_iface_attr_t *iface_attr);
-ucs_status_t uct_ub_iface_cap_query(uct_ub_iface_t *iface, uct_iface_attr_t *iface_attr);
+ucs_status_t uct_ub_base_iface_query(uct_urma_iface_t *iface, uct_iface_attr_t *iface_attr);
+ucs_status_t uct_ub_iface_cap_query(uct_urma_iface_t *iface, uct_iface_attr_t *iface_attr);
 ucs_status_t uct_ub_iface_fence(uct_iface_h tl_iface, unsigned flags);
-void uct_ub_iface_fc_init(uct_ub_iface_t *iface, const uct_ub_iface_config_t *config);
-void uct_ub_send_op_completion_handler(uct_ub_iface_send_op_t *op, const void *resp);
-ucs_status_t uct_ub_iface_zcopy_ops_init(uct_ub_iface_t *iface);
-void uct_ub_iface_zcopy_ops_cleanup(uct_ub_iface_t *iface);
+void uct_ub_iface_fc_init(uct_urma_iface_t *iface, const uct_urma_iface_config_t *config);
+void uct_ub_send_op_completion_handler(uct_urma_iface_send_op_t *op, const void *resp);
+ucs_status_t uct_ub_iface_zcopy_ops_init(uct_urma_iface_t *iface);
+void uct_ub_iface_zcopy_ops_cleanup(uct_urma_iface_t *iface);
 
 void uct_ub_iface_release_desc(uct_recv_desc_t *self, void *desc);
-ucs_status_t uct_ub_iface_mempool_init(uct_ub_iface_t *iface, const uct_ub_iface_config_t *config,
+ucs_status_t uct_ub_iface_mempool_init(uct_urma_iface_t *iface, const uct_urma_iface_config_t *config,
                                        const uct_iface_params_t *params);
-ucs_status_t uct_ub_ep_basic_init(uct_ub_iface_t *iface, uct_ub_ep_t *ep);
-extern ucs_status_t uct_ub_iface_add_ep(uct_ub_iface_t *iface, uct_ub_ep_t *ep);
+ucs_status_t uct_ub_ep_basic_init(uct_urma_iface_t *iface, uct_ub_ep_t *ep);
+extern ucs_status_t uct_ub_iface_add_ep(uct_urma_iface_t *iface, uct_ub_ep_t *ep);
 void uct_ub_ep_tx_outstanding_queue_init(uct_ub_tx_queue_t *tx_queue);
 void uct_ub_txcnt_init(uct_ub_tx_que_status_t *tx_que_status, unsigned que_bitmap_mask,
                        int que_bitmap_arr_num);
-void uct_ub_err_delete_ep(uct_ub_iface_t *iface, uct_ub_ep_t *ep);
-extern void uct_ub_iface_remove_ep(uct_ub_iface_t *iface, uct_ub_ep_t *ep);
+void uct_ub_err_delete_ep(uct_urma_iface_t *iface, uct_ub_ep_t *ep);
+extern void uct_ub_iface_remove_ep(uct_urma_iface_t *iface, uct_ub_ep_t *ep);
 ucs_status_t uct_ub_iface_check_validity(const uct_iface_params_t *params, const uct_worker_h worker);
 void uct_ub_destroy_jfr(urma_jfr_t *jfr);
-ucs_status_t uct_ub_create_jfc(uct_ub_iface_t *iface, uct_ub_dir_t dir,
+ucs_status_t uct_ub_create_jfc(uct_urma_iface_t *iface, uct_ub_dir_t dir,
                                const uct_ub_iface_init_attr_t *init_attr);
-ucs_status_t uct_ub_iface_arm_jfc(uct_ub_iface_t *iface, uct_ub_dir_t dir,
+ucs_status_t uct_ub_iface_arm_jfc(uct_urma_iface_t *iface, uct_ub_dir_t dir,
                                   int solicited_only);
-void uct_ub_iface_mpool_cleanup(uct_ub_iface_t *iface);
-ucs_status_t uct_ub_iface_create_jfr(uct_ub_iface_t *iface, urma_jfr_cfg_t *jfr_cfg);
+void uct_ub_iface_mpool_cleanup(uct_urma_iface_t *iface);
+ucs_status_t uct_ub_iface_create_jfr(uct_urma_iface_t *iface, urma_jfr_cfg_t *jfr_cfg);
 ucs_status_t uct_ub_iface_event_fd_get(uct_iface_h tl_iface, int *fd_p);
 ucs_status_t uct_ub_iface_event_arm(uct_iface_h tl_iface, unsigned events);
-void uct_ub_iface_init_recv_queue(uct_ub_iface_t *iface, unsigned init_count);
-unsigned uct_ub_iface_poll_rx(uct_ub_iface_t *iface, uint32_t fc_mask);
-ucs_status_t uct_ub_iface_completion_err_proc(uct_ub_iface_t *iface, urma_cr_t *cr, void *jetty,
+void uct_ub_iface_init_recv_queue(uct_urma_iface_t *iface, unsigned init_count);
+unsigned uct_ub_iface_poll_rx(uct_urma_iface_t *iface, uint32_t fc_mask);
+ucs_status_t uct_ub_iface_completion_err_proc(uct_urma_iface_t *iface, urma_cr_t *cr, void *jetty,
                                               uct_ub_ep_t *ep, uct_ub_ep_t *fc_ep);
 void uct_ub_destroy_jfc(urma_jfc_t *jfc);
 #endif

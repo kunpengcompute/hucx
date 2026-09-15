@@ -16,31 +16,11 @@
 #include <uct/urma/rc_urma/rc_urma_iface.h>
 
 #define RC_URMA_UNSIGNALED_INF UINT16_MAX
-#define BIT(nr) (1UL << (nr))
 
 typedef struct uct_rc_urma_jetty {
     urma_jetty_t                    *jetty;
     int16_t                         available;
 } uct_rc_urma_jetty_t;
-
-enum hns3_queue_type {
-	JFS_TYPE,
-	JETTY_TYPE,
-};
-
-enum hns3_queue_info_type {
-	INITIAL_STATE,
-	CURR_STATE,
-};
-
-typedef struct hns3_u_udma_get_jetty_info_in {
-	enum hns3_queue_type		type;
-	enum hns3_queue_info_type	info_tye;
-	union {
-		urma_jfs_t	*jfs;
-		urma_jetty_t	*jetty;
-	};
-} hns3_u_udma_get_jetty_info_in_t;
 
 struct uct_rc_urma_ep {
     uct_ub_ep_t                     super;
@@ -163,7 +143,7 @@ static UCS_F_ALWAYS_INLINE uint8_t uct_rc_urma_fc_get_fc_hdr(uint8_t id)
 
 #define UCT_RC_URMA_CHECK_RES(_iface, _ep) \
     { \
-        ucs_assert(ep->super.flags & UCT_RC_URMA_EP_FLAG_CONNECTED); \
+        ucs_assert(_ep->super.flags & UCT_RC_URMA_EP_FLAG_CONNECTED); \
         UCT_RC_URMA_CHECK_JFC_RET(_iface, _ep, UCS_ERR_NO_RESOURCE) \
         UCT_RC_URMA_CHECK_TX_QUEUE_RET(_ep, UCS_ERR_NO_RESOURCE) \
     }
