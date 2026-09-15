@@ -59,48 +59,48 @@ static ucs_stats_class_t uct_ub_iface_stats_class = {
 static urma_jfr_wr_t __thread g_wrs[UCT_IBP_MAX_RECV_WRS + 1] = {0};
 static urma_sge_t __thread g_src_sge_buf[UCT_IBP_MAX_RECV_WRS] = {0};
 
-ucs_config_field_t uct_ub_iface_config_table[] = {
+ucs_config_field_t uct_urma_iface_config_table[] = {
     {"", "MAX_NUM_EPS=256", NULL,
-     ucs_offsetof(uct_ub_iface_config_t, super), UCS_CONFIG_TYPE_TABLE(uct_iface_config_table)},
+     ucs_offsetof(uct_urma_iface_config_t, super), UCS_CONFIG_TYPE_TABLE(uct_iface_config_table)},
 
     {"SEG_SIZE", "8192",
      "Size of bounce buffers used for send and recv",
-     ucs_offsetof(uct_ub_iface_config_t, seg_size), UCS_CONFIG_TYPE_MEMUNITS},
+     ucs_offsetof(uct_urma_iface_config_t, seg_size), UCS_CONFIG_TYPE_MEMUNITS},
 
     {"MAX_INLINE_SIZE", "128",
      "Max inline size used to control the capability of short message communication",
-     ucs_offsetof(uct_ub_iface_config_t, max_inline), UCS_CONFIG_TYPE_MEMUNITS},
+     ucs_offsetof(uct_urma_iface_config_t, max_inline), UCS_CONFIG_TYPE_MEMUNITS},
 
     {"TX_MAX_POLL", "16",
      "Max number of receive completions to pick during TX poll",
-     ucs_offsetof(uct_ub_iface_config_t, tx.max_poll), UCS_CONFIG_TYPE_UINT},
+     ucs_offsetof(uct_urma_iface_config_t, tx.max_poll), UCS_CONFIG_TYPE_UINT},
 
     {"RX_MAX_POLL", "16",
      "Max number of receive completions to pick during RX poll",
-     ucs_offsetof(uct_ub_iface_config_t, rx.max_poll), UCS_CONFIG_TYPE_UINT},
+     ucs_offsetof(uct_urma_iface_config_t, rx.max_poll), UCS_CONFIG_TYPE_UINT},
 
     {"TX_DEPTH", "256",
      "Length of jfs queue depth, for IB device, the max value is 8191.",
-     ucs_offsetof(uct_ub_iface_config_t, tx.depth), UCS_CONFIG_TYPE_UINT},
+     ucs_offsetof(uct_urma_iface_config_t, tx.depth), UCS_CONFIG_TYPE_UINT},
 
     {"RX_DEPTH", "4096",
      "Length of jfr queue depth, for IB device, the max value is 4096.",
-     ucs_offsetof(uct_ub_iface_config_t, rx.depth), UCS_CONFIG_TYPE_UINT},
+     ucs_offsetof(uct_urma_iface_config_t, rx.depth), UCS_CONFIG_TYPE_UINT},
 
     {"RX_MAX_BATCH", "16",
      "How many buffers assigned to receive data in one batch.",
-     ucs_offsetof(uct_ub_iface_config_t, rx.max_batch), UCS_CONFIG_TYPE_UINT},
+     ucs_offsetof(uct_urma_iface_config_t, rx.max_batch), UCS_CONFIG_TYPE_UINT},
 
     {"TX_POLL_ALWAYS", "n",
      "When enabled, TX completions are polled every time the progress function is invoked.\n"
      "Otherwise poll TX completions only if no RX completions found.",
-     ucs_offsetof(uct_ub_iface_config_t, tx.poll_always), UCS_CONFIG_TYPE_BOOL},
+     ucs_offsetof(uct_urma_iface_config_t, tx.poll_always), UCS_CONFIG_TYPE_BOOL},
 
     {"LOCAL_SUBNET", "n",
      "Use the local IP address and subnet mask of each network device to route ub packets.\n"
      "If set to 'y', only addresses within the interface's subnet will be assumed as reachable.\n"
      "If set to 'n', every remote ub address is assumed to be reachable from any port.",
-     ucs_offsetof(uct_ub_iface_config_t, local_subnet), UCS_CONFIG_TYPE_BOOL},
+     ucs_offsetof(uct_urma_iface_config_t, local_subnet), UCS_CONFIG_TYPE_BOOL},
 
     {"SUBNET_PREFIX_LEN", "auto",
      "Length, in bits, of the subnet prefix to be used for reachability check.\n"
@@ -108,77 +108,77 @@ ucs_config_field_t uct_ub_iface_config_table[] = {
      " - auto  - Detect the subnet prefix length automatically from device address.\n"
      " - inf   - Allow connections only within the same machine and same device.\n"
      " - <num> - Specify a numeric bit-length value for the subnet prefix.",
-     ucs_offsetof(uct_ub_iface_config_t, subnet_pfx_len), UCS_CONFIG_TYPE_ULUNITS},
+     ucs_offsetof(uct_urma_iface_config_t, subnet_pfx_len), UCS_CONFIG_TYPE_ULUNITS},
 
     {"MAX_AM_HDR", "128",
      "Buffer size to reserve for active message headers. If set to 0, the transport will\n"
      "not support zero-copy active messages.",
-     ucs_offsetof(uct_ub_iface_config_t, max_am_hdr), UCS_CONFIG_TYPE_MEMUNITS},
+     ucs_offsetof(uct_urma_iface_config_t, max_am_hdr), UCS_CONFIG_TYPE_MEMUNITS},
 
     {"MAX_GET_ZCOPY", "auto",
      "Maximal size of get operation with zcopy protocol.",
-     ucs_offsetof(uct_ub_iface_config_t, tx.max_get_zcopy), UCS_CONFIG_TYPE_MEMUNITS},
+     ucs_offsetof(uct_urma_iface_config_t, tx.max_get_zcopy), UCS_CONFIG_TYPE_MEMUNITS},
 
     {"TX_MAX_WR", "-1",
      "Limits the number of outstanding posted work requests. The actual limit is\n"
      "a minimum between this value and the TX queue length. -1 means no limit.",
-     ucs_offsetof(uct_ub_iface_config_t, tx.tx_max_wr), UCS_CONFIG_TYPE_UINT},
+     ucs_offsetof(uct_urma_iface_config_t, tx.tx_max_wr), UCS_CONFIG_TYPE_UINT},
 
     {"TX_JFC_MODERATION", "64",
      "Maximum number of send WRs which can be posted without requesting a completion.",
-     ucs_offsetof(uct_ub_iface_config_t, tx.jfc_moderation), UCS_CONFIG_TYPE_UINT},
+     ucs_offsetof(uct_urma_iface_config_t, tx.jfc_moderation), UCS_CONFIG_TYPE_UINT},
 
     {"TX_MAX_GET_BYTES", "inf",
      "Maximal size of get operation with zcopy protocol",
-     ucs_offsetof(uct_ub_iface_config_t, tx.max_get_bytes), UCS_CONFIG_TYPE_MEMUNITS},
+     ucs_offsetof(uct_urma_iface_config_t, tx.max_get_bytes), UCS_CONFIG_TYPE_MEMUNITS},
 
     {"FENCE", "auto",
      "ub fence type when API fence requested:\n"
      "  none   - fence is a no-op\n"
      "  auto   - enable fence function, ordering of outstanding communications on the interface",
-     ucs_offsetof(uct_ub_iface_config_t, fence_mode), UCS_CONFIG_TYPE_ENUM(uct_ub_fence_mode_values)},
+     ucs_offsetof(uct_urma_iface_config_t, fence_mode), UCS_CONFIG_TYPE_ENUM(uct_ub_fence_mode_values)},
 
     {"FC_ENABLE", "n",
      "Enable flow control protocol to prevent sender from overwhelming the receiver,\n",
-     ucs_offsetof(uct_ub_iface_config_t, fc.enable), UCS_CONFIG_TYPE_BOOL},
+     ucs_offsetof(uct_urma_iface_config_t, fc.enable), UCS_CONFIG_TYPE_BOOL},
 
     {"FC_HARD_THRESH", "0.25",
      "Threshold for sending hard request for FC credits to the peer. This value\n"
      "refers to the percentage of the FC_WND_SIZE value. (must be > 0 and < 1)",
-     ucs_offsetof(uct_ub_iface_config_t, fc.hard_thresh), UCS_CONFIG_TYPE_DOUBLE},
+     ucs_offsetof(uct_urma_iface_config_t, fc.hard_thresh), UCS_CONFIG_TYPE_DOUBLE},
 
     {"FC_WND_SIZE", "512",
      "The size of flow control window per endpoint. limits the number of AM\n"
      "which can be sent w/o acknowledgment.",
-     ucs_offsetof(uct_ub_iface_config_t, fc.wnd_size), UCS_CONFIG_TYPE_UINT},
+     ucs_offsetof(uct_urma_iface_config_t, fc.wnd_size), UCS_CONFIG_TYPE_UINT},
 
     {"PATH_MTU", "default",
      "Path MTU. \"default\" will select the best MTU for the device.",
-     ucs_offsetof(uct_ub_iface_config_t, path_mtu), UCS_CONFIG_TYPE_ENUM(uct_ub_mtu_values)},
+     ucs_offsetof(uct_urma_iface_config_t, path_mtu), UCS_CONFIG_TYPE_ENUM(uct_ub_mtu_values)},
 
     {"OOR_CNT", "0",
      "OOR window size: by packet.",
-     ucs_offsetof(uct_ub_iface_config_t, oor_cnt), UCS_CONFIG_TYPE_UINT},
+     ucs_offsetof(uct_urma_iface_config_t, oor_cnt), UCS_CONFIG_TYPE_UINT},
 
     {"OOS_CNT", "0",
      "out of standing packet cnt.",
-     ucs_offsetof(uct_ub_iface_config_t, oos_cnt), UCS_CONFIG_TYPE_UINT},
+     ucs_offsetof(uct_urma_iface_config_t, oos_cnt), UCS_CONFIG_TYPE_UINT},
 
     {"TX_PSN", "1",
      "PSN of tx.\n",
-     ucs_offsetof(uct_ub_iface_config_t, tx_psn), UCS_CONFIG_TYPE_UINT},
+     ucs_offsetof(uct_urma_iface_config_t, tx_psn), UCS_CONFIG_TYPE_UINT},
 
     {"RX_PSN", "1",
      "PSN of rx.\n",
-     ucs_offsetof(uct_ub_iface_config_t, rx_psn), UCS_CONFIG_TYPE_UINT},
+     ucs_offsetof(uct_urma_iface_config_t, rx_psn), UCS_CONFIG_TYPE_UINT},
 
     UCT_IFACE_MPOOL_CONFIG_FIELDS("TX_", -1, 1024, 128m, 1.0, "send",
-                                  ucs_offsetof(uct_ub_iface_config_t, tx.mp),
+                                  ucs_offsetof(uct_urma_iface_config_t, tx.mp),
                                   "\nAttention: Setting this param with value != -1 is a dangerous thing\n"
                                   "will cause deadlock or performance degradation."),
 
     UCT_IFACE_MPOOL_CONFIG_FIELDS("RX_", -1, 0, 128m, 1.0, "receive",
-                                  ucs_offsetof(uct_ub_iface_config_t, rx.mp), ""),
+                                  ucs_offsetof(uct_urma_iface_config_t, rx.mp), ""),
 
     {NULL}
 };
@@ -198,7 +198,7 @@ ucs_status_t uct_ub_iface_check_validity(const uct_iface_params_t *params, const
     return UCS_OK;
 }
 
-void uct_ub_send_op_completion_handler(uct_ub_iface_send_op_t *op, const void *resp)
+void uct_ub_send_op_completion_handler(uct_urma_iface_send_op_t *op, const void *resp)
 {
     if (op->user_comp != NULL) {
         uct_invoke_completion(op->user_comp, UCS_OK);
@@ -222,7 +222,7 @@ static void uct_ub_address_pack(const uct_ub_address_pack_params_t *params, uct_
     ub_addr->flags = 0;
 }
 
-static void uct_ub_iface_device_address_pack(uct_ub_iface_t *iface, uct_ub_address_t *ub_addr)
+static void uct_ub_iface_device_address_pack(uct_urma_iface_t *iface, uct_ub_address_t *ub_addr)
 {
     uct_ub_md_t *md = uct_ub_iface_md(iface);
     uct_ub_address_pack_params_t params;
@@ -239,7 +239,7 @@ static void uct_ub_iface_device_address_pack(uct_ub_iface_t *iface, uct_ub_addre
     uct_ub_address_pack(&params, ub_addr);
 }
 
-static inline void uct_ub_init_iface_eid_uasid(uct_ub_iface_t *iface, const uct_ub_device_t *dev)
+static inline void uct_ub_init_iface_eid_uasid(uct_urma_iface_t *iface, const uct_ub_device_t *dev)
 {
     iface->eid = dev->urma_ctx->eid;
     iface->uasid = dev->urma_ctx->uasid;
@@ -247,7 +247,7 @@ static inline void uct_ub_init_iface_eid_uasid(uct_ub_iface_t *iface, const uct_
 
 ucs_status_t uct_ub_iface_get_device_address(uct_iface_h tl_iface, uct_device_addr_t *dev_addr)
 {
-    uct_ub_iface_t *iface = ucs_derived_of(tl_iface, uct_ub_iface_t);
+    uct_urma_iface_t *iface = ucs_derived_of(tl_iface, uct_urma_iface_t);
 
     uct_ub_iface_device_address_pack(iface, (void*)dev_addr);
 
@@ -270,7 +270,7 @@ static size_t uct_ub_address_size(const uct_ub_address_pack_params_t *params)
     return size;
 }
 
-static size_t uct_ub_iface_address_size(uct_ub_iface_t *iface)
+static size_t uct_ub_iface_address_size(uct_urma_iface_t *iface)
 {
     uct_ub_address_pack_params_t params;
 
@@ -352,7 +352,7 @@ static int uct_ub_iface_hns_ub_is_reachable(const uct_ub_device_eid_info_t * loc
     return ret;
 }
 
-int uct_ub_iface_is_ubn(uct_ub_iface_t *iface)
+int uct_ub_iface_is_ubn(uct_urma_iface_t *iface)
 {
     /*TODO distinguishing link type*/
     return UB_UBN;
@@ -362,7 +362,7 @@ int uct_ub_iface_is_reachable(const uct_iface_h tl_iface,
                               const uct_iface_is_reachable_params_t *params)
 {
     const uct_ub_address_t *ub_addr = (const void*)params->device_addr;
-    uct_ub_iface_t *iface = ucs_derived_of(tl_iface, uct_ub_iface_t);
+    uct_urma_iface_t *iface = ucs_derived_of(tl_iface, uct_urma_iface_t);
     urma_transport_type_t local_urma_mode, remote_urma_mode;
     int is_local_eth = uct_ub_iface_is_ubn(iface);
     uct_ub_md_t *md = uct_ub_iface_md(iface);
@@ -399,7 +399,7 @@ int uct_ub_base_iface_is_reachable(const uct_iface_h tl_iface,
     return uct_iface_is_reachable_v2(tl_iface, &params);
 }
 
-static ucs_status_t uct_ub_iface_get_numa_latency(uct_ub_iface_t *iface, double *latency)
+static ucs_status_t uct_ub_iface_get_numa_latency(uct_urma_iface_t *iface, double *latency)
 {
     uct_ub_device_t *dev = uct_ub_iface_device(iface);
     ucs_sys_cpuset_t temp_cpu_mask, process_affinity;
@@ -532,7 +532,7 @@ static ucs_status_t uct_ub_get_info_from_active_speed(urma_speed_t active_speed,
 
 ucs_status_t uct_ub_iface_event_fd_get(uct_iface_h tl_iface, int *fd_p)
 {
-    uct_ub_iface_t *iface = ucs_derived_of(tl_iface, uct_ub_iface_t);
+    uct_urma_iface_t *iface = ucs_derived_of(tl_iface, uct_urma_iface_t);
 
     *fd_p = iface->jfce->fd;
     return UCS_OK;
@@ -540,14 +540,14 @@ ucs_status_t uct_ub_iface_event_fd_get(uct_iface_h tl_iface, int *fd_p)
 
 void uct_ub_iface_release_desc(uct_recv_desc_t *self, void *desc)
 {
-    uct_ub_iface_t *iface = ucs_container_of(self, uct_ub_iface_t, release_desc);
+    uct_urma_iface_t *iface = ucs_container_of(self, uct_urma_iface_t, release_desc);
     void *ub_desc = NULL;
 
     ub_desc = UCS_PTR_BYTE_OFFSET(desc, -(ptrdiff_t)iface->config.rx_headroom_offset);
     ucs_mpool_put_inline(ub_desc);
 }
 
-ucs_status_t uct_ub_base_iface_query(uct_ub_iface_t *iface, uct_iface_attr_t *iface_attr)
+ucs_status_t uct_ub_base_iface_query(uct_urma_iface_t *iface, uct_iface_attr_t *iface_attr)
 {
     static const uint8_t ub_port_widths[] = {0, 1, 4, 0, 8, 0, 0, 0, 12, 0, 0, 0, 0, 0, 0, 0, 2};
     uct_ub_md_t *md = ucs_derived_of(iface->super.md, uct_ub_md_t);
@@ -615,7 +615,7 @@ ucs_status_t uct_ub_base_iface_query(uct_ub_iface_t *iface, uct_iface_attr_t *if
     return UCS_OK;
 }
 
-ucs_status_t uct_ub_iface_cap_query(uct_ub_iface_t *iface, uct_iface_attr_t *iface_attr)
+ucs_status_t uct_ub_iface_cap_query(uct_urma_iface_t *iface, uct_iface_attr_t *iface_attr)
 {
     const size_t am_max_iov = iface->config.max_send_sge - 1;
     const size_t rma_max_iov = iface->config.max_send_sge;
@@ -700,7 +700,7 @@ ucs_status_t uct_ub_iface_cap_query(uct_ub_iface_t *iface, uct_iface_attr_t *ifa
     return UCS_OK;
 }
 
-static UCS_F_ALWAYS_INLINE size_t uct_ub_iface_max_get_zcopy(const uct_ub_iface_config_t *config,
+static UCS_F_ALWAYS_INLINE size_t uct_ub_iface_max_get_zcopy(const uct_urma_iface_config_t *config,
                                                              uct_ub_device_t *dev)
 {
     uint64_t max_ub_msg_size = dev->dev_attr.dev_cap.max_msg_size;
@@ -712,8 +712,8 @@ static UCS_F_ALWAYS_INLINE size_t uct_ub_iface_max_get_zcopy(const uct_ub_iface_
     return ucs_min(config->tx.max_get_zcopy, max_ub_msg_size);
 }
 
-static inline void uct_ub_init_iface_reads_count(uct_ub_iface_t *iface,
-                                                 const uct_ub_iface_config_t *config)
+static inline void uct_ub_init_iface_reads_count(uct_urma_iface_t *iface,
+                                                 const uct_urma_iface_config_t *config)
 {
     if ((config->tx.max_get_bytes == UCS_MEMUNITS_INF) ||
         (config->tx.max_get_bytes == UCS_MEMUNITS_AUTO)) {
@@ -724,7 +724,7 @@ static inline void uct_ub_init_iface_reads_count(uct_ub_iface_t *iface,
     iface->tx.reads_completed = 0;
 }
 
-static UCS_F_ALWAYS_INLINE ucs_status_t uct_ub_fence_info_init(uct_ub_iface_t *iface, int fence_mode)
+static UCS_F_ALWAYS_INLINE ucs_status_t uct_ub_fence_info_init(uct_urma_iface_t *iface, int fence_mode)
 {
     if (fence_mode == UCT_UB_FENCE_MODE_AUTO) {
         iface->config.fence_mode = UCT_UB_FENCE_MODE_AUTO;
@@ -738,7 +738,7 @@ static UCS_F_ALWAYS_INLINE ucs_status_t uct_ub_fence_info_init(uct_ub_iface_t *i
     return UCS_OK;
 }
 
-static inline ucs_status_t uct_ub_init_iface_attr(uct_ub_iface_t *iface, const uct_ub_iface_config_t *config,
+static inline ucs_status_t uct_ub_init_iface_attr(uct_urma_iface_t *iface, const uct_urma_iface_config_t *config,
                                                   const uct_iface_params_t *params,
                                                   const uct_ub_iface_init_attr_t *init_attr, uct_ub_iface_ops_t *ops)
 {
@@ -830,7 +830,7 @@ static inline ucs_status_t uct_ub_init_iface_attr(uct_ub_iface_t *iface, const u
 
 ucs_status_t uct_ub_iface_fence(uct_iface_h tl_iface, unsigned flags)
 {
-    uct_ub_iface_t *iface = ucs_derived_of(tl_iface, uct_ub_iface_t);
+    uct_urma_iface_t *iface = ucs_derived_of(tl_iface, uct_urma_iface_t);
 
     if (iface->config.fence_mode != UCT_UB_FENCE_MODE_NONE) {
         iface->tx.fi.fence_beat++;
@@ -840,7 +840,7 @@ ucs_status_t uct_ub_iface_fence(uct_iface_h tl_iface, unsigned flags)
     return UCS_OK;
 }
 
-void uct_ub_iface_fc_init(uct_ub_iface_t *iface, const uct_ub_iface_config_t *config)
+void uct_ub_iface_fc_init(uct_urma_iface_t *iface, const uct_urma_iface_config_t *config)
 {
     iface->config.fc_enabled = config->fc.enable;
     if (iface->config.fc_enabled) {
@@ -855,12 +855,12 @@ void uct_ub_iface_fc_init(uct_ub_iface_t *iface, const uct_ub_iface_config_t *co
     }
 }
 
-ucs_status_t uct_ub_iface_zcopy_ops_init(uct_ub_iface_t *iface)
+ucs_status_t uct_ub_iface_zcopy_ops_init(uct_urma_iface_t *iface)
 {
     const unsigned count = iface->config.zcopy_ops_count;
-    uct_ub_iface_send_op_t *op = NULL;
+    uct_urma_iface_send_op_t *op = NULL;
 
-    iface->tx.zcopy_ops_buffer = (uct_ub_iface_send_op_t*)ucs_calloc(count, sizeof(*iface->tx.zcopy_ops_buffer), "ub_zcopy_ops");
+    iface->tx.zcopy_ops_buffer = (uct_urma_iface_send_op_t*)ucs_calloc(count, sizeof(*iface->tx.zcopy_ops_buffer), "ub_zcopy_ops");
     if (iface->tx.zcopy_ops_buffer == NULL) {
         return UCS_ERR_NO_MEMORY;
     }
@@ -876,10 +876,10 @@ ucs_status_t uct_ub_iface_zcopy_ops_init(uct_ub_iface_t *iface)
     return UCS_OK;
 }
 
-void uct_ub_iface_zcopy_ops_cleanup(uct_ub_iface_t *iface)
+void uct_ub_iface_zcopy_ops_cleanup(uct_urma_iface_t *iface)
 {
     const unsigned total_count = iface->config.zcopy_ops_count;
-    uct_ub_iface_send_op_t *op = NULL;
+    uct_urma_iface_send_op_t *op = NULL;
     unsigned free_count;
 
     free_count = 0;
@@ -908,7 +908,7 @@ static void uct_ub_iface_recv_desc_init(uct_iface_h tl_iface, void *obj, uct_mem
     desc->src_tseg = uct_ub_memh_get_tseg(memh);
 }
 
-static ucs_status_t uct_ub_iface_recv_mpool_init(uct_ub_iface_t *iface, const uct_ub_iface_config_t *config,
+static ucs_status_t uct_ub_iface_recv_mpool_init(uct_urma_iface_t *iface, const uct_urma_iface_config_t *config,
                                                  const uct_iface_params_t *params,
                                                  const char *name, ucs_mpool_t *mp)
 {
@@ -928,7 +928,7 @@ static ucs_status_t uct_ub_iface_recv_mpool_init(uct_ub_iface_t *iface, const uc
                                 &config->rx.mp, grow, uct_ub_iface_recv_desc_init, name);
 }
 
-static ucs_status_t uct_ub_iface_short_desc_mpool_init(uct_ub_iface_t *iface, const uct_ub_iface_config_t *config)
+static ucs_status_t uct_ub_iface_short_desc_mpool_init(uct_urma_iface_t *iface, const uct_urma_iface_config_t *config)
 {
     size_t elem_size = sizeof(uct_ub_iface_send_desc_t) + iface->config.short_desc_size;
     size_t align_offset = sizeof(uct_ub_iface_send_desc_t);
@@ -948,7 +948,7 @@ static ucs_mpool_ops_t uct_ub_send_op_mpool_ops = {
     .obj_cleanup   = NULL
 };
 
-static ucs_status_t uct_ub_iface_send_op_mp_init(uct_ub_iface_t *iface)
+static ucs_status_t uct_ub_iface_send_op_mp_init(uct_urma_iface_t *iface)
 {
     ucs_mpool_params_t mp_params;
     ucs_status_t status;
@@ -957,7 +957,7 @@ static ucs_status_t uct_ub_iface_send_op_mp_init(uct_ub_iface_t *iface)
      * size buffer, because number of simultaneous flushes is not limited by
      * CQ or QP resources. */
     ucs_mpool_params_reset(&mp_params);
-    mp_params.elem_size = sizeof(uct_ub_iface_send_op_t);
+    mp_params.elem_size = sizeof(uct_urma_iface_send_op_t);
     mp_params.elems_per_chunk = 512;
     mp_params.ops = &uct_ub_send_op_mpool_ops;
     mp_params.name = "ub-send-ops";
@@ -966,7 +966,7 @@ static ucs_status_t uct_ub_iface_send_op_mp_init(uct_ub_iface_t *iface)
     return status;
 }
 
-ucs_status_t uct_ub_iface_mempool_init(uct_ub_iface_t *iface, const uct_ub_iface_config_t *config,
+ucs_status_t uct_ub_iface_mempool_init(uct_urma_iface_t *iface, const uct_urma_iface_config_t *config,
                                        const uct_iface_params_t *params)
 {
     ucs_status_t status;
@@ -1028,7 +1028,7 @@ err_init_tx_mp:
     return status;
 }
 
-ucs_status_t uct_ub_iface_add_ep(uct_ub_iface_t *iface, uct_ub_ep_t *ep)
+ucs_status_t uct_ub_iface_add_ep(uct_urma_iface_t *iface, uct_ub_ep_t *ep)
 {
     ep->ep_id = ucs_ptr_array_insert(&iface->eps, ep);
     if (ep->ep_id >= UCT_UB_IFACE_MAX_EPS) {
@@ -1058,7 +1058,7 @@ void uct_ub_txcnt_init(uct_ub_tx_que_status_t *tx_que_status, unsigned que_bitma
     tx_que_status->que_bitmap_arr_num = que_bitmap_arr_num;
 }
 
-void uct_ub_iface_remove_ep(uct_ub_iface_t *iface, uct_ub_ep_t *ep)
+void uct_ub_iface_remove_ep(uct_urma_iface_t *iface, uct_ub_ep_t *ep)
 {
     ucs_trace("Ub iface remove ep id %d.", ep->ep_id);
     ucs_ptr_array_remove(&iface->eps, ep->ep_id);
@@ -1100,7 +1100,7 @@ void uct_ub_destroy_jfr(urma_jfr_t *jfr)
     }
 }
 
-ucs_status_t uct_ub_iface_arm_jfc(uct_ub_iface_t *iface, uct_ub_dir_t dir,
+ucs_status_t uct_ub_iface_arm_jfc(uct_urma_iface_t *iface, uct_ub_dir_t dir,
                                   int solicited_only)
 {
     urma_status_t status;
@@ -1114,7 +1114,7 @@ ucs_status_t uct_ub_iface_arm_jfc(uct_ub_iface_t *iface, uct_ub_dir_t dir,
     return UCS_OK;
 }
 
-ucs_status_t uct_ub_iface_pre_arm(uct_ub_iface_t *iface)
+ucs_status_t uct_ub_iface_pre_arm(uct_urma_iface_t *iface)
 {
     urma_jfc_t *jfc = NULL;
     int send_cq_count = 0;
@@ -1153,7 +1153,7 @@ ucs_status_t uct_ub_iface_pre_arm(uct_ub_iface_t *iface)
 
 ucs_status_t uct_ub_iface_event_arm(uct_iface_h tl_iface, unsigned events)
 {
-    uct_ub_iface_t *iface = ucs_derived_of(tl_iface, uct_ub_iface_t);
+    uct_urma_iface_t *iface = ucs_derived_of(tl_iface, uct_urma_iface_t);
     int arm_rx_solicited = 0;
     ucs_status_t status;
     int arm_rx_all = 0;
@@ -1188,7 +1188,7 @@ ucs_status_t uct_ub_iface_event_arm(uct_iface_h tl_iface, unsigned events)
     return UCS_OK;
 }
 
-ucs_status_t uct_ub_create_jfc(uct_ub_iface_t *iface, uct_ub_dir_t dir,
+ucs_status_t uct_ub_create_jfc(uct_urma_iface_t *iface, uct_ub_dir_t dir,
                                const uct_ub_iface_init_attr_t *init_attr)
 {
     uct_ub_device_t *dev = uct_ub_iface_device(iface);
@@ -1213,7 +1213,7 @@ ucs_status_t uct_ub_create_jfc(uct_ub_iface_t *iface, uct_ub_dir_t dir,
     return UCS_OK;
 }
 
-static ucs_status_t uct_ub_iface_create_jfc(uct_ub_iface_t *iface, uct_ub_dir_t dir,
+static ucs_status_t uct_ub_iface_create_jfc(uct_urma_iface_t *iface, uct_ub_dir_t dir,
                                             const uct_ub_iface_init_attr_t *init_attr)
 {
     ucs_status_t status;
@@ -1223,7 +1223,7 @@ static ucs_status_t uct_ub_iface_create_jfc(uct_ub_iface_t *iface, uct_ub_dir_t 
     return status;
 }
 
-ucs_status_t uct_ub_iface_create_jfr(uct_ub_iface_t *iface, urma_jfr_cfg_t *jfr_cfg)
+ucs_status_t uct_ub_iface_create_jfr(uct_urma_iface_t *iface, urma_jfr_cfg_t *jfr_cfg)
 {
     uct_ub_device_t *dev = uct_ub_iface_device(iface);
 
@@ -1236,7 +1236,7 @@ ucs_status_t uct_ub_iface_create_jfr(uct_ub_iface_t *iface, urma_jfr_cfg_t *jfr_
     return UCS_OK;
 }
 
-static ucs_status_t uct_ub_create_resources(uct_ub_iface_t *iface, const uct_ub_device_t *dev,
+static ucs_status_t uct_ub_create_resources(uct_urma_iface_t *iface, const uct_ub_device_t *dev,
                                             const uct_ub_iface_init_attr_t *init_attr)
 {
     ucs_status_t status;
@@ -1270,20 +1270,20 @@ err:
     return status;
 }
 
-static void uct_ub_destroy_resources(uct_ub_iface_t *iface)
+static void uct_ub_destroy_resources(uct_urma_iface_t *iface)
 {
     iface->ops->destroy_jfc(iface, UCT_UB_DIR_TX);
     iface->ops->destroy_jfc(iface, UCT_UB_DIR_RX);
     uct_ub_destroy_jfce(iface->jfce);
 }
 
-void uct_ub_iface_atomic_handler_init(uct_ub_iface_t *iface, uct_ub_device_t *dev)
+void uct_ub_iface_atomic_handler_init(uct_urma_iface_t *iface, uct_ub_device_t *dev)
 {
     iface->config.atomic64_handler = uct_ub_common_atomic64_le_handler;
     iface->config.atomic32_handler = uct_ub_common_atomic32_le_handler;
 }
 
-static UCS_F_ALWAYS_INLINE void uct_ub_iface_recv(uct_ub_iface_t *iface, unsigned count)
+static UCS_F_ALWAYS_INLINE void uct_ub_iface_recv(uct_urma_iface_t *iface, unsigned count)
 {
     uct_ub_iface_recv_desc_t *desc[count];
     urma_jfr_wr_t *bad_wr = NULL;
@@ -1323,7 +1323,7 @@ static UCS_F_ALWAYS_INLINE void uct_ub_iface_recv(uct_ub_iface_t *iface, unsigne
     return;
 }
 
-static UCS_F_ALWAYS_INLINE void uct_ub_iface_recv_common(uct_ub_iface_t *iface, unsigned count)
+static UCS_F_ALWAYS_INLINE void uct_ub_iface_recv_common(uct_urma_iface_t *iface, unsigned count)
 {
     while (count > UCT_IBP_MAX_RECV_WRS) {
         uct_ub_iface_recv(iface, UCT_IBP_MAX_RECV_WRS);
@@ -1332,13 +1332,13 @@ static UCS_F_ALWAYS_INLINE void uct_ub_iface_recv_common(uct_ub_iface_t *iface, 
     uct_ub_iface_recv(iface, count);
 }
 
-void uct_ub_iface_init_recv_queue(uct_ub_iface_t *iface, unsigned init_count)
+void uct_ub_iface_init_recv_queue(uct_urma_iface_t *iface, unsigned init_count)
 {
     iface->rx.jfr_que_available = init_count;
     uct_ub_iface_recv_common(iface, init_count);
 }
 
-static UCS_F_ALWAYS_INLINE void uct_ub_iface_recv_check(uct_ub_iface_t *iface)
+static UCS_F_ALWAYS_INLINE void uct_ub_iface_recv_check(uct_urma_iface_t *iface)
 {
     unsigned batch = iface->config.rx_max_batch;
 
@@ -1350,7 +1350,7 @@ static UCS_F_ALWAYS_INLINE void uct_ub_iface_recv_check(uct_ub_iface_t *iface)
     return;
 }
 
-static UCS_F_ALWAYS_INLINE void uct_ub_iface_handle_am(uct_ub_iface_t *iface, uct_ub_hdr_t *hdr,
+static UCS_F_ALWAYS_INLINE void uct_ub_iface_handle_am(uct_urma_iface_t *iface, uct_ub_hdr_t *hdr,
                                                        uct_ub_iface_recv_desc_t *desc, urma_cr_t *cr,
                                                        uint32_t fc_mask)
 {
@@ -1372,7 +1372,7 @@ static UCS_F_ALWAYS_INLINE void uct_ub_iface_handle_am(uct_ub_iface_t *iface, uc
     }
 }
 
-static UCS_F_ALWAYS_INLINE void uct_ub_iface_deal_with_recv_cr(uct_ub_iface_t *iface, urma_cr_t *cr,
+static UCS_F_ALWAYS_INLINE void uct_ub_iface_deal_with_recv_cr(uct_urma_iface_t *iface, urma_cr_t *cr,
                                                               int count, uint32_t fc_mask)
 {
     uct_ub_iface_recv_desc_t *desc = NULL;
@@ -1395,7 +1395,7 @@ static UCS_F_ALWAYS_INLINE void uct_ub_iface_deal_with_recv_cr(uct_ub_iface_t *i
     UCS_STATS_SET_COUNTER(iface->stats, UCT_UB_IFACE_STAT_RX_JFR_AVAILABLE, iface->rx.jfr_que_available);
 }
 
-unsigned uct_ub_iface_poll_rx(uct_ub_iface_t *iface, uint32_t fc_mask)
+unsigned uct_ub_iface_poll_rx(uct_urma_iface_t *iface, uint32_t fc_mask)
 {
     int cr_cnt = iface->config.rx_max_poll;
     urma_cr_t cr[cr_cnt];
@@ -1415,7 +1415,7 @@ out:
     return count;
 }
 
-ucs_status_t uct_ub_iface_completion_err_proc(uct_ub_iface_t *iface, urma_cr_t *cr, void *jetty,
+ucs_status_t uct_ub_iface_completion_err_proc(uct_urma_iface_t *iface, urma_cr_t *cr, void *jetty,
                                               uct_ub_ep_t *ep, uct_ub_ep_t *fc_ep)
 {
     ucs_log_level_t log_level = iface->super.config.failure_level;
@@ -1475,8 +1475,8 @@ out:
     return status;
 }
 
-static ucs_status_t uct_ub_iface_init_addr_prefix(uct_ub_iface_t *iface,
-                                                  const uct_ub_iface_config_t *config)
+static ucs_status_t uct_ub_iface_init_addr_prefix(uct_urma_iface_t *iface,
+                                                  const uct_urma_iface_config_t *config)
 {
     uct_ub_device_eid_info_t *eid_info = &iface->eid_info;
     uct_ub_device_t *dev = uct_ub_iface_device(iface);
@@ -1535,7 +1535,7 @@ out_mask_info_failed:
     return UCS_OK;
 }
 
-static ucs_status_t uct_ub_iface_init_eid_info(uct_ub_iface_t* iface, uct_ub_iface_config_t *config)
+static ucs_status_t uct_ub_iface_init_eid_info(uct_urma_iface_t* iface, uct_urma_iface_config_t *config)
 {
     uct_ub_device_eid_info_t * eid_info = &iface->eid_info;
     uct_ub_device_t *dev = uct_ub_iface_device(iface);
@@ -1554,12 +1554,12 @@ static ucs_status_t uct_ub_iface_init_eid_info(uct_ub_iface_t* iface, uct_ub_ifa
     return status;
 }
 
-UCS_CLASS_INIT_FUNC(uct_ub_iface_t, uct_ub_iface_ops_t *ops,
+UCS_CLASS_INIT_FUNC(uct_urma_iface_t, uct_ub_iface_ops_t *ops,
                     uct_iface_ops_t *tl_ops, uct_md_h md, uct_worker_h worker,
                     const uct_iface_params_t *params,
                     const uct_iface_config_t *tl_config, const uct_ub_iface_init_attr_t *init_attr)
 {
-    uct_ub_iface_config_t *config = ucs_derived_of(tl_config, uct_ub_iface_config_t);
+    uct_urma_iface_config_t *config = ucs_derived_of(tl_config, uct_urma_iface_config_t);
     uct_ub_md_t *ub_md = ucs_derived_of(md, uct_ub_md_t);
     uct_ub_device_t *dev = &ub_md->dev;
     ucs_status_t status;
@@ -1620,7 +1620,7 @@ err:
     return status;
 }
 
-void uct_ub_iface_mpool_cleanup(uct_ub_iface_t *iface)
+void uct_ub_iface_mpool_cleanup(uct_urma_iface_t *iface)
 {
     ucs_mpool_cleanup(&iface->tx.send_op_mp, 1);
     ucs_mpool_put_inline(iface->ka_local_seg);
@@ -1630,7 +1630,7 @@ void uct_ub_iface_mpool_cleanup(uct_ub_iface_t *iface)
     ucs_mpool_cleanup(&iface->tx.short_desc_mp, 1);
 }
 
-static UCS_CLASS_CLEANUP_FUNC(uct_ub_iface_t)
+static UCS_CLASS_CLEANUP_FUNC(uct_urma_iface_t)
 {
     uct_ub_iface_mpool_cleanup(self);
     ucs_ptr_array_cleanup(&self->eps, 1);
@@ -1638,4 +1638,4 @@ static UCS_CLASS_CLEANUP_FUNC(uct_ub_iface_t)
     uct_ub_destroy_resources(self);
 }
 
-UCS_CLASS_DEFINE(uct_ub_iface_t, uct_base_iface_t);
+UCS_CLASS_DEFINE(uct_urma_iface_t, uct_base_iface_t);

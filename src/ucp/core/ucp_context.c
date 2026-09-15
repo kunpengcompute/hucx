@@ -607,6 +607,7 @@ static ucp_tl_alias_t ucp_tl_aliases[] = {
   { "ugni",  { "ugni_smsg", UCP_TL_AUX("ugni_udt"), "ugni_rdma", NULL } },
   { "cuda",  { "cuda_copy", "cuda_ipc", "gdr_copy", NULL } },
   { "rocm",  { "rocm_copy", "rocm_ipc", "rocm_gdr", NULL } },
+  { "rc_u",  { "rc_urma", UCP_TL_AUX("um_urma"), NULL }},
   { "um_u",  { "um_urma", NULL } },
   { "um",    { "um_urma", NULL } },
   { NULL }

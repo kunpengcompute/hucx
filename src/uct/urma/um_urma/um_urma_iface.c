@@ -45,9 +45,9 @@ static void UCS_CLASS_DELETE_FUNC_NAME(uct_um_urma_iface_t)(uct_iface_t*);
 static void uct_um_urma_iface_free_async_comps(uct_um_urma_iface_t *iface);
 
 ucs_config_field_t uct_um_urma_iface_config_table[] = {
-    {"UB_", "", NULL,
+    {"URMA_", "", NULL,
     ucs_offsetof(uct_um_urma_iface_config_t, super),
-    UCS_CONFIG_TYPE_TABLE(uct_ub_iface_config_table)},
+    UCS_CONFIG_TYPE_TABLE(uct_urma_iface_config_table)},
 
     {"TIMEOUT", "5.0m", "Transport timeout",
      ucs_offsetof(uct_um_urma_iface_config_t, peer_timeout), UCS_CONFIG_TYPE_TIME},
@@ -619,7 +619,7 @@ void uct_um_urma_iface_progress_disable(uct_iface_h tl_iface, unsigned flags)
     uct_base_iface_progress_disable(tl_iface, flags);
 }
 
-static void uct_um_urma_iface_jfc_destroy(uct_ub_iface_t *iface, uint8_t direction)
+static void uct_um_urma_iface_jfc_destroy(uct_urma_iface_t *iface, uint8_t direction)
 {
     uct_ub_destroy_jfc(iface->jfc[direction]);
 }
@@ -916,7 +916,7 @@ static UCS_CLASS_INIT_FUNC(uct_um_urma_iface_t, uct_md_h tl_md, uct_worker_h wor
     init_attr.rx_priv_len = sizeof(uct_um_urma_recv_skb_t) - sizeof(uct_ub_iface_recv_desc_t);
     init_attr.rx_hdr_len = sizeof(uct_um_urma_neth_t);
     init_attr.use_min_seg = 1;
-    UCS_CLASS_CALL_SUPER_INIT(uct_ub_iface_t, &uct_um_urma_iface_ops, &ops->super, tl_md,
+    UCS_CLASS_CALL_SUPER_INIT(uct_urma_iface_t, &uct_um_urma_iface_ops, &ops->super, tl_md,
                               worker, params, tl_config, &init_attr);
     status = UCS_STATS_NODE_ALLOC(&self->stats, &uct_um_urma_iface_stats_class, self->super.stats, "-%p", self);
     if (status != UCS_OK) {
@@ -994,7 +994,7 @@ static UCS_CLASS_CLEANUP_FUNC(uct_um_urma_iface_t)
     uct_um_urma_leave(self);
 }
 
-UCS_CLASS_DEFINE(uct_um_urma_iface_t, uct_ub_iface_t);
+UCS_CLASS_DEFINE(uct_um_urma_iface_t, uct_urma_iface_t);
 
 static UCS_CLASS_DEFINE_NEW_FUNC(uct_um_urma_iface_t, uct_iface_t, uct_md_h, uct_worker_h, const uct_iface_params_t*,
                                  const uct_iface_config_t*);

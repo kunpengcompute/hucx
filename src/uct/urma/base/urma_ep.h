@@ -16,11 +16,11 @@
 #define MAX_TASK_COUNT 608
 #define UCT_UB_MAX_HDR_SIZE 128
 
-void uct_ub_ep_flush_op_completion_handler(uct_ub_iface_send_op_t *op, const void *resp);
-void uct_ub_ep_get_bcopy_handler_no_completion(uct_ub_iface_send_op_t *op, const void *resp);
-void uct_ub_ep_get_bcopy_handler(uct_ub_iface_send_op_t *op, const void *resp);
-void uct_ub_ep_get_zcopy_completion_handler(uct_ub_iface_send_op_t *op, const void *resp);
-UCS_CLASS_DECLARE(uct_ub_ep_t, uct_ub_iface_t *);
+void uct_ub_ep_flush_op_completion_handler(uct_urma_iface_send_op_t *op, const void *resp);
+void uct_ub_ep_get_bcopy_handler_no_completion(uct_urma_iface_send_op_t *op, const void *resp);
+void uct_ub_ep_get_bcopy_handler(uct_urma_iface_send_op_t *op, const void *resp);
+void uct_ub_ep_get_zcopy_completion_handler(uct_urma_iface_send_op_t *op, const void *resp);
+UCS_CLASS_DECLARE(uct_ub_ep_t, uct_urma_iface_t *);
 UCS_CLASS_DECLARE_DELETE_FUNC(uct_ub_ep_t, uct_ep_t);
 
 /*
@@ -105,7 +105,7 @@ enum {
 
 #define UCT_UB_DECLARE_ATOMIC_LE_HANDLER(_bits) \
     void \
-    uct_ub_common_atomic##_bits##_le_handler(uct_ub_iface_send_op_t *op, \
+    uct_ub_common_atomic##_bits##_le_handler(uct_urma_iface_send_op_t *op, \
                                              const void *resp);
 UCT_UB_DECLARE_ATOMIC_LE_HANDLER(32)
 UCT_UB_DECLARE_ATOMIC_LE_HANDLER(64)
@@ -191,7 +191,7 @@ UCT_UB_DECLARE_ATOMIC_LE_HANDLER(64)
     }
 
 static UCS_F_ALWAYS_INLINE void
-uct_ub_outstanding_queue_add_send_op(uct_ub_tx_queue_t *tx_queue, uct_ub_iface_send_op_t *op)
+uct_ub_outstanding_queue_add_send_op(uct_ub_tx_queue_t *tx_queue, uct_urma_iface_send_op_t *op)
 {
     /* NOTE: We insert the descriptor with the sequence number after the post,
      * because when polling completions, we get the number of completions (rather
@@ -205,7 +205,7 @@ uct_ub_outstanding_queue_add_send_op(uct_ub_tx_queue_t *tx_queue, uct_ub_iface_s
 
 static UCS_F_ALWAYS_INLINE void
 uct_ub_outstanding_queue_add_send_op_sn(uct_ub_tx_queue_t *tx_queue,
-                                        uct_ub_iface_send_op_t *op, uint32_t sn)
+                                        uct_urma_iface_send_op_t *op, uint32_t sn)
 {
     ucs_trace_poll("Tx_queue add send op sn %d handler %s", sn,
                    ucs_debug_get_symbol_name((void*)op->handler));
@@ -215,7 +215,7 @@ uct_ub_outstanding_queue_add_send_op_sn(uct_ub_tx_queue_t *tx_queue,
 }
 
 static UCS_F_ALWAYS_INLINE void
-uct_ub_ep_init_send_op(uct_ub_iface_send_op_t *op, unsigned flags, uct_completion_t *comp,
+uct_ub_ep_init_send_op(uct_urma_iface_send_op_t *op, unsigned flags, uct_completion_t *comp,
                        uct_ub_send_handler_t handler)
 {
     op->flags = flags;
@@ -224,13 +224,13 @@ uct_ub_ep_init_send_op(uct_ub_iface_send_op_t *op, unsigned flags, uct_completio
 }
 
 static UCS_F_ALWAYS_INLINE ucs_status_t
-uct_ub_txqp_add_flush_comp(uct_ub_iface_t *iface, uct_base_ep_t *ep,
+uct_ub_txqp_add_flush_comp(uct_urma_iface_t *iface, uct_base_ep_t *ep,
                            uct_ub_tx_queue_t *tx_queue, uct_completion_t *comp, uint16_t sn)
 {
-    uct_ub_iface_send_op_t *op = NULL;
+    uct_urma_iface_send_op_t *op = NULL;
 
     if (comp != NULL) {
-        op = (uct_ub_iface_send_op_t*)ucs_mpool_get(&iface->tx.send_op_mp);
+        op = (uct_urma_iface_send_op_t*)ucs_mpool_get(&iface->tx.send_op_mp);
         if (ucs_unlikely(op == NULL)) {
             ucs_error("Failed to allocate flush completion");
             return UCS_ERR_NO_MEMORY;
@@ -244,26 +244,26 @@ uct_ub_txqp_add_flush_comp(uct_ub_iface_t *iface, uct_base_ep_t *ep,
     return UCS_INPROGRESS;
 }
 
-static UCS_F_ALWAYS_INLINE void uct_ub_op_release_get_bcopy(uct_ub_iface_send_op_t *op)
+static UCS_F_ALWAYS_INLINE void uct_ub_op_release_get_bcopy(uct_urma_iface_send_op_t *op)
 {
     uct_ub_iface_send_desc_t *desc = ucs_derived_of(op, uct_ub_iface_send_desc_t);
-    uct_ub_iface_t *iface = ucs_container_of(ucs_mpool_obj_owner(desc), uct_ub_iface_t, tx.mp);
+    uct_urma_iface_t *iface = ucs_container_of(ucs_mpool_obj_owner(desc), uct_urma_iface_t, tx.mp);
 
     iface->tx.reads_completed += op->length;
 }
 
-static UCS_F_ALWAYS_INLINE void uct_ub_op_release_get_zcopy(uct_ub_iface_send_op_t *op)
+static UCS_F_ALWAYS_INLINE void uct_ub_op_release_get_zcopy(uct_urma_iface_send_op_t *op)
 {
     op->iface->tx.reads_completed += op->length;
     op->flags &= ~UCT_UB_IFACE_SEND_OP_FLAG_IOV;
 }
 
 static UCS_F_ALWAYS_INLINE void
-uct_ub_tx_outstanding_queue_add_send_comp(uct_ub_iface_t *iface, uct_ub_tx_queue_t *tx_queue,
+uct_ub_tx_outstanding_queue_add_send_comp(uct_urma_iface_t *iface, uct_ub_tx_queue_t *tx_queue,
                                           uct_ub_send_handler_t handler, uct_completion_t *comp,
                                           uint32_t sn, uint16_t flags, size_t length)
 {
-    uct_ub_iface_send_op_t *op = NULL;
+    uct_urma_iface_send_op_t *op = NULL;
 
     if (comp == NULL) {
         return;
@@ -281,7 +281,7 @@ uct_ub_tx_outstanding_queue_add_send_comp(uct_ub_iface_t *iface, uct_ub_tx_queue
 
 static uint32_t UCS_F_ALWAYS_INLINE uct_ub_get_complete_enable_flag(uint32_t force_complete_enable,
                                                                     uct_ub_ep_t *ep,
-                                                                    uct_ub_iface_t *iface)
+                                                                    uct_urma_iface_t *iface)
 {
     ucs_trace("Get complete enable flag force_complete_enable:%u, uncompltes:%u, \
               tx_jfc_moderation:%u, jfc_available:%zd\n",
@@ -303,7 +303,7 @@ static uint32_t UCS_F_ALWAYS_INLINE uct_ub_get_complete_enable_flag(uint32_t for
     return URMA_COMPLETE_DISABLE;
 }
 
-static void UCS_F_ALWAYS_INLINE uct_ub_init_base_wr(urma_jfs_wr_t *wr, uct_ub_iface_t *iface,
+static void UCS_F_ALWAYS_INLINE uct_ub_init_base_wr(urma_jfs_wr_t *wr, uct_urma_iface_t *iface,
                                                     urma_opcode_t opcode, uct_ub_ep_t *ep,
                                                     uint32_t force_complete_enable, uint32_t inline_flag,
                                                     uint32_t solicited_flag)
@@ -314,7 +314,7 @@ static void UCS_F_ALWAYS_INLINE uct_ub_init_base_wr(urma_jfs_wr_t *wr, uct_ub_if
     wr->opcode                   = opcode;
 }
 
-static UCS_F_ALWAYS_INLINE void uct_ub_ep_fm(uct_ub_iface_t *iface, uct_ub_ep_t* ep, urma_jfs_wr_t *wr)
+static UCS_F_ALWAYS_INLINE void uct_ub_ep_fm(uct_urma_iface_t *iface, uct_ub_ep_t* ep, urma_jfs_wr_t *wr)
 {
     if (ucs_likely(ep->fi.fence_beat == iface->tx.fi.fence_beat)) {
         return;
@@ -324,13 +324,13 @@ static UCS_F_ALWAYS_INLINE void uct_ub_ep_fm(uct_ub_iface_t *iface, uct_ub_ep_t*
 }
 
 static UCS_F_ALWAYS_INLINE int
-uct_ub_iface_has_tx_resources(uct_ub_iface_t *iface)
+uct_ub_iface_has_tx_resources(uct_urma_iface_t *iface)
 {
     return !ucs_mpool_is_empty(&iface->tx.mp) && (iface->tx.reads_available > 0);
 }
 
 static UCS_F_ALWAYS_INLINE
-int uct_ub_fc_has_resources(uct_ub_iface_t *iface, uct_ub_fc_t *fc)
+int uct_ub_fc_has_resources(uct_urma_iface_t *iface, uct_ub_fc_t *fc)
 {
     /* When FC is disabled, fc_wnd may still become 0 because it's decremented
      * unconditionally (for performance reasons) */
@@ -368,7 +368,7 @@ static inline void uct_ub_zcopy_desc_set_header(uct_ub_hdr_t *rch, uct_ub_ep_t *
 }
 
 static inline void
-uct_ub_iface_fill_inl_am_sge_iov(uct_ub_iface_t *iface, uct_ub_ep_t *ep, uint8_t id,
+uct_ub_iface_fill_inl_am_sge_iov(uct_urma_iface_t *iface, uct_ub_ep_t *ep, uint8_t id,
                                  const uct_iov_t *iov, size_t iovcnt)
 {
     uct_ub_hdr_t *hdr = &iface->am_inl_hdr.ub_hdr;
@@ -406,7 +406,7 @@ static UCS_F_ALWAYS_INLINE ucs_status_t uct_ub_ep_import_seg(uct_ub_md_t *ub_md,
     return status;
 }
 
-static UCS_F_ALWAYS_INLINE ucs_status_t uct_ub_ep_connect_tseg(uct_ub_iface_t *iface, uct_rkey_t rkey_p,
+static UCS_F_ALWAYS_INLINE ucs_status_t uct_ub_ep_connect_tseg(uct_urma_iface_t *iface, uct_rkey_t rkey_p,
                                                                urma_target_seg_t **target_seg)
 {
     uct_ub_rkey_info_t *rkey_info = NULL;
@@ -427,7 +427,7 @@ out:
     return status;
 }
 
-static UCS_F_ALWAYS_INLINE ucs_status_t uct_ub_ep_get_tseg(uct_ub_iface_t *iface, uct_rkey_t rkey_p,
+static UCS_F_ALWAYS_INLINE ucs_status_t uct_ub_ep_get_tseg(uct_urma_iface_t *iface, uct_rkey_t rkey_p,
                                                            urma_target_seg_t **target_seg)
 {
     uct_ub_rkey_info_t *rkey_info = (uct_ub_rkey_info_t *)rkey_p;
@@ -457,7 +457,7 @@ static UCS_F_ALWAYS_INLINE ucs_status_t uct_ub_ep_get_tseg(uct_ub_iface_t *iface
     uct_ub_zcopy_desc_set_comp(_desc, _comp, _send_flags); \
     uct_ub_zcopy_desc_set_header((uct_ub_hdr_t*)(_desc + 1), _ep, _id, _header, _header_length);
 
-extern ucs_status_t uct_ub_iface_txqp_purge_process(uct_ub_iface_t *iface, uct_ub_tx_queue_t *txqp,
-                                                    ucs_status_t status, uct_ub_iface_send_op_t *op, int warn);
+extern ucs_status_t uct_ub_iface_txqp_purge_process(uct_urma_iface_t *iface, uct_ub_tx_queue_t *txqp,
+                                                    ucs_status_t status, uct_urma_iface_send_op_t *op, int warn);
 
 #endif

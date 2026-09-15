@@ -2126,7 +2126,7 @@ static uint32_t ucs_has_spec_device(ucs_config_match_device_func func)
         dlclose(handle);
         return 0;
     }
-    
+
     get_device_name = (ibv_get_device_name_func)dlsym(handle, "ibv_get_device_name");
     if (!get_device_name) {
         ucs_debug("dlsym ibv_get_device_name failed: %s.", dlerror());
@@ -2189,17 +2189,17 @@ static uint32_t ucs_has_spec_device(ucs_config_match_device_func func)
     return 0;
 }
 #else
-ucs_status_t ucs_config_match_spec_device(const char *ib_dev_name, const uint32_t vendor_part_id)
+uint32_t ucs_config_match_spec_device(const char *ib_dev_name, const uint32_t vendor_part_id)
 {
     return 0;
 }
 
-ucs_status_t ucs_config_match_SP670_device(const char *ib_dev_name, const uint32_t vendor_part_id)
+uint32_t ucs_config_match_SP670_device(const char *ib_dev_name, const uint32_t vendor_part_id)
 {
     return 0;
 }
 
-static ucs_status_t ucs_has_spec_device(ucs_config_match_device_func func)
+static uint32_t ucs_has_spec_device(ucs_config_match_device_func func)
 {
     return 0;
 }
@@ -2233,7 +2233,7 @@ ucs_config_parser_set_default_values_spec(void *opts, ucs_config_field_t *fields
         if (field->name && strcmp(field->name, "TX_MIN_SGE") == 0) {
             if (tag == TAG_RC) {
                 status = ucs_config_parser_parse_field(field, "2", var);
-            } 
+            }
             if (tag == TAG_UD){
                 status = ucs_config_parser_parse_field(field, "1", var);
             }
@@ -2242,7 +2242,7 @@ ucs_config_parser_set_default_values_spec(void *opts, ucs_config_field_t *fields
         if (field->name && strcmp(field->name, "RX_QUEUE_LEN") == 0) {
             if (tag == TAG_SP670) {
                 status = ucs_config_parser_parse_field(field, "4095", var);
-            } 
+            }
         }
 
         if (status != UCS_OK) {

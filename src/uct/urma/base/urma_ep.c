@@ -42,7 +42,7 @@ static ucs_stats_class_t uct_ub_fc_stats_class = {
 
 #define UCT_UB_DEFINE_ATOMIC_LE_HANDLER(_bits) \
     void \
-    uct_ub_common_atomic##_bits##_le_handler(uct_ub_iface_send_op_t *op, \
+    uct_ub_common_atomic##_bits##_le_handler(uct_urma_iface_send_op_t *op, \
                                              const void *resp) \
     { \
         uct_ub_iface_send_desc_t *desc = ucs_derived_of(op, uct_ub_iface_send_desc_t); \
@@ -58,13 +58,13 @@ static ucs_stats_class_t uct_ub_fc_stats_class = {
 UCT_UB_DEFINE_ATOMIC_LE_HANDLER(32)
 UCT_UB_DEFINE_ATOMIC_LE_HANDLER(64)
 
-void uct_ub_ep_flush_op_completion_handler(uct_ub_iface_send_op_t *op, const void *resp)
+void uct_ub_ep_flush_op_completion_handler(uct_urma_iface_send_op_t *op, const void *resp)
 {
     uct_invoke_completion(op->user_comp, UCS_OK);
     ucs_mpool_put(op);
 }
 
-void uct_ub_ep_get_bcopy_handler(uct_ub_iface_send_op_t *op, const void *resp)
+void uct_ub_ep_get_bcopy_handler(uct_urma_iface_send_op_t *op, const void *resp)
 {
     uct_ub_iface_send_desc_t *desc = ucs_derived_of(op, uct_ub_iface_send_desc_t);
 
@@ -77,7 +77,7 @@ void uct_ub_ep_get_bcopy_handler(uct_ub_iface_send_op_t *op, const void *resp)
     ucs_mpool_put(desc);
 }
 
-void uct_ub_ep_get_bcopy_handler_no_completion(uct_ub_iface_send_op_t *op, const void *resp)
+void uct_ub_ep_get_bcopy_handler_no_completion(uct_urma_iface_send_op_t *op, const void *resp)
 {
     uct_ub_iface_send_desc_t *desc = ucs_derived_of(op, uct_ub_iface_send_desc_t);
 
@@ -88,13 +88,13 @@ void uct_ub_ep_get_bcopy_handler_no_completion(uct_ub_iface_send_op_t *op, const
     ucs_mpool_put(desc);
 }
 
-void uct_ub_ep_get_zcopy_completion_handler(uct_ub_iface_send_op_t *op, const void *resp)
+void uct_ub_ep_get_zcopy_completion_handler(uct_urma_iface_send_op_t *op, const void *resp)
 {
     uct_ub_op_release_get_zcopy(op);
     uct_ub_send_op_completion_handler(op, resp);
 }
 
-void uct_ub_ep_am_zcopy_handler(uct_ub_iface_send_op_t *op, const void *resp)
+void uct_ub_ep_am_zcopy_handler(uct_urma_iface_send_op_t *op, const void *resp)
 {
     uct_ub_iface_send_desc_t *desc = ucs_derived_of(op, uct_ub_iface_send_desc_t);
 
@@ -102,7 +102,7 @@ void uct_ub_ep_am_zcopy_handler(uct_ub_iface_send_op_t *op, const void *resp)
     ucs_mpool_put(desc);
 }
 
-ucs_status_t uct_ub_ep_basic_init(uct_ub_iface_t *iface, uct_ub_ep_t *ep)
+ucs_status_t uct_ub_ep_basic_init(uct_urma_iface_t *iface, uct_ub_ep_t *ep)
 {
     ucs_status_t status;
 
@@ -119,7 +119,7 @@ ucs_status_t uct_ub_ep_basic_init(uct_ub_iface_t *iface, uct_ub_ep_t *ep)
     return UCS_OK;
 }
 
-void uct_ub_err_delete_ep(uct_ub_iface_t *iface, uct_ub_ep_t *ep)
+void uct_ub_err_delete_ep(uct_urma_iface_t *iface, uct_ub_ep_t *ep)
 {
     ucs_ptr_array_remove(&iface->eps, ep->ep_id);
 }
@@ -146,8 +146,8 @@ void uct_ub_fc_stats_cleanup(uct_ub_fc_t *fc)
     UCS_STATS_NODE_FREE(fc->stats);
 }
 
-ucs_status_t uct_ub_iface_txqp_purge_process(uct_ub_iface_t *iface, uct_ub_tx_queue_t *txqp,
-                                              ucs_status_t status, uct_ub_iface_send_op_t *op, int warn)
+ucs_status_t uct_ub_iface_txqp_purge_process(uct_urma_iface_t *iface, uct_ub_tx_queue_t *txqp,
+                                              ucs_status_t status, uct_urma_iface_send_op_t *op, int warn)
 {
     if (warn && (op->handler != uct_ub_ep_flush_op_completion_handler)) {
         ucs_warn("Destroying txqp with uncomplet operation handler %s",
@@ -207,7 +207,7 @@ out:
     return UCS_OK;
 }
 
-UCS_CLASS_INIT_FUNC(uct_ub_ep_t, uct_ub_iface_t *iface)
+UCS_CLASS_INIT_FUNC(uct_ub_ep_t, uct_urma_iface_t *iface)
 {
     ucs_status_t status;
 
@@ -232,12 +232,12 @@ UCS_CLASS_INIT_FUNC(uct_ub_ep_t, uct_ub_iface_t *iface)
 
 static UCS_CLASS_CLEANUP_FUNC(uct_ub_ep_t)
 {
-    uct_ub_iface_t *iface = ucs_derived_of(self->super.super.iface, uct_ub_iface_t);
+    uct_urma_iface_t *iface = ucs_derived_of(self->super.super.iface, uct_urma_iface_t);
 
     uct_ub_iface_remove_ep(iface, self);
     uct_ub_fc_stats_cleanup(&self->fc);
 }
 
 UCS_CLASS_DEFINE(uct_ub_ep_t, uct_base_ep_t);
-UCS_CLASS_DEFINE_NEW_FUNC(uct_ub_ep_t, uct_ep_t, uct_ub_iface_t *);
+UCS_CLASS_DEFINE_NEW_FUNC(uct_ub_ep_t, uct_ep_t, uct_urma_iface_t *);
 UCS_CLASS_DEFINE_DELETE_FUNC(uct_ub_ep_t, uct_ep_t);
