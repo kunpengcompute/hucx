@@ -21,7 +21,7 @@
 #include <urma_api.h>
 #include "um_urma_def.h"
 
-#define UCT_UB_MAX_IOV          8UL
+#define UCT_URMA_MAX_IOV          8UL
 #define UCT_UM_URMA_GRH_LEN     40  /* GLobal routing header */
 #define UCT_UM_URMA_SKIP_SWEEP  8
 
@@ -95,7 +95,7 @@ typedef struct uct_um_urma_send_skb {
 } UCS_S_PACKED UCS_V_ALIGNED(UCT_UM_URMA_SKB_ALIGN) uct_um_urma_send_skb_t;
 
 typedef struct uct_um_urma_recv_skb {
-    uct_ub_iface_recv_desc_t        super;
+    uct_urma_iface_recv_desc_t        super;
     union {
         struct {
             ucs_frag_list_elem_t    elem;
@@ -149,7 +149,7 @@ typedef struct uct_um_urma_iface {
     struct {
         uct_um_urma_send_skb_t      *skb; /* ready to use skb */
         ucs_mpool_t                 mp;   /* pool for send_op completions */
-        urma_sge_t                  sge[UCT_UB_MAX_IOV];
+        urma_sge_t                  sge[UCT_URMA_MAX_IOV];
         urma_jfs_wr_t               wr_inl;
         urma_jfs_wr_t               wr_skb;
         ucs_arbiter_t               pending_q;
@@ -193,15 +193,15 @@ static UCS_F_ALWAYS_INLINE int uct_um_urma_iface_can_tx(uct_um_urma_iface_t *ifa
     return iface->super.tx.jfc_available > 0;
 }
 
-ucs_status_t uct_um_urma_iface_cep_get_conn_sn(uct_um_urma_iface_t *iface, const uct_ub_address_t *dev_addr,
+ucs_status_t uct_um_urma_iface_cep_get_conn_sn(uct_um_urma_iface_t *iface, const uct_urma_address_t *dev_addr,
                                                const uct_um_urma_iface_addr_t *if_addr,
                                                uct_um_urma_ep_conn_sn_t *conn_sn_p);
 
-uct_um_urma_ep_t *uct_um_urma_iface_cep_get_ep(uct_um_urma_iface_t *iface, const uct_ub_address_t *dev_addr,
+uct_um_urma_ep_t *uct_um_urma_iface_cep_get_ep(uct_um_urma_iface_t *iface, const uct_urma_address_t *dev_addr,
                                                const uct_um_urma_iface_addr_t *if_addr,
                                                uct_um_urma_ep_conn_sn_t conn_sn, int is_private);
 
-void uct_um_urma_iface_cep_insert_ep(uct_um_urma_iface_t *iface, const uct_ub_address_t *dev_addr,
+void uct_um_urma_iface_cep_insert_ep(uct_um_urma_iface_t *iface, const uct_urma_address_t *dev_addr,
                                      const uct_um_urma_iface_addr_t *if_addr, uct_um_urma_ep_conn_sn_t conn_sn,
                                      uct_um_urma_ep_t *ep);
 

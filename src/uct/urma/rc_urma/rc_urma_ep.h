@@ -23,7 +23,7 @@ typedef struct uct_rc_urma_jetty {
 } uct_rc_urma_jetty_t;
 
 struct uct_rc_urma_ep {
-    uct_ub_ep_t                     super;
+    uct_urma_ep_t                   super;
     uct_rc_urma_jetty_t             rc_urma_jetty;
     uint64_t                        ka_va_addr;
     urma_target_seg_t               *ka_tseg;
@@ -107,7 +107,7 @@ static inline int16_t uct_rc_urma_outstanding_queue_available(uct_rc_urma_ep_t *
 }
 
 static UCS_F_ALWAYS_INLINE uint8_t
-uct_rc_urma_fc_req_moderation(uct_ub_fc_t *fc, uct_rc_urma_iface_t *iface)
+uct_rc_urma_fc_req_moderation(uct_urma_fc_t *fc, uct_rc_urma_iface_t *iface)
 {
     return (fc->fc_wnd == iface->super.config.fc_hard_thresh) ?
             UCT_RC_URMA_EP_FLAG_FC_HARD_REQ :
@@ -153,7 +153,7 @@ static UCS_F_ALWAYS_INLINE uint8_t uct_rc_urma_fc_get_fc_hdr(uint8_t id)
  */
 #define UCT_RC_URMA_CHECK_FC_WND(_fc, _stats) \
     if ((_fc)->fc_wnd <= 0) { \
-        UCS_STATS_UPDATE_COUNTER((_fc)->stats, UCT_UB_FC_STAT_NO_CRED, 1); \
+        UCS_STATS_UPDATE_COUNTER((_fc)->stats, UCT_URMA_FC_STAT_NO_CRED, 1); \
         UCS_STATS_UPDATE_COUNTER(_stats, UCT_EP_STAT_NO_RES, 1); \
         return UCS_ERR_NO_RESOURCE; \
     } \
@@ -183,7 +183,7 @@ static UCS_F_ALWAYS_INLINE uint8_t uct_rc_urma_fc_get_fc_hdr(uint8_t id)
         (_fc)->fc_wnd--; \
         \
         if ((_iface)->super.config.fc_enabled) { \
-            UCS_STATS_SET_COUNTER((_fc)->stats, UCT_UB_FC_STAT_FC_WND, \
+            UCS_STATS_SET_COUNTER((_fc)->stats, UCT_URMA_FC_STAT_FC_WND, \
                                   (_fc)->fc_wnd); \
         } \
     }
@@ -191,12 +191,12 @@ static UCS_F_ALWAYS_INLINE uint8_t uct_rc_urma_fc_get_fc_hdr(uint8_t id)
 #define UCT_RC_URMA_UPDATE_FC(_iface, _ep, _fc_hdr) \
     { \
         if ((_fc_hdr) & UCT_RC_URMA_EP_FLAG_FC_GRANT) { \
-            UCS_STATS_UPDATE_COUNTER((_ep)->super.fc.stats, UCT_UB_FC_STAT_TX_GRANT, 1); \
+            UCS_STATS_UPDATE_COUNTER((_ep)->super.fc.stats, UCT_URMA_FC_STAT_TX_GRANT, 1); \
         } \
         if ((_fc_hdr) & UCT_RC_URMA_EP_FLAG_FC_SOFT_REQ) { \
-            UCS_STATS_UPDATE_COUNTER((_ep)->super.fc.stats, UCT_UB_FC_STAT_TX_SOFT_REQ, 1); \
+            UCS_STATS_UPDATE_COUNTER((_ep)->super.fc.stats, UCT_URMA_FC_STAT_TX_SOFT_REQ, 1); \
         } else if ((_fc_hdr) & UCT_RC_URMA_EP_FLAG_FC_HARD_REQ) { \
-            UCS_STATS_UPDATE_COUNTER((_ep)->super.fc.stats, UCT_UB_FC_STAT_TX_HARD_REQ, 1); \
+            UCS_STATS_UPDATE_COUNTER((_ep)->super.fc.stats, UCT_URMA_FC_STAT_TX_HARD_REQ, 1); \
         } \
         \
         (_ep)->super.flags &= ~UCT_RC_URMA_EP_FC_MASK; \
@@ -263,7 +263,7 @@ ucs_status_t uct_rc_urma_ep_connect_to_ep(uct_ep_h tl_ep,
 ucs_status_t uct_rc_urma_ep_fc_grant(uct_pending_req_t *self);
 ucs_arbiter_cb_result_t uct_rc_urma_ep_process_pending(ucs_arbiter_t *arbiter, ucs_arbiter_group_t *group,
                                                        ucs_arbiter_elem_t *elem, void *arg);
-void uct_rc_urma_ep_txqp_purge_outstanding(uct_rc_urma_iface_t *iface, uct_ub_tx_queue_t *txqp,
+void uct_rc_urma_ep_txqp_purge_outstanding(uct_rc_urma_iface_t *iface, uct_urma_tx_queue_t *txqp,
                                            ucs_status_t status, uint32_t sn, int warn);
 
 ucs_status_t uct_rc_urma_ep_connect_to_ep_v2(uct_ep_h tl_ep, const uct_device_addr_t *dev_addr,

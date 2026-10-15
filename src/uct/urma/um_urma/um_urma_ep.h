@@ -39,10 +39,10 @@ typedef struct uct_um_urma_put_hdr {
     uint64_t rva;
 } uct_um_urma_put_hdr_t;
 
-typedef struct uct_ub_um_urma_ep_addr {
+typedef struct uct_um_urma_ep_addr {
     uct_um_urma_iface_addr_t    iface_addr;
     uint32_t                    ep_id;
-} uct_ub_um_urma_ep_addr_t;
+} uct_um_urma_ep_addr_t;
 
 typedef uint16_t    uct_um_urma_psn_t;
 
@@ -56,7 +56,7 @@ typedef struct uct_um_urma_ctl_hdr {
     uint8_t                             reserved[3];
     union {
         struct {
-            uct_ub_um_urma_ep_addr_t    ep_addr;
+            uct_um_urma_ep_addr_t       ep_addr;
             uct_um_urma_ep_conn_sn_t    conn_sn;
         } conn_req;
         struct {
@@ -75,7 +75,7 @@ typedef struct uct_um_urma_ep_pending_op {
 } uct_um_urma_ep_pending_op_t;
 
 struct uct_um_urma_ep {
-    uct_ub_ep_t                     super;
+    uct_urma_ep_t                   super;
     ucs_time_t                      send_time;
     ucs_time_t                      resend_time;
     ucs_time_t                      tick;
@@ -135,7 +135,7 @@ typedef struct uct_um_urma_iov {
 
 typedef struct uct_um_urma_zcopy_desc {
     uct_um_urma_comp_desc_t     super;
-    uct_um_urma_iov_t           iov[UCT_UB_MAX_IOV];
+    uct_um_urma_iov_t           iov[UCT_URMA_MAX_IOV];
     uint16_t                    iovcnt;     /* Count of the iov[] array valid elements */
 } uct_um_urma_zcopy_desc_t;
 
@@ -230,7 +230,7 @@ ucs_status_t uct_um_urma_ep_connect_to_ep(uct_ep_h tl_ep, const uct_device_addr_
 
 ucs_status_t uct_um_urma_ep_create_connected_common(const uct_ep_params_t *params, uct_ep_h *new_ep_p);
 
-ucs_status_t uct_um_urma_iface_unpack_peer_address(uct_um_urma_iface_t *iface, const uct_ub_address_t *dev_addr,
+ucs_status_t uct_um_urma_iface_unpack_peer_address(uct_um_urma_iface_t *iface, const uct_urma_address_t *dev_addr,
                                                    const uct_um_urma_iface_addr_t *if_addr, void *address_p);
 
 uct_um_urma_send_skb_t *uct_um_urma_ep_prepare_creq(uct_um_urma_ep_t *ep);
@@ -240,7 +240,7 @@ void uct_um_urma_ep_deal_creq(uct_um_urma_iface_t *iface, uct_um_urma_neth_t *ne
 void uct_um_urma_ep_deal_crep(uct_um_urma_iface_t *iface, uct_um_urma_ep_t *ep, uct_um_urma_neth_t *neth);
 
 void uct_um_urma_ep_deal_am(uct_um_urma_iface_t *iface, uct_um_urma_neth_t *neth, unsigned byte_len,
-                            uct_ub_iface_recv_desc_t *desc);
+                            uct_urma_iface_recv_desc_t *desc);
 
 ucs_arbiter_cb_result_t uct_um_urma_ep_do_pending(ucs_arbiter_t *arbiter, ucs_arbiter_group_t *group,
                                                   ucs_arbiter_elem_t *elem, void *arg);
@@ -329,11 +329,11 @@ static UCS_F_ALWAYS_INLINE uint32_t uct_um_urma_neth_get_dest_id(uct_um_urma_net
     return neth->packet_type & UCT_UM_URMA_PACKET_DEST_ID_MASK;
 }
 
-static UCS_F_ALWAYS_INLINE uct_ub_address_t* uct_um_urma_creq_ub_addr(uct_um_urma_ctl_hdr_t *conn_req)
+static UCS_F_ALWAYS_INLINE uct_urma_address_t* uct_um_urma_creq_ub_addr(uct_um_urma_ctl_hdr_t *conn_req)
 {
     ucs_assert(conn_req->type == UCT_UM_URMA_PACKET_CREQ);
 
-    return (uct_ub_address_t*)(conn_req + 1);
+    return (uct_urma_address_t*)(conn_req + 1);
 }
 
 static UCS_F_ALWAYS_INLINE int uct_um_urma_ep_is_connected(uct_um_urma_ep_t *ep)

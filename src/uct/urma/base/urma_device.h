@@ -3,8 +3,8 @@
  * See file LICENSE for terms.
  */
 
-#ifndef UCT_UB_DEVICE_H
-#define UCT_UB_DEVICE_H
+#ifndef UCT_URMA_DEVICE_H
+#define UCT_URMA_DEVICE_H
 
 #include <urma_api.h>
 #include <urma_types.h>
@@ -21,18 +21,18 @@
 #include <linux/ip.h>
 #include <urma_opcode.h>
 
-#define UCT_UB_DEVICE_SYSFS_PFX           "/sys/class/uburma/%s"
-#define UCT_UB_DEVICE_SYSFS_FMT           UCT_UB_DEVICE_SYSFS_PFX "/device/%s"
-#define UCT_UB_DEVICE_SYSFS_NUMA          "/sys/class/uburma/%s/device/numa_node"
-#define UCT_UB_DEVICE_SYSFS_NDEV          "/sys/class/uburma/%s/device/ubcore/%s/net_dev"
-#define UCT_UB_DEV_MAX_PORTS              2
-#define UCT_UB_DEV_MAX_BUF_SIZE           200
-#define UCT_UB_DEV_SHIFT_BITS             32
-#define UCT_UB_DEV_PORT_ACTIVE            URMA_PORT_ACTIVE
-#define UCT_UB_S6_ADDR0                   0xff0e0000
-#define UCT_UB_S6_ADDR2                   0x0000ffff
+#define UCT_URMA_DEVICE_SYSFS_PFX           "/sys/class/uburma/%s"
+#define UCT_URMA_DEVICE_SYSFS_FMT           UCT_URMA_DEVICE_SYSFS_PFX "/device/%s"
+#define UCT_URMA_DEVICE_SYSFS_NUMA          "/sys/class/uburma/%s/device/numa_node"
+#define UCT_URMA_DEVICE_SYSFS_NDEV          "/sys/class/uburma/%s/device/ubcore/%s/net_dev"
+#define UCT_URMA_DEV_MAX_PORTS              2
+#define UCT_URMA_DEV_MAX_BUF_SIZE           200
+#define UCT_URMA_DEV_SHIFT_BITS             32
+#define UCT_URMA_DEV_PORT_ACTIVE            URMA_PORT_ACTIVE
+#define UCT_URMA_S6_ADDR0                   0xff0e0000
+#define UCT_URMA_S6_ADDR2                   0x0000ffff
 
-#define UCT_UB_DEV_SET_CPU_MASK(k, word, base, cpu_mask) \
+#define UCT_URMA_DEV_SET_CPU_MASK(k, word, base, cpu_mask) \
     do { \
         for ((k) = 0; (word); ++(k), (word) >>= 1) { \
                 if ((word) & 1) { \
@@ -42,27 +42,27 @@
     } while (0)
 
 enum {
-    UCT_UB_DEVICE_STAT_ASYNC_EVENT,
-    UCT_UB_DEVICE_STAT_LAST
+    UCT_URMA_DEVICE_STAT_ASYNC_EVENT,
+    UCT_URMA_DEVICE_STAT_LAST
 };
 
 enum {
-    UCT_UB_ADDRESS_FLAG_GID_INDEX      = UCS_BIT(0),
-    UCT_UB_ADDRESS_FLAG_LINK_LAYER_ETH = UCS_BIT(1),
-    UCT_UB_ADDRESS_FLAG_IPV6           = UCS_BIT(2),
-    UCT_UB_ADDRESS_FLAG_SUBNET16       = UCS_BIT(3),
-    UCT_UB_ADDRESS_FLAG_SUBNET64       = UCS_BIT(4)
+    UCT_URMA_ADDRESS_FLAG_GID_INDEX      = UCS_BIT(0),
+    UCT_URMA_ADDRESS_FLAG_LINK_LAYER_ETH = UCS_BIT(1),
+    UCT_URMA_ADDRESS_FLAG_IPV6           = UCS_BIT(2),
+    UCT_URMA_ADDRESS_FLAG_SUBNET16       = UCS_BIT(3),
+    UCT_URMA_ADDRESS_FLAG_SUBNET64       = UCS_BIT(4)
 };
 
-typedef struct uct_ub_address {
-    /* Using flags from UCT_UB_ADDRESS_FLAG_xx */
+typedef struct uct_urma_address {
+    /* Using flags from UCT_URMA_ADDRESS_FLAG_xx */
     uint8_t            flags;
     /* Following fields appear in this order (if specified by flags).
      * - urma_eid_t eid
      * - uint32_t uasid
      * - uint32_t urma_mode
      */
-} UCS_S_PACKED uct_ub_address_t;
+} UCS_S_PACKED uct_urma_address_t;
 
 /**
  * PCI identifier of a device
@@ -72,27 +72,27 @@ typedef struct {
     uint8_t                     eid_index;
     urma_transport_type_t       type;
     sa_family_t                 addr_family;
-} uct_ub_device_eid_info_t;
+} uct_urma_device_eid_info_t;
 
 typedef struct {
     uint16_t                    vendor;
     uint16_t                    device;
-} uct_ub_pci_id_t;
+} uct_urma_pci_id_t;
 
 /**
- * ub device specification.
+ * urma device specification.
  */
-typedef struct uct_ub_device_spec {
+typedef struct uct_urma_device_spec {
     const char                  *name;
-    uct_ub_pci_id_t             pci_id;
+    uct_urma_pci_id_t           pci_id;
     unsigned                    flags;
     uint8_t                     priority;
-} uct_ub_device_spec_t;
+} uct_urma_device_spec_t;
 
 /**
- * ub async event descriptor.
+ * urma async event descriptor.
  */
-typedef struct uct_ub_async_event {
+typedef struct uct_urma_async_event {
     urma_async_event_type_t event_type;             /* Event type */
     union {
         urma_jfc_t *jfc;
@@ -101,17 +101,17 @@ typedef struct uct_ub_async_event {
         uint32_t port_id;
         uint32_t resource_id;
     };
-} uct_ub_async_event_t;
+} uct_urma_async_event_t;
 
 
 /**
- * ub async event waiting context.
+ * urma async event waiting context.
  */
-typedef struct uct_ub_async_event_wait {
+typedef struct uct_urma_async_event_wait {
     ucs_callback_t      cb;                     /* Callback */
     ucs_callbackq_t     *cbq;                   /* Async queue for callback */
     int                 cb_id;                  /* Scheduled callback ID */
-} uct_ub_async_event_wait_t;
+} uct_urma_async_event_wait_t;
 
 typedef struct uct_rm_urma_ep_conn_entry {
     uint64_t   tjfr;
@@ -173,19 +173,19 @@ KHASH_IMPL(uct_rm_urma_link_hash, uct_rm_urma_link_hash_key_t, uct_rm_urma_link_
            uct_rm_urma_link_hash_func, uct_rm_urma_link_hash_equal);
 
 /**
- * ub async event state.
+ * urma async event state.
  */
 typedef struct {
-    unsigned                  flag;             /* Event happened */
-    uct_ub_async_event_wait_t *wait_ctx;        /* Waiting context */
-} uct_ub_async_event_val_t;
+    unsigned                    flag;             /* Event happened */
+    uct_urma_async_event_wait_t *wait_ctx;        /* Waiting context */
+} uct_urma_async_event_val_t;
 
-KHASH_TYPE(uct_ub_async_event, uct_ub_async_event_t, uct_ub_async_event_val_t);
+KHASH_TYPE(uct_urma_async_event, uct_urma_async_event_t, uct_urma_async_event_val_t);
 
 /**
- * ub device (corresponds to HCA)
+ * urma device (corresponds to HCA)
  */
-typedef struct uct_ub_device {
+typedef struct uct_urma_device {
     urma_context_t                     *urma_ctx;       /* Urma context */
     urma_token_t                       token;
     urma_device_attr_t                 dev_attr;        /* Urma dev attr */
@@ -196,56 +196,56 @@ typedef struct uct_ub_device {
     int                                async_events;    /* Whether async events are handled */
     int                                max_zcopy_log_sge; /* Maximum sges log for zcopy am */
     UCS_STATS_NODE_DECLARE(stats)
-    uct_ub_pci_id_t                    pci_id;
+    uct_urma_pci_id_t                  pci_id;
     unsigned                           flags;
     char                               dev_name[UCT_DEVICE_NAME_MAX];
     /* Async event subscrubers */
     ucs_spinlock_t                     async_event_lock;
-    khash_t(uct_ub_async_event)        async_events_hash;
+    khash_t(uct_urma_async_event)      async_events_hash;
     khash_t(uct_rm_urma_ep_conn_hash)  *ep_hash;
     khash_t(uct_rm_urma_link_hash)     *link_hash; /* Avoid repeatedly calling urma_advise_jfr to build a link */
-} uct_ub_device_t;
+} uct_urma_device_t;
 
 /**
  * Check if a port on a device is active and supports the given flags.
  */
-ucs_status_t uct_ub_device_port_check(uct_ub_device_t *dev, uint8_t port_num,
-                                      unsigned flags);
+ucs_status_t uct_urma_device_port_check(uct_urma_device_t *dev, uint8_t port_num,
+                                        unsigned flags);
 
 /*
- * Helper function to list ub transport resources.
+ * Helper function to list urma transport resources.
  *
- * @param dev              ub device.
- * @param flags            Transport requirements from ub device (see UCT_ub_RESOURCE_FLAG_xx)
+ * @param dev              urma device.
+ * @param flags            Transport requirements from urma device (see UCT_urma_RESOURCE_FLAG_xx)
  * @param devices_p        Filled with a pointer to an array of devices.
  * @param num_devices_p    Filled with the number of devices.
  */
-ucs_status_t uct_ub_device_query_ports(uct_ub_device_t *dev, unsigned flags,
-                                       uct_tl_device_resource_t **devices_p,
-                                       unsigned *num_devices_p);
+ucs_status_t uct_urma_device_query_ports(uct_urma_device_t *dev, unsigned flags,
+                                         uct_tl_device_resource_t **devices_p,
+                                         unsigned *num_devices_p);
 
-ucs_status_t uct_ub_device_query(urma_device_t *urma_dev, uct_ub_device_t *dev);
+ucs_status_t uct_urma_device_query(urma_device_t *urma_dev, uct_urma_device_t *dev);
 
-ucs_status_t uct_ub_device_init(uct_ub_device_t *dev, const char *md_name,
-                                int async_events
-                                UCS_STATS_ARG(ucs_stats_node_t *stats_parent));
+ucs_status_t uct_urma_device_init(uct_urma_device_t *dev, const char *md_name,
+                                  int async_events
+                                  UCS_STATS_ARG(ucs_stats_node_t *stats_parent));
 
-void uct_ub_device_cleanup(uct_ub_device_t *dev);
+void uct_urma_device_cleanup(uct_urma_device_t *dev);
 
 
 /**
  * @return device specification.
  */
-const uct_ub_device_spec_t* uct_ub_device_spec(uct_ub_device_t *dev);
+const uct_urma_device_spec_t *uct_urma_device_spec(uct_urma_device_t *dev);
 
-void uct_ub_handle_async_event(uct_ub_device_t *dev, uct_ub_async_event_t *event);
+void uct_urma_handle_async_event(uct_urma_device_t *dev, uct_urma_async_event_t *event);
 
-ucs_status_t uct_ub_device_find_port(uct_ub_device_t *dev, const char *resource_dev_name, uint8_t *p_port_num);
+ucs_status_t uct_urma_device_find_port(uct_urma_device_t *dev, const char *resource_dev_name, uint8_t *p_port_num);
 
-size_t uct_ub_mtu_value(urma_mtu_t mtu);
+size_t uct_urma_mtu_value(urma_mtu_t mtu);
 
-ucs_status_t uct_ub_device_get_ndev_name(uct_ub_device_t *dev, char *ndev_name, size_t max);
+ucs_status_t uct_urma_device_get_ndev_name(uct_urma_device_t *dev, char *ndev_name, size_t max);
 
-sa_family_t uct_ub_device_get_addr_family(urma_eid_t *eid);
+sa_family_t uct_urma_device_get_addr_family(urma_eid_t *eid);
 
 #endif

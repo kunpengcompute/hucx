@@ -380,7 +380,7 @@ ssize_t uct_um_urma_ep_am_bcopy(uct_ep_h tl_ep, uint8_t id, uct_pack_callback_t 
 
     payload_len = pack_cb(skb->neth + 1, arg);
     skb->len = sizeof(skb->neth[0]) + payload_len;
-    UCT_CHECK_LENGTH(skb->len, 0, uct_ub_mtu_value(iface->super.config.mtu), "am_bcopy");
+    UCT_CHECK_LENGTH(skb->len, 0, uct_urma_mtu_value(iface->super.config.mtu), "am_bcopy");
 
     ucs_assert(iface->tx.wr_skb.send.src.num_sge == 1);
 
@@ -423,7 +423,7 @@ static void uct_um_urma_skb_set_zcopy_desc(uct_um_urma_send_skb_t *skb, const uc
 
         um_urma_iov = &zdesc->iov[zdesc->iovcnt++];
         um_urma_iov->buffer = iov[iov_it].buffer;
-        um_urma_iov->tseg = uct_ub_memh_get_tseg(iov[iov_it].memh);
+        um_urma_iov->tseg = uct_urma_memh_get_tseg(iov[iov_it].memh);
         um_urma_iov->length = iov_it_length;
     }
 
@@ -480,7 +480,7 @@ ucs_status_t uct_um_urma_ep_am_zcopy(uct_ep_h tl_ep, uint8_t id, const void *hea
     memcpy(skb->neth + 1, header, header_length);
     skb->len = sizeof(uct_um_urma_neth_t) + header_length;
 
-    iface->tx.wr_skb.send.src.num_sge = uct_ub_sge_fill_iov(iface->tx.sge + 1, iov, iovcnt) + 1;
+    iface->tx.wr_skb.send.src.num_sge = uct_urma_sge_fill_iov(iface->tx.sge + 1, iov, iovcnt) + 1;
 
     uct_um_urma_ep_tx_skb(iface, ep, skb, 0);
     iface->tx.wr_skb.send.src.num_sge = 1;
@@ -618,7 +618,7 @@ ucs_status_t uct_um_urma_ep_get_address(uct_ep_h tl_ep, uct_ep_addr_t *addr)
 {
     uct_um_urma_ep_t *ep = ucs_derived_of(tl_ep, uct_um_urma_ep_t);
     uct_um_urma_iface_t *iface = ucs_derived_of(ep->super.super.super.iface, uct_um_urma_iface_t);
-    uct_ub_um_urma_ep_addr_t *ep_addr = (uct_ub_um_urma_ep_addr_t *)addr;
+    uct_um_urma_ep_addr_t *ep_addr = (uct_um_urma_ep_addr_t *)addr;
 
     ep_addr->iface_addr.jetty_id = iface->um_urma_jetty.jetty->jetty_id.id;
     ep_addr->iface_addr.trans_mode = iface->um_urma_jetty.jetty->jetty_cfg.jfs_cfg.trans_mode;
@@ -669,7 +669,7 @@ static ucs_status_t uct_um_urma_ep_free_by_timeout(uct_um_urma_ep_t *ep,
 static ucs_status_t uct_um_urma_ep_connect_to_iface(uct_um_urma_ep_t *ep)
 {
     uct_um_urma_iface_t *iface = ucs_derived_of(ep->super.super.super.iface, uct_um_urma_iface_t);
-    uct_ub_device_t UCS_V_UNUSED *dev = uct_ub_iface_device(&iface->super);
+    uct_urma_device_t UCS_V_UNUSED *dev = uct_urma_iface_device(&iface->super);
 
     ucs_frag_list_cleanup(&ep->rx.ooo_pkts);
     uct_um_urma_ep_reset(ep);
@@ -690,17 +690,17 @@ static ucs_status_t uct_um_urma_ep_disconnect_from_iface(uct_ep_h tl_ep)
     return UCS_OK;
 }
 
-void uct_um_urma_rjetty_get_peer_address(uct_um_urma_iface_t *iface, const uct_ub_address_t *dev_addr,
+void uct_um_urma_rjetty_get_peer_address(uct_um_urma_iface_t *iface, const uct_urma_address_t *dev_addr,
                                          const uct_um_urma_iface_addr_t *if_addr, void *address_p)
 {
     uct_um_urma_peer_address_t *peer_address = (uct_um_urma_peer_address_t*)address_p;
-    uct_ub_address_pack_params_t ubdev_addr_param = {0};
+    uct_urma_address_pack_params_t urma_dev_addr_param = {0};
     urma_rjetty_t rjetty = {0};
     khiter_t kh_iter;
 
-    uct_ub_address_unpack(dev_addr, &ubdev_addr_param);
-    rjetty.jetty_id.eid   = ubdev_addr_param.eid;
-    rjetty.jetty_id.uasid = ubdev_addr_param.uasid;
+    uct_urma_address_unpack(dev_addr, &urma_dev_addr_param);
+    rjetty.jetty_id.eid   = urma_dev_addr_param.eid;
+    rjetty.jetty_id.uasid = urma_dev_addr_param.uasid;
     rjetty.jetty_id.id    = if_addr->jetty_id;
     rjetty.trans_mode     = if_addr->trans_mode;
     rjetty.type           = URMA_JETTY;
@@ -711,20 +711,20 @@ void uct_um_urma_rjetty_get_peer_address(uct_um_urma_iface_t *iface, const uct_u
     }
 }
 
-ucs_status_t uct_um_urma_iface_unpack_peer_address(uct_um_urma_iface_t *iface, const uct_ub_address_t *dev_addr,
+ucs_status_t uct_um_urma_iface_unpack_peer_address(uct_um_urma_iface_t *iface, const uct_urma_address_t *dev_addr,
                                                    const uct_um_urma_iface_addr_t *if_addr, void *address_p)
 {
     uct_um_urma_peer_address_t *peer_address = (uct_um_urma_peer_address_t*)address_p;
-    uct_ub_address_pack_params_t ubdev_addr_param = {0};
-    uct_ub_md_t *ub_md = uct_ub_iface_md(&iface->super);
+    uct_urma_address_pack_params_t urma_dev_addr_param = {0};
+    uct_urma_md_t *urma_md = uct_urma_iface_md(&iface->super);
     urma_rjetty_t rjetty = {0};
     urma_token_t token = {0};
     khiter_t kh_iter;
     int kh_ret;
 
-    uct_ub_address_unpack(dev_addr, &ubdev_addr_param);
-    rjetty.jetty_id.eid   = ubdev_addr_param.eid;
-    rjetty.jetty_id.uasid = ubdev_addr_param.uasid;
+    uct_urma_address_unpack(dev_addr, &urma_dev_addr_param);
+    rjetty.jetty_id.eid   = urma_dev_addr_param.eid;
+    rjetty.jetty_id.uasid = urma_dev_addr_param.uasid;
     rjetty.jetty_id.id    = if_addr->jetty_id;
     rjetty.trans_mode     = if_addr->trans_mode;
     rjetty.type           = URMA_JETTY;
@@ -738,9 +738,9 @@ ucs_status_t uct_um_urma_iface_unpack_peer_address(uct_um_urma_iface_t *iface, c
             return UCS_ERR_NO_MEMORY;
         }
 
-        token.token = ub_md->dev.token.token;
+        token.token = urma_md->dev.token.token;
         peer_address->tjetty_id = if_addr->jetty_id;
-        peer_address->tjetty = urma_import_jetty(ub_md->dev.urma_ctx, &rjetty, &token);
+        peer_address->tjetty = urma_import_jetty(urma_md->dev.urma_ctx, &rjetty, &token);
         if (peer_address->tjetty == NULL) {
             ucs_error("Failed to urma_import_jetty, eid="EID_FMT", uasid=%u, jetty_id=%u.",
                       EID_ARGS(rjetty.jetty_id.eid), rjetty.jetty_id.uasid, rjetty.jetty_id.id);
@@ -784,7 +784,7 @@ static uct_um_urma_ep_t *uct_um_urma_ep_create_passive(uct_um_urma_iface_t *ifac
 static void uct_um_urma_ep_set_dest_ep_id(uct_um_urma_ep_t *ep, uint32_t dest_id)
 {
     ucs_assert(dest_id != UCT_UM_URMA_EP_NULL_ID);
-    if (dest_id >= UCT_UB_IFACE_MAX_EPS) {
+    if (dest_id >= UCT_URMA_IFACE_MAX_EPS) {
         ucs_fatal("Invalid dest ep_id:%u received", dest_id);
     }
     ep->super.dep_id = dest_id;
@@ -794,8 +794,8 @@ static void uct_um_urma_ep_set_dest_ep_id(uct_um_urma_ep_t *ep, uint32_t dest_id
 uct_um_urma_send_skb_t *uct_um_urma_ep_prepare_creq(uct_um_urma_ep_t *ep)
 {
     uct_um_urma_iface_t *iface = ucs_derived_of(ep->super.super.super.iface, uct_um_urma_iface_t);
-    uct_ub_address_pack_params_t ubdev_addr_param = {0};
-    const uct_ub_address_t *ub_addr = NULL;
+    uct_urma_address_pack_params_t urma_dev_addr_param = {0};
+    const uct_urma_address_t *urma_addr = NULL;
     uct_um_urma_send_skb_t *skb = NULL;
     uct_um_urma_ctl_hdr_t *creq = NULL;
     uct_um_urma_neth_t *neth = NULL;
@@ -822,10 +822,10 @@ uct_um_urma_send_skb_t *uct_um_urma_ep_prepare_creq(uct_um_urma_ep_t *ep)
     uct_um_urma_peer_name(ucs_unaligned_ptr(&creq->peer));
 
     addr = (uct_device_addr_t *)uct_um_urma_creq_ub_addr(creq);
-    uct_ub_iface_get_device_address(&iface->super.super.super, addr);
+    uct_urma_iface_get_device_address(&iface->super.super.super, addr);
 
-    ub_addr = (const uct_ub_address_t *)addr;
-    uct_ub_address_unpack(ub_addr, &ubdev_addr_param);
+    urma_addr = (const uct_urma_address_t *)addr;
+    uct_urma_address_unpack(urma_addr, &urma_dev_addr_param);
 
     skb->len = sizeof(*neth) + sizeof(*creq) + iface->super.addr_size;
 
@@ -895,14 +895,14 @@ static void uct_um_urma_ep_send_creq_crep(uct_um_urma_iface_t *iface, uct_um_urm
 
 void uct_um_urma_ep_deal_creq(uct_um_urma_iface_t *iface, uct_um_urma_neth_t *neth)
 {
-    uct_ub_address_pack_params_t ubdev_addr_param = {0};
+    uct_urma_address_pack_params_t urma_dev_addr_param = {0};
     uct_um_urma_ctl_hdr_t *creq = NULL;
-    uct_ub_address_t *addr = NULL;
+    uct_urma_address_t *addr = NULL;
     uct_um_urma_ep_t *ep = NULL;
 
     creq = (uct_um_urma_ctl_hdr_t *)(neth + 1);
-    addr = (uct_ub_address_t *)(creq + 1);
-    uct_ub_address_unpack(addr, &ubdev_addr_param);
+    addr = (uct_urma_address_t *)(creq + 1);
+    uct_urma_address_unpack(addr, &urma_dev_addr_param);
 
     ucs_assert_always(creq->type == UCT_UM_URMA_PACKET_CREQ);
 
@@ -962,7 +962,7 @@ void uct_um_urma_ep_deal_crep(uct_um_urma_iface_t *iface, uct_um_urma_ep_t *ep, 
 }
 
 void uct_um_urma_ep_deal_am(uct_um_urma_iface_t *iface, uct_um_urma_neth_t *neth,
-                            unsigned byte_len, uct_ub_iface_recv_desc_t *desc)
+                            unsigned byte_len, uct_urma_iface_recv_desc_t *desc)
 {
     uint32_t am_id = neth->packet_type >> UCT_UM_URMA_PACKET_AM_ID_SHIFT;
     void *udesc = (char*)desc + iface->super.config.rx_headroom_offset;
@@ -1276,7 +1276,7 @@ ucs_status_t uct_um_urma_ep_create_connected_common(const uct_ep_params_t *ep_pa
     uct_um_urma_iface_t *iface = ucs_derived_of(ep_params->iface, uct_um_urma_iface_t);
     const uct_um_urma_iface_addr_t *if_addr = NULL;
     uct_um_urma_peer_address_t address_p = {0};
-    const uct_ub_address_t *dev_addr = NULL;
+    const uct_urma_address_t *dev_addr = NULL;
     uct_um_urma_send_skb_t *skb = NULL;
     uct_um_urma_ep_conn_sn_t conn_sn;
     uct_ep_params_t params = {};
@@ -1288,7 +1288,7 @@ ucs_status_t uct_um_urma_ep_create_connected_common(const uct_ep_params_t *ep_pa
     uct_um_urma_enter(iface);
 
     UCT_EP_PARAMS_CHECK_DEV_IFACE_ADDRS(ep_params);
-    dev_addr = (const uct_ub_address_t *)ep_params->dev_addr;
+    dev_addr = (const uct_urma_address_t *)ep_params->dev_addr;
     if_addr = (const uct_um_urma_iface_addr_t *)ep_params->iface_addr;
 
     *new_ep_p = NULL;
@@ -1370,8 +1370,8 @@ ucs_status_t uct_um_urma_ep_connect_to_ep(uct_ep_h tl_ep, const uct_device_addr_
 {
     uct_um_urma_ep_t *ep = ucs_derived_of(tl_ep, uct_um_urma_ep_t);
     uct_um_urma_iface_t *iface = ucs_derived_of(ep->super.super.super.iface, uct_um_urma_iface_t);
-    const uct_ub_um_urma_ep_addr_t *ep_addr = (const uct_ub_um_urma_ep_addr_t*)uct_ep_addr;
-    const uct_ub_address_t *ub_addr = (const uct_ub_address_t*)dev_addr;
+    const uct_um_urma_ep_addr_t *ep_addr = (const uct_um_urma_ep_addr_t*)uct_ep_addr;
+    const uct_urma_address_t *urma_addr = (const uct_urma_address_t*)dev_addr;
 
     ucs_assert_always(ep->super.dep_id == UCT_UM_URMA_EP_NULL_ID);
     ucs_trace_func("");
@@ -1381,7 +1381,7 @@ ucs_status_t uct_um_urma_ep_connect_to_ep(uct_ep_h tl_ep, const uct_device_addr_
     ucs_frag_list_cleanup(&ep->rx.ooo_pkts);
     uct_um_urma_ep_reset(ep);
 
-    return uct_um_urma_iface_unpack_peer_address(iface, ub_addr, &ep_addr->iface_addr, (void *)&ep->peer_address);
+    return uct_um_urma_iface_unpack_peer_address(iface, urma_addr, &ep_addr->iface_addr, (void *)&ep->peer_address);
 }
 
 ucs_status_t uct_um_urma_ep_connect_to_ep_v2(uct_ep_h tl_ep, const uct_device_addr_t *dev_addr,
@@ -1792,7 +1792,7 @@ UCS_CLASS_INIT_FUNC(uct_um_urma_ep_t, const uct_ep_params_t *params)
     uct_um_urma_iface_t *iface = ucs_derived_of(params->iface, uct_um_urma_iface_t);
 
     memset(self, 0, sizeof(*self));
-    UCS_CLASS_CALL_SUPER_INIT(uct_ub_ep_t, &iface->super);
+    UCS_CLASS_CALL_SUPER_INIT(uct_urma_ep_t, &iface->super);
 
     uct_um_urma_enter(iface);
 
@@ -1860,6 +1860,6 @@ static UCS_CLASS_CLEANUP_FUNC(uct_um_urma_ep_t)
     uct_um_urma_leave(iface);
 }
 
-UCS_CLASS_DEFINE(uct_um_urma_ep_t, uct_ub_ep_t);
+UCS_CLASS_DEFINE(uct_um_urma_ep_t, uct_urma_ep_t);
 UCS_CLASS_DEFINE_NEW_FUNC(uct_um_urma_ep_t, uct_ep_t, const uct_ep_params_t *);
 UCS_CLASS_DEFINE_DELETE_FUNC(uct_um_urma_ep_t, uct_ep_t);
