@@ -45,7 +45,7 @@ typedef struct uct_rc_urma_pending_req {
 struct uct_rc_urma_iface {
     uct_urma_iface_t             super;
     ucs_callback_t             progress;
-    uct_ub_iface_send_desc_t   *fc_desc; /* used when max_inline is zero */
+    uct_urma_iface_send_desc_t   *fc_desc; /* used when max_inline is zero */
     struct {
         /* Threshold to send "soft" FC credit request. The peer will try to
          * piggy-back credits grant to the counter AM, if any. */
