@@ -190,9 +190,7 @@ ucs_status_t uct_urma_md_open_common(uct_urma_md_t *md,
 ucs_status_t uct_urma_verbs_md_open(urma_device_t *urma_dev,
                                     const uct_urma_md_config_t *md_config,
                                     uct_urma_md_t **p_md);
-void uct_urma_md_close_common(uct_urma_md_t *md,
-                              urma_device_t *urma_dev,
-                              const uct_urma_md_config_t *md_config);
+void uct_urma_md_close_common(uct_urma_md_t *md);
 void uct_urma_md_close(uct_md_h uct_md);
 void uct_urma_md_cleanup(uct_urma_md_t *md);
 bool uct_check_ip_valid(urma_device_t *urma_dev, uint32_t eid_index);

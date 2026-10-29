@@ -279,8 +279,21 @@ static ucs_status_t uct_urma_md_reg_seg(uct_urma_md_t *md, void *address, size_t
     return UCS_OK;
 }
 
+static void uct_urma_mem_reg_params_to_internal(const uct_md_mem_reg_params_t *params,
+                                                uct_urma_mem_reg_internal_params_t *reg_params)
+{
+    reg_params->flags         = UCT_MD_MEM_REG_FIELD_VALUE(params, flags,
+                                                           FIELD_FLAGS, 0);
+    reg_params->dmabuf_fd     = UCS_PARAM_VALUE(UCT_MD_MEM_REG_FIELD, params,
+                                                dmabuf_fd, DMABUF_FD,
+                                                UCT_DMABUF_FD_INVALID);
+    reg_params->dmabuf_offset = UCS_PARAM_VALUE(UCT_MD_MEM_REG_FIELD, params,
+                                                dmabuf_offset, DMABUF_OFFSET,
+                                                0);
+}
+
 static ucs_status_t uct_urma_mem_reg_internal(uct_md_h uct_md, void *address, size_t length,
-                                              const uct_md_mem_reg_params_t *params,
+                                              const uct_urma_mem_reg_internal_params_t *params,
                                               uct_urma_mem_t *memh)
 {
     uct_urma_md_t *md = ucs_derived_of(uct_md, uct_urma_md_t);
@@ -296,7 +309,7 @@ static ucs_status_t uct_urma_mem_reg_internal(uct_md_h uct_md, void *address, si
         return status;
     }
 
-    ucs_debug("Registered memory on %s urma_flag 0x%x flags 0x%lx",
+    ucs_debug("Registered memory on %s urma_flag 0x%x flags 0x%x",
               md->dev.dev_name, urma_flag.value, params->flags);
 
     UCS_STATS_UPDATE_COUNTER(md->stats, UCT_URMA_MD_STAT_MEM_REG, +1);
@@ -307,6 +320,7 @@ static ucs_status_t uct_urma_mem_reg(uct_md_h uct_md, void *address, size_t leng
                                      const uct_md_mem_reg_params_t *params, uct_mem_h *memh_p)
 {
     uct_urma_md_t *md = ucs_derived_of(uct_md, uct_urma_md_t);
+    uct_urma_mem_reg_internal_params_t reg_params;
     uct_urma_mem_t *memh = NULL;
     ucs_status_t status;
 
@@ -315,13 +329,15 @@ static ucs_status_t uct_urma_mem_reg(uct_md_h uct_md, void *address, size_t leng
         return UCS_ERR_INVALID_PARAM;
     }
 
+    uct_urma_mem_reg_params_to_internal(params, &reg_params);
+
     memh = uct_urma_memh_alloc(md);
     if (memh == NULL) {
         uct_md_log_mem_reg_error(params->flags, "Md failed to allocate memory handle");
         return UCS_ERR_NO_MEMORY;
     }
 
-    status = uct_urma_mem_reg_internal(uct_md, address, length, params, memh);
+    status = uct_urma_mem_reg_internal(uct_md, address, length, &reg_params, memh);
     if (status != UCS_OK) {
         uct_urma_memh_free(memh);
         return status;
@@ -482,19 +498,6 @@ static uct_md_ops_t uct_urma_md_ops = {
     .detect_memory_type = ucs_empty_function_return_unsupported,
 };
 
-static void uct_urma_mem_reg_params_to_internal(const uct_md_mem_reg_params_t *params,
-                                                uct_urma_mem_reg_internal_params_t *reg_params)
-{
-    reg_params->flags         = UCT_MD_MEM_REG_FIELD_VALUE(params, flags,
-                                                           FIELD_FLAGS, 0);
-    reg_params->dmabuf_fd     = UCS_PARAM_VALUE(UCT_MD_MEM_REG_FIELD, params,
-                                                dmabuf_fd, DMABUF_FD,
-                                                UCT_DMABUF_FD_INVALID);
-    reg_params->dmabuf_offset = UCS_PARAM_VALUE(UCT_MD_MEM_REG_FIELD, params,
-                                                dmabuf_offset, DMABUF_OFFSET,
-                                                0);
-}
-
 static inline uct_urma_rcache_region_t *uct_urma_rcache_region_from_memh(uct_mem_h memh)
 {
     return ucs_container_of(memh, uct_urma_rcache_region_t, memh);
@@ -568,7 +571,7 @@ static ucs_status_t uct_urma_rcache_mem_reg_cb(void *context, ucs_rcache_t *rcac
 {
     uct_urma_md_t *md = context;
     uct_urma_rcache_region_t *region = ucs_derived_of(rregion, uct_urma_rcache_region_t);
-    const uct_md_mem_reg_params_t *reg_params = arg;
+    const uct_urma_mem_reg_internal_params_t *reg_params = arg;
 
     return uct_urma_mem_reg_internal(&md->super, (void*)region->super.super.start,
                                      region->super.super.end - region->super.super.start,
@@ -893,7 +896,7 @@ err:
     return status;
 }
 
-void uct_urma_md_close_common(uct_urma_md_t *md, urma_device_t *urma_dev, const uct_urma_md_config_t *md_config)
+void uct_urma_md_close_common(uct_urma_md_t *md)
 {
     uct_urma_device_t *ub_dev = NULL;
 
@@ -986,15 +989,11 @@ void uct_urma_md_close(uct_md_h uct_md)
     uct_urma_md_t *md = ucs_derived_of(uct_md, uct_urma_md_t);
 
     md->ops->cleanup(md);
-    uct_urma_device_cleanup(&md->dev);
-    uct_urma_md_release_device_config(md);
-    UCS_STATS_NODE_FREE(md->stats);
-    urma_delete_context(md->dev.urma_ctx);
-    ucs_free(md);
 }
 
 void uct_urma_md_cleanup(uct_urma_md_t *md)
 {
+    uct_urma_md_close_common(md);
     if (md->rcache != NULL) {
         ucs_rcache_destroy(md->rcache);
     }
@@ -1003,7 +1002,7 @@ void uct_urma_md_cleanup(uct_urma_md_t *md)
 
 static uct_urma_md_ops_t uct_urma_verbs_md_ops = {
     .open                = uct_urma_verbs_md_open,
-    .cleanup             = (uct_urma_md_cleanup_func_t)ucs_empty_function,
+    .cleanup             = uct_urma_md_cleanup,
 };
 
 UCT_URMA_MD_OPS(uct_urma_verbs_md_ops, 0);
@@ -1028,12 +1027,14 @@ ucs_status_t uct_urma_verbs_md_open(urma_device_t *urma_dev,
 
     status = uct_urma_md_parse_reg_methods(md, md_config);
     if (status != UCS_OK) {
-        goto err;
+        goto err_md_close_common;
     }
 
     *p_md = md;
     return UCS_OK;
 
+err_md_close_common:
+    uct_urma_md_close_common(md);
 err:
     ucs_free(md);
     return status;
@@ -1053,9 +1054,6 @@ ucs_status_t uct_urma_md_parse_reg_methods(uct_urma_md_t *md,
                                                md->memh_struct_size;
             rcache_params.max_alignment      = ucs_get_page_size();
             rcache_params.ucm_events         = UCM_EVENT_VM_UNMAPPED;
-            if (md->reg_mem_types & ~UCS_BIT(UCS_MEMORY_TYPE_HOST)) {
-                rcache_params.ucm_events    |= UCM_EVENT_MEM_TYPE_FREE;
-            }
             rcache_params.context            = md;
             rcache_params.ops                = &uct_urma_rcache_ops;
 
@@ -1071,6 +1069,9 @@ ucs_status_t uct_urma_md_parse_reg_methods(uct_urma_md_t *md,
             md->super.ops = &uct_urma_md_rcache_ops;
             md->reg_cost  = ucs_linear_func_make(uct_md_rcache_overhead(&md_config->rcache), 0);
             ucs_debug("%s: using registration cache", md->dev.dev_name);
+            return UCS_OK;
+        } else if (!strcmp(md_config->reg_methods.rmtd[i], "odp")) {
+            ucs_debug("%s: using odp registration", md->dev.dev_name);
             return UCS_OK;
         } else if (!strcmp(md_config->reg_methods.rmtd[i], "direct")) {
             md->super.ops = &uct_urma_md_ops;
