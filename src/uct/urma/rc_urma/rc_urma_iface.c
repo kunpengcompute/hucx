@@ -204,7 +204,7 @@ static void uct_rc_urma_handle_failure(uct_urma_iface_t *urma_iface, urma_cr_t *
     status  = uct_iface_handle_ep_err(&iface->super.super.super,
                                       &ep->super.super.super, ep_status);
     log_lvl = uct_urma_iface_failure_log_level(&iface->super.super, status,
-                                             ep_status);
+                                               ep_status);
 
     ucs_log(log_lvl, "Send completion with error: %u", cr->status);
 }

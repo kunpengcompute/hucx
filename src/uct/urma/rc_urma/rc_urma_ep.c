@@ -868,8 +868,8 @@ ucs_status_t uct_rc_urma_ep_fc_grant(uct_pending_req_t *self)
     return status;
 }
 
-ucs_status_t uct_rc_urma_ep_post_flush_size_zero_bytes(uct_rc_urma_iface_t *iface, uct_rc_urma_ep_t *ep, const void *payload,
-                                                 unsigned length, uint64_t remote_addr)
+ucs_status_t uct_rc_urma_ep_post_flush_size_zero_bytes(uct_rc_urma_iface_t *iface, uct_rc_urma_ep_t *ep,
+                                                       const void *payload, unsigned length, uint64_t remote_addr)
 {
     urma_jetty_t *jetty = ep->rc_urma_jetty.jetty;
     urma_jfs_wr_t *wr = &(iface->super.send_wr);
@@ -888,7 +888,8 @@ ucs_status_t uct_rc_urma_ep_post_flush_size_zero_bytes(uct_rc_urma_iface_t *ifac
     urma_status = urma_post_jetty_send_wr(jetty, wr, &bad_wr);
     if (urma_status != URMA_SUCCESS) {
         (void)memset(wr, 0, sizeof(urma_jfs_wr_t));
-        ucs_fatal("In function uct_rc_urma_ep_post_flush_size_zero_bytes, urma_post_jetty_send_wr() failed code(0x%x)", urma_status);
+        ucs_fatal("In function uct_rc_urma_ep_post_flush_size_zero_bytes, urma_post_jetty_send_wr() failed code(0x%x)",
+                  urma_status);
     }
 
     uct_rc_urma_update_tx_resources_status(ep, iface, wr->flag.bs.complete_enable);

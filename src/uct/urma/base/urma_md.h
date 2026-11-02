@@ -54,6 +54,7 @@ typedef struct uct_urma_rkey_info {
 
 typedef struct uct_urma_md {
     uct_md_t                   super;
+    ucs_rcache_t               *rcache;   /**< Registration cache (can be NULL) */
     uct_urma_device_t          dev;       /**< URMA device */
     ucs_linear_func_t          reg_cost;  /**< Memory registration cost */
     struct uct_urma_md_ops     *ops;
@@ -72,6 +73,7 @@ typedef struct uct_urma_md_config {
 
     /** List of registration methods in order of preference */
     UCS_CONFIG_STRING_ARRAY_FIELD(rmtd) reg_methods;
+    uct_md_rcache_config_t   rcache;    /**< Registration cache config */
     ucs_linear_func_t        reg_cost;  /* Memory registration cost estimation without using the cache */
     int                      async_events; /* Whether async events should be delivered */
     UCS_CONFIG_STRING_ARRAY_FIELD(spec) custom_devices; /* Custom device specifications */
@@ -116,6 +118,14 @@ typedef struct uct_urma_md_ops {
     uct_urma_md_open_func_t                open;
     uct_urma_md_cleanup_func_t             cleanup;
 } uct_urma_md_ops_t;
+
+/**
+ * URMA memory region in the registration cache.
+ */
+typedef struct uct_urma_rcache_region {
+    ucs_rcache_region_t super;
+    uct_urma_mem_t      memh;         /**< mr exposed to the user as the memh */
+} uct_urma_rcache_region_t;
 
 typedef struct uct_urma_md_ops_entry {
     ucs_list_link_t             list;
@@ -171,6 +181,8 @@ ucs_status_t get_uct_urma_status(urma_status_t urma_status);
 ucs_status_t uct_urma_md_open(uct_component_t *component, const char *md_name,
                               const uct_md_config_t *uct_md_config, uct_md_h *md_p);
 
+ucs_status_t uct_urma_md_parse_reg_methods(uct_urma_md_t *md, const uct_urma_md_config_t *md_config);
+
 ucs_status_t uct_urma_md_open_common(uct_urma_md_t *md,
                                      urma_device_t *urma_dev,
                                      const uct_urma_md_config_t *md_config);
@@ -178,10 +190,9 @@ ucs_status_t uct_urma_md_open_common(uct_urma_md_t *md,
 ucs_status_t uct_urma_verbs_md_open(urma_device_t *urma_dev,
                                     const uct_urma_md_config_t *md_config,
                                     uct_urma_md_t **p_md);
-void uct_urma_md_close_common(uct_urma_md_t *md,
-                              urma_device_t *urma_dev,
-                              const uct_urma_md_config_t *md_config);
+void uct_urma_md_close_common(uct_urma_md_t *md);
 void uct_urma_md_close(uct_md_h uct_md);
+void uct_urma_md_cleanup(uct_urma_md_t *md);
 bool uct_check_ip_valid(urma_device_t *urma_dev, uint32_t eid_index);
 
 #endif
