@@ -423,7 +423,7 @@ ucs_status_t uct_urma_device_port_check(uct_urma_device_t *dev, uint8_t port_num
     /* check dev port state */
     if (dev->dev_attr.port_attr[port_num - dev->first_port].state != expected_state) {
         ucs_trace("%s:%d is not active (state: %d)", dev->dev_name,
-                  port_num , dev->dev_attr.port_attr[port_num].state);
+                  port_num , dev->dev_attr.port_attr[port_num - dev->first_port].state);
         return UCS_ERR_UNREACHABLE;
     }
 
