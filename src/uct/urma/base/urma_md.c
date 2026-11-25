@@ -745,6 +745,8 @@ static ucs_status_t uct_urma_md_parse_device_config(uct_urma_md_t *md, const uct
         }
 
         spec->flags = 0; // TODO: get urma flags by abbreviations
+        free(flags_str);
+        flags_str = NULL;
 
         ucs_trace("Added device '%s' vendor_id 0x%x device_id %d flags %u prio %d",
                   spec->name, spec->pci_id.vendor, spec->pci_id.device, spec->flags, spec->priority);
